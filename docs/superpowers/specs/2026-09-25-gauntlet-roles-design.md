@@ -523,9 +523,10 @@ QA          artifact: pending  gate: not run
     this keeps an artifact that renders `stale` from pairing with a `pass`
     from before the change;
   - gate display collapses required checks as: `fail` if any required check
-    failed, else `exempt` if any required check is bootstrap-exempt (§9.2),
-    else `pass`; `not_applicable` for stages outside `requiredStages` (§9.3),
-    `not run` when the report has no entry (pending).
+    failed or was skipped without an exemption, else `exempt` if any required
+    check is bootstrap-exempt (§9.2), else `pass`; `not_applicable` for stages
+    outside `requiredStages` (§9.3), `not run` when the report has no entry
+    (pending).
 - `EXPERTISE` block — required packs listed as paths to read; optional packs
   listed as pointers only (progressive disclosure, no inlining).
 
