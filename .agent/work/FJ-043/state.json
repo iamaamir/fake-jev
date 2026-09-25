@@ -1,0 +1,48 @@
+{
+  "id": "FJ-043",
+  "title": "Gauntlet: stage packs, expertise packs, fingerprint-bound evidence",
+  "phase": "foundation",
+  "objective": "Implement the frozen gauntlet design (docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md): shared fingerprint tooling, role/expertise packs with schemas, four-valued verification with gate-policy exemptions, evidence-chain enforcement, agent-context gauntlet view, and the full §12 self-test battery.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": [
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md"
+  ],
+  "relevantFiles": [
+    "scripts/verify-candidate",
+    "scripts/agent-context",
+    "docs/development/agent-workflow.md",
+    ".agent/README.md"
+  ],
+  "allowedFiles": [
+    "scripts/",
+    "docs/",
+    ".agent/",
+    "AGENTS.md"
+  ],
+  "acceptance": [
+    "docs/agents/README.md records the §2 authority hierarchy and the advisory MUST-NOT rule",
+    "scripts/candidate-fingerprint produces deterministic candidate and task digests offline; the candidate digest excludes .agent/work, .agent/reports, .agent/logs and .scratch",
+    "./scripts/selftest exits 0 with every §12 matrix row covered",
+    "./scripts/verify-candidate exits 0 task-less and for FJ-PRD-001 and FJ-043",
+    "gate-policy.json carries exactly the four v1 exemptions, each tracked by an existing non-complete work item",
+    "deliberately staged candidate-stale and task-stale runs fail with stage.evidence_stale and recover after restore"
+  ],
+  "nonGoals": [
+    "No workflow engine, no new status vocabulary, no stage history database (design §14)",
+    "No product Go code, no harness-specific files, no generated persona prompts",
+    "No jsonschema dependency: schemas are contracts, the validator enforces them directly"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "Execute docs/superpowers/plans/2026-09-25-gauntlet.md task by task.",
+  "notes": [
+    "Umbrella item for the gauntlet rollout; its stage artifacts are recorded retroactively at the end of the plan (see plan task 11, design interpretation note 13).",
+    "Lifecycle condensed to ready -> review because the stages were executed as this plan's documentation and tooling work; there is no workflow engine enforcing transitions."
+  ]
+}

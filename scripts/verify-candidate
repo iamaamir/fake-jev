@@ -167,7 +167,8 @@ check_required_files() {
   for f in README.md AGENTS.md .gitignore spec/README.md \
            spec/fake-jev-technical-spec-v2.md docs/development/agent-workflow.md \
            docs/adr/README.md .agent/README.md \
-           scripts/agent-context scripts/verify-candidate; do
+           scripts/agent-context scripts/verify-candidate \
+           scripts/candidate-fingerprint scripts/selftest; do
     if [ ! -f "$f" ]; then
       echo "missing: $f"
       missing=1
@@ -179,7 +180,8 @@ run_check "required repository files exist" check_required_files
 
 check_scripts_executable() {
   local missing=0 s
-  for s in scripts/agent-context scripts/verify-candidate; do
+  for s in scripts/agent-context scripts/verify-candidate \
+           scripts/candidate-fingerprint scripts/selftest; do
     if [ ! -x "$s" ]; then
       echo "not executable: $s"
       missing=1

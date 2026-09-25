@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+"""selftest — scenario suite for the gauntlet tooling (design §12).
+
+usage: scripts/selftest [substring-filter ...]
+
+Builds fixture repositories in temp directories (never modifies this
+repository), runs the real scripts against them, and asserts results.
+Each filter selects scenarios whose name contains it (OR semantics).
+Offline: no network, no sleeps. Exit 0 iff every selected scenario passes.
+"""
+
+import hashlib
+import json
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+import traceback
+
+REAL = pathlib.Path(__file__).resolve().parent.parent
+SCENARIOS = []
+_PRISTINE = None
+_PRISTINE_DIR = None
+
+COPY_FILES = ["scripts/verify-candidate", "scripts/agent-context",
+              "scripts/candidate-fingerprint", "README.md", "AGENTS.md", ".gitignore"]
+COPY_DIRS = ["docs", "spec"]
+
+
+def scenario(name):
+    def decorate(fn):
+        SCENARIOS.append((name, fn))
+        return fn
+    return decorate
+
+
+def sh(cmd, cwd, env=None, check=True):
+    merged = dict(os.environ)
+    merged.update(env or {})
+    proc = subprocess.run(cmd, shell=True, cwd=str(cwd), env=merged,
+                          capture_output=True, text=True)
+    if check and proc.returncode != 0:
+        raise AssertionError("command failed (%d): %s\n%s\n%s"
+                             % (proc.returncode, cmd, proc.stdout, proc.stderr))
+    return proc
+
+
+def git_commit(root):
+    sh("git -c user.email=selftest@example -c user.name=selftest "
+       "commit -qm fixture", root)
+
+
+def git_init(root):
+    sh("git init -q", root)
+    sh("git add -A", root)
+    git_commit(root)
+
+
+def build_pristine(directory):
+    """One-time copy of the real repository's tooling + docs into a temp git repo."""
+    root = pathlib.Path(directory) / "pristine"
+    root.mkdir(parents=True)
+    for rel in COPY_FILES:
+        shutil.copy2(REAL / rel, root / rel)
+    for rel in COPY_DIRS:
+        shutil.copytree(REAL / rel, root / rel, symlinks=True)
+    (root / ".agent").mkdir()
+    shutil.copy2(REAL / ".agent" / "README.md", root / ".agent" / "README.md")
+    if (REAL / ".agent" / "schema").is_dir():
+        shutil.copytree(REAL / ".agent" / "schema", root / ".agent" / "schema")
+    if (REAL / ".agent" / "gate-policy.json").is_file():
+        shutil.copy2(REAL / ".agent" / "gate-policy.json",
+                     root / ".agent" / "gate-policy.json")
+    git_init(root)
+    return root
+
+
+def pristine():
+    global _PRISTINE, _PRISTINE_DIR
+    if _PRISTINE is None:
+        _PRISTINE_DIR = tempfile.TemporaryDirectory(prefix="gauntlet-selftest-")
+        _PRISTINE = build_pristine(_PRISTINE_DIR.name)
+    return _PRISTINE
+
+
+def fixture(name, items=None, mutate=None):
+    """Fresh copy of the pristine fixture plus optional work items/mutations."""
+    root = pathlib.Path(tempfile.mkdtemp(prefix="st-%s-" % name))
+    dest = root / "repo"
+    shutil.copytree(pristine(), dest, symlinks=True)
+    for task_id, state in (items or {}).items():
+        work = dest / ".agent" / "work" / task_id
+        work.mkdir(parents=True)
+        (work / "state.json").write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if mutate:
+        mutate(dest)
+    return dest
+
+
+def run_verify(repo, task=None, env=None):
+    if task:
+        shutil.rmtree(repo / ".agent" / "reports" / task, ignore_errors=True)
+    cmd = "./scripts/verify-candidate" + (" %s" % task if task else "")
+    proc = sh(cmd, repo, env=env, check=False)
+    report = None
+    if task:
+        reports = sorted((repo / ".agent" / "reports" / task).glob("report-*.json"))
+        if reports:
+            report = json.loads(reports[-1].read_text(encoding="utf-8"))
+    return proc, report
+
+
+def fingerprint_script(cwd):
+    """The scenario cwd may be a bare tree (Task 1 scenarios) without a
+    scripts/ copy: fall back to the real repository's script."""
+    if (pathlib.Path(cwd) / "scripts" / "candidate-fingerprint").exists():
+        return "./scripts/candidate-fingerprint"
+    return str(REAL / "scripts" / "candidate-fingerprint")
+
+
+def candidate_fp(repo, root=None):
+    proc = sh("%s candidate%s"
+              % (fingerprint_script(repo), " " + str(root) if root else ""), repo)
+    return proc.stdout.strip()
+
+
+def task_fp(state, tmpdir):
+    path = pathlib.Path(tmpdir) / "state.json"
+    path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    proc = sh("%s task %s" % (fingerprint_script(tmpdir), path),
+              pathlib.Path(tmpdir))
+    return json.loads(proc.stdout)
+
+
+def rows(report, name):
+    found = [c for c in report["checks"] if c["name"] == name]
+    if not found:
+        raise AssertionError("no check named %r; have: %s"
+                             % (name, sorted({c["name"] for c in report["checks"]})))
+    return found[0]
+
+
+def expect(report, name, *, code=None, result=None, required=None, gate=None):
+    row = rows(report, name)
+    for key, want in (("code", code), ("result", result),
+                      ("required", required), ("gate", gate)):
+        if want is not None and row.get(key) != want:
+            raise AssertionError("%s: %s=%r, want %r (row: %s)"
+                                 % (name, key, row.get(key), want, row))
+    return row
+
+
+def assert_exit(proc, want_zero, context=""):
+    got_zero = proc.returncode == 0
+    if got_zero != want_zero:
+        raise AssertionError("%sexit %d, want zero=%s\n%s"
+                             % (context, proc.returncode, want_zero, proc.stdout))
+
+
+def base_item(task_id="FJ-900", **overrides):
+    """Minimal valid work item; override any field per scenario."""
+    state = {
+        "id": task_id,
+        "title": "Selftest item",
+        "phase": "foundation",
+        "objective": "Fixture objective",
+        "status": "ready",
+        "baseRevision": None,
+        "candidateRevision": None,
+        "assignedRole": None,
+        "leaseOwner": None,
+        "attempts": 0,
+        "specReferences": [],
+        "relevantFiles": [],
+        "allowedFiles": ["docs/example.md"],
+        "acceptance": ["selftest"],
+        "nonGoals": [],
+        "verificationCommands": [],
+        "lastVerification": None,
+        "blockers": [],
+        "nextAction": "none",
+        "notes": [],
+    }
+    state.update(overrides)
+    return state
+
+
+def write_artifact(repo, task_id, stage, inp, out, tfp, body="staged evidence",
+                   header=None, git_head="0000000"):
+    front = header if header is not None else (
+        "---\n"
+        "stage: %s\n"
+        "task: %s\n"
+        "inputFingerprint: %s\n"
+        "outputFingerprint: %s\n"
+        "taskFingerprint: %s\n"
+        "gitHead: %s\n"
+        "generatedAt: 2026-09-25T00:00:00Z\n"
+        "---\n" % (stage, task_id, inp, out, tfp, git_head))
+    work = repo / ".agent" / "work" / task_id
+    work.mkdir(parents=True, exist_ok=True)
+    (work / ("%s.md" % stage)).write_text(front + "\n" + body + "\n",
+                                          encoding="utf-8")
+
+
+def write_chain(repo, task_id, stages, fp, tfp, body="staged evidence"):
+    """Chain-consistent artifacts: every input == output == fp (valid links + terminal)."""
+    for stage in stages:
+        write_artifact(repo, task_id, stage, fp, fp, tfp, body=body)
+
+
+# --------------------------------------------------------------------------
+# Task 1 scenarios: candidate fingerprint (§6.1)
+# --------------------------------------------------------------------------
+
+
+@scenario("candidate_deterministic")
+def candidate_deterministic():
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td) / "r"
+        root.mkdir()
+        (root / "a.txt").write_text("hello\n")
+        git_init(root)
+        first = candidate_fp(root, root)
+        assert len(first) == 64, first
+        second = candidate_fp(root, root)
+        assert first == second, "digest not deterministic"
+        (root / "a.txt").write_text("hello world\n")
+        third = candidate_fp(root, root)
+        assert third != first, "content change did not change digest"
+        sh("git commit -qam change", root)
+        fourth = candidate_fp(root, root)
+        assert fourth == third, "commit with identical content changed digest (HEAD must not be identity)"
+
+
+@scenario("candidate_excludes_evidence_dirs")
+def candidate_excludes_evidence_dirs():
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td) / "r"
+        root.mkdir()
+        (root / "src.txt").write_text("content\n")
+        git_init(root)
+        before = candidate_fp(root, root)
+        for rel in (".agent/work/FJ-1/artifact.md", ".agent/reports/FJ-1/r.json",
+                    ".agent/logs/x.log", ".scratch/tmp.txt"):
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("evidence\n")
+        after = candidate_fp(root, root)
+        assert before == after, "evidence directories perturbed the digest"
+        (root / "src.txt").write_text("changed\n")
+        assert candidate_fp(root, root) != after, "source change not reflected"
+
+
+@scenario("candidate_untracked_and_symlink_modes")
+def candidate_untracked_and_symlink_modes():
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td) / "r"
+        root.mkdir()
+        (root / "base.txt").write_text("b\n")
+        (root / ".gitignore").write_text("ignored/\n")
+        git_init(root)
+        (root / "plain.txt").write_text("plain\n")
+        (root / "tool.sh").write_text("#!/bin/sh\n")
+        (root / "tool.sh").chmod(0o755)
+        os.symlink("plain.txt", (root / "link"))
+        (root / "ignored").mkdir()
+        (root / "ignored" / "x.bin").write_text("nope\n")
+        fp = candidate_fp(root, root)
+
+        # Independent recomputation of the canonical form for this tiny tree
+        # (§6.1 rules: repo-relative / paths, string modes, gitignored excluded,
+        #  symlink content = link target bytes).
+        entries = []
+        for rel, mode, content in [
+            (".gitignore", "100644", b"ignored/\n"),
+            ("base.txt", "100644", b"b\n"),
+            ("link", "120000", b"plain.txt"),
+            ("plain.txt", "100644", b"plain\n"),
+            ("tool.sh", "100755", b"#!/bin/sh\n"),
+        ]:
+            entries.append({"path": rel, "mode": mode,
+                            "contentSha256": hashlib.sha256(content).hexdigest()})
+        entries.sort(key=lambda e: e["path"])
+        canonical = json.dumps(entries, sort_keys=True, separators=(",", ":"))
+        expected = hashlib.sha256(canonical.encode()).hexdigest()
+        assert fp == expected, "digest %s != independently computed %s" % (fp, expected)
+
+
+@scenario("candidate_tracked_dirty_content")
+def candidate_tracked_dirty_content():
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td) / "r"
+        root.mkdir()
+        (root / "a.txt").write_text("one\n")
+        git_init(root)
+        clean = candidate_fp(root, root)
+        (root / "a.txt").write_text("two\n")  # unstaged edit: tracked, any worktree state
+        assert candidate_fp(root, root) != clean, "unstaged edit not part of workspace content"
+        os.remove(root / "a.txt")  # tracked-but-deleted: not workspace content
+        deleted = candidate_fp(root, root)
+        assert deleted != clean, "deletion not reflected"
+
+
+# --- runner ---
+# Scenario groups from later tasks are inserted ABOVE this line so they are
+# registered before the run starts.
+
+def main(argv):
+    filters = argv[1:]
+    selected = [(name, fn) for name, fn in SCENARIOS
+                if not filters or any(f in name for f in filters)]
+    if not selected:
+        print("no scenarios match: %s" % " ".join(filters), file=sys.stderr)
+        return 2
+    passed = failed = 0
+    for name, fn in selected:
+        try:
+            fn()
+        except Exception:
+            failed += 1
+            print("FAIL %s" % name)
+            traceback.print_exc()
+        else:
+            passed += 1
+            print("PASS %s" % name)
+    print("summary: %d passed, %d failed" % (passed, failed))
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
