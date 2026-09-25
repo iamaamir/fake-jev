@@ -2,15 +2,21 @@
 
 ## Layout
 
+Follows specification §17 and §45:
+
 ```text
 spec/
     normative product behavior (prose, schemas, golden vectors)
+    config.schema.json                          (§45, reserved)
+    control-api.openapi.yaml                    (§45, reserved)
+    compat/jev-v1/openapi.snapshot.json         (§45, reserved)
 
-spec/contracts/
-    executable/golden representations of normative behavior
+testdata/contracts/
+    golden vectors from §44 as executable inputs (§45, reserved)
 
-tests/
-    enforcement of those contracts
+test/
+    conformance/     enforcement of those contracts
+    integration/
 ```
 
 ## Files
@@ -19,7 +25,7 @@ tests/
 |------|--------|
 | `spec/fake-jev-technical-spec-v2.md` | **Authoritative.** Normative v1 product specification, version 2.0. |
 | `spec/fake-jev-technical-spec.md` | Superseded v1 document, retained only for history. Do not implement from it. |
-| `spec/contracts/` | Reserved for machine-readable/golden contract artifacts once the authoritative spec defines them. Empty on purpose. |
+| `spec/config.schema.json`, `spec/control-api.openapi.yaml`, `spec/compat/jev-v1/openapi.snapshot.json`, `testdata/contracts/` | Required by §45. Reserved and empty until the specification's phase 0 lands them. |
 
 Both specification files were originally at the repository root and were moved here
 unchanged during repository setup.
@@ -29,8 +35,9 @@ unchanged during repository setup.
 - The specification is the source of truth for public product behavior.
 - `AGENTS.md` holds only universal repository rules. It does **not** replace the
   specification and must not be treated as a summary of it.
-- Contract artifacts in `spec/contracts/` are derived from the specification, never
-  a substitute for it. Do not invent contract files before the specification defines them.
+- Contract artifacts under `spec/` and `testdata/contracts/` are derived from the
+  specification, never a substitute for it. Do not invent contract files before the
+  specification defines them.
 - Tests enforce contracts; they do not define them.
 
 ## Conflict rule
