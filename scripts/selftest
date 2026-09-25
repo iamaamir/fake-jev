@@ -28,6 +28,21 @@ COPY_FILES = ["scripts/verify-candidate", "scripts/agent-context",
               "scripts/candidate-fingerprint", "README.md", "AGENTS.md", ".gitignore"]
 COPY_DIRS = ["docs", "spec"]
 
+# Fixture git must be hermetic: neutralize machine-global/system config
+# (gpgsign, hooksPath, useConfigOnly, ...), forbid interactive prompts, and
+# guarantee a commit identity regardless of the host's git configuration.
+# Applied last in sh() so every subprocess inherits it over ambient config.
+GIT_HERMETIC_ENV = {
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_SYSTEM": os.devnull,
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_AUTHOR_NAME": "selftest",
+    "GIT_AUTHOR_EMAIL": "selftest@example",
+    "GIT_COMMITTER_NAME": "selftest",
+    "GIT_COMMITTER_EMAIL": "selftest@example",
+}
+COMMAND_TIMEOUT_SECONDS = 120
+
 
 def scenario(name):
     def decorate(fn):
@@ -39,8 +54,10 @@ def scenario(name):
 def sh(cmd, cwd, env=None, check=True):
     merged = dict(os.environ)
     merged.update(env or {})
+    merged.update(GIT_HERMETIC_ENV)
     proc = subprocess.run(cmd, shell=True, cwd=str(cwd), env=merged,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True,
+                          timeout=COMMAND_TIMEOUT_SECONDS)
     if check and proc.returncode != 0:
         raise AssertionError("command failed (%d): %s\n%s\n%s"
                              % (proc.returncode, cmd, proc.stdout, proc.stderr))
@@ -216,7 +233,6 @@ def write_chain(repo, task_id, stages, fp, tfp, body="staged evidence"):
 # Task 1 scenarios: candidate fingerprint (§6.1)
 # --------------------------------------------------------------------------
 
-
 @scenario("candidate_deterministic")
 def candidate_deterministic():
     with tempfile.TemporaryDirectory() as td:
@@ -310,6 +326,13 @@ def candidate_tracked_dirty_content():
 # registered before the run starts.
 
 def main(argv):
+    # Fail closed: -O / PYTHONOPTIMIZE strips every scenario `assert`, so an
+    # optimized run would report success while checking nothing.
+    if not __debug__:
+        print("selftest: refusing to run under optimization "
+              "(python -O / PYTHONOPTIMIZE strips assert checks); "
+              "rerun without optimization", file=sys.stderr)
+        return 1
     filters = argv[1:]
     selected = [(name, fn) for name, fn in SCENARIOS
                 if not filters or any(f in name for f in filters)]
