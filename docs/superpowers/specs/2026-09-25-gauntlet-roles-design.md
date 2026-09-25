@@ -1,0 +1,453 @@
+# Gauntlet Roles and Expertise Packs — Design
+
+Date: 2026-09-25
+Status: frozen design (behavior and invariants only — not an implementation plan)
+Source decisions: Sections A, B, C agreed in the brainstorming session of 2026-09-25
+
+## 1. Purpose
+
+Give this repository a portable team of expert workers: deterministic **stage
+packs** (evidence boundaries that decide acceptance) plus advisory **expertise
+packs** (domain knowledge that helps reasoning), implemented entirely as repo
+convention so any harness, agent, or model can follow them.
+
+The design obeys two constraints that outrank convenience:
+
+1. **Generation is probabilistic, acceptance is not.** Only `verify-candidate`
+   may produce `pass` / `fail` / `skipped` / `not_applicable`. Stage artifacts
+   record what a worker did; reports record whether it was acceptable.
+2. **No harness-specific files.** Everything is plain files under `docs/`,
+   `.agent/`, and `scripts/`, discoverable through `AGENTS.md`.
+
+## 2. Authority hierarchy (frozen)
+
+```text
+1. specification + executable contracts
+2. work-item acceptance criteria
+3. role pack
+4. expertise pack
+5. general model knowledge
+```
+
+Recorded once in `docs/agents/README.md` with a short pointer from `AGENTS.md`.
+
+**Advisory rule (normative).** Expertise packs are advisory. They may explain
+how to reason, what to inspect, and what questions to ask. They MUST NOT
+introduce product requirements, acceptance conditions, architecture rules, or
+behavioral constraints not traceable to the specification or executable
+contracts. This prevents `golang.md` or `staff-architect.md` from becoming a
+shadow specification.
+
+Escalation to a human follows the same hierarchy: if resolution would change or
+establish strategic policy, architecture boundaries, specification semantics, or
+public contracts not already determined by higher-authority artifacts, the
+worker records a blocker and stops (`needs-human` or `spec-gap`). Decisions
+fully constrained by the specification are resolved with the `staff-architect`
+expertise pack and never escalate.
+
+## 3. Layout (Section A)
+
+```text
+docs/agents/
+    README.md                 authority hierarchy + index (new)
+    roles/                    stage packs — workflow authority
+        specifier.md
+        coder.md
+        cleaner.md
+        hardener.md
+        qa.md
+    expertise/                advisory domain knowledge
+        product-manager.md    required for specifier, optional for qa
+        staff-architect.md    required for cleaner
+        golang.md             required for coder and hardener, optional for cleaner
+        ui-ux.md              optional for qa
+        security.md           optional for hardener
+    issue-tracker.md          (exists)
+    triage-labels.md          (exists)
+    domain.md                 (exists)
+.agent/
+    schema/
+        role-pack.schema.json
+        stage-artifact.schema.json
+        work-item.schema.json
+    gate-policy.json          bootstrap exemptions (new, committed)
+    work/<task-id>/           state.json + stage artifacts (exists)
+scripts/
+    candidate-fingerprint      workspace content digest (new)
+    selftest                   harness scenario suite (new)
+```
+
+Pack roles (settled):
+
+| Kind | Authority | May contain |
+|------|-----------|-------------|
+| role pack | workflow authority — defines a stage's inputs, output artifact, gate, escalation | responsibilities, contract, pointers |
+| expertise pack | advisory only | judgment, heuristics, inspection guidance, pointers |
+| specification | source of truth | everything normative |
+
+Packs are short (target 30–50 lines). Packs reference; the specification rules.
+
+## 4. Role pack contract
+
+Each role pack begins with YAML front matter, then prose. Example
+(`docs/agents/roles/specifier.md`):
+
+```yaml
+---
+id: specifier
+stage: specifier
+expertise:
+  required:
+    - product-manager
+  optional: []
+inputs:
+  - work-item.objective
+  - spec:13
+  - spec:37-44
+  - acceptance-catalog
+output: .agent/work/<id>/specifier.md
+gate: G-S
+escalate:
+  - condition: spec-change-required
+    blocker: spec-gap
+---
+```
+
+`check_role_packs` validates every role pack and fails closed on any violation:
+
+- `id == stage`, both in the stage vocabulary `specifier|coder|cleaner|hardener|qa`;
+- `gate` ∈ `G-S, G-C, G-L, G-H, G-Q`;
+- `output` equals the canonical stage path `.agent/work/<id>/<stage>.md`;
+- `expertise.required` and `expertise.optional` are arrays, even when empty
+  (a bare string fails; nothing is coerced);
+- every named expertise pack resolves to an existing file in
+  `docs/agents/expertise/` — dangling references fail, including optional ones;
+- `expertise.required ∩ expertise.optional = ∅`; no duplicate entries;
+- `escalate[].blocker` ∈ `spec-gap, needs-info, needs-human, wontfix`;
+- **unknown front-matter keys fail** (a typo such as `expertice:` is an error,
+  never ignored).
+
+Parsing: PyYAML when importable. When PyYAML is absent the check reports
+`skipped` with code `toolchain.pyyaml_missing` — visible, never silently green —
+and blocks completion only while that code is *not* waived by `gate-policy.json`
+(§9.2, where a matched exemption reports it as `toolchain.pyyaml_exempt`).
+
+### Stage → expertise mapping (frozen)
+
+| Stage | required | optional |
+|-------|----------|----------|
+| specifier | `product-manager` | — |
+| coder | `golang` | — |
+| cleaner | `staff-architect` | `golang` |
+| hardener | `golang` | `security` |
+| qa | — | `ui-ux`, `product-manager` |
+
+ROLE decides what evidence is required. EXPERTISE helps reason about the
+particular task. Optional packs are pointers, read on demand — never injected
+automatically.
+
+## 5. Stage artifacts
+
+Every executed stage writes one artifact:
+`.agent/work/<id>/{specifier,coder,cleaner,hardener,qa}.md`.
+
+Artifacts are evidence, not diaries, and **they never declare a verdict**. Only
+`verify-candidate` may emit `pass|fail|skipped|not_applicable`. Required header:
+
+```yaml
+---
+stage: hardener
+task: FJ-017
+inputFingerprint: 9f2c…
+outputFingerprint: 4ab1…
+gitHead: a5a7846
+generatedAt: 2026-09-25T11:00:00Z
+---
+```
+
+- `inputFingerprint` / `outputFingerprint`: workspace content digest before and
+  after the stage (§6).
+- `gitHead`: diagnostic metadata only. It is never evidence identity.
+- No `status`/verdict field exists in an artifact. Verdicts
+  (`pass|fail|skipped|not_applicable`) are produced solely by
+  `verify-candidate`, in reports.
+
+Below the header: concise prose — what was done, what was found, what remains.
+
+## 6. Candidate fingerprint (frozen)
+
+A revision means **workspace content**, not `HEAD`. Two workers on uncommitted
+trees must be distinguishable.
+
+```text
+fingerprint = sha256( canonical JSON array, sorted by path, of:
+    { path, mode, contentSha256 }   for every file that is
+        tracked (any working-tree state)
+        OR untracked and not gitignored
+    minus EXCLUDED prefixes )
+```
+
+- `mode` is the git mode (`100644`, `100755`, `120000` symlink → hash of target).
+- `EXCLUDED = [".agent/work/", ".agent/reports/", ".agent/logs/", ".scratch/"]`.
+  Evidence and runtime files must not perturb the fingerprint they record —
+  writing `hardener.md` cannot change `outputFingerprint`.
+- Gitignored paths are excluded automatically (tool installs, build output).
+- Content only: a commit with identical content yields the identical
+  fingerprint, so chains survive commits.
+- One implementation, `scripts/candidate-fingerprint`, shared by
+  `verify-candidate` and `agent-context`, guarantees both compute the same
+  value. Deterministic, offline, no timestamps.
+
+## 7. Evidence chain and invalidation (B8/B9)
+
+Invariant: **stage evidence is fingerprint-bound, and any candidate change
+invalidates downstream evidence.**
+
+For a required stage B whose artifact is due (§8.1), verification requires the
+chain link to the immediately preceding required stage A:
+
+```text
+B.inputFingerprint == A.outputFingerprint
+```
+
+| Condition | Result | Code |
+|-----------|--------|------|
+| chain mismatch | `fail` | `stage.evidence_stale` |
+| missing/unparseable header, unknown `stage`/`task` | `fail` | `stage.evidence_invalid` |
+| artifact absent for a stage due under §8.1 | `fail` | `stage.artifact_missing` |
+
+The check belongs to stage B's gate (each stage gate validates its own link),
+so no new gate id is introduced. A cleaner that edits code after hardening
+produces a new fingerprint; `hardener` and `qa` no longer chain and cannot
+complete.
+
+`agent-context` recomputes the current fingerprint itself (never trusts stored
+prose) and renders each stage as `fresh`, `stale`, `missing` (due and absent),
+`pending` (not yet due under §8.1), or `not required`.
+
+## 8. Stage state machine and `requiredStages`
+
+`state.json` gains three optional fields:
+
+- `stage` — current stage or `null`;
+- `requiredStages` — explicit override; when absent it is derived by policy
+  (§8.2);
+- `requiredStagesJustification` — required non-empty string whenever the
+  override differs from the derived value, else the schema check fails.
+
+### 8.1 State rules (frozen)
+
+| `status` | `stage` | Required artifacts |
+|----------|---------|--------------------|
+| `planned`, `ready` | `null` | none |
+| `implementing` | current stage | required predecessors |
+| `verifying` | current stage | required predecessors + current artifact |
+| `review` | last required stage | all required stage artifacts |
+| `complete` | last required stage | all required artifacts **and** all required gates satisfied |
+| `blocked` | preserved | evidence preserved, no new requirements |
+
+`requiredStages` MUST be a unique ordered subsequence of
+`specifier → coder → cleaner → hardener → qa`. Out-of-order or duplicate
+entries fail (`policy.invalid_stages`).
+
+### 8.2 Path-derived policy (frozen)
+
+| Class | Matches | Default `requiredStages` |
+|-------|---------|--------------------------|
+| `product` | `cmd/**`, `internal/**`, `test/**`, `go.mod`, `go.sum` | `S, C, L, H, Q` |
+| `metadata` | `docs/**`, `.agent/**`, `scripts/**`, `.github/**`, `spec/**`, `testdata/**`, `examples/**`, `Dockerfile`, and the root files `README.md`, `AGENTS.md`, `CONTEXT.md`, `.gitignore` | `S, C, L, Q` |
+| `unknown` | anything else | **fail** `policy.unknown_scope` |
+
+The classes above cover every `allowedFiles` path in the current work items
+(validated 2026-09-25); new repository areas fail closed until classified.
+
+- Mixed classes take the **strongest** policy: `product > metadata`.
+- `scripts/` and CI are `metadata`: the default excludes Hardener because G-H
+  mutates executable product code. Hardener for a script/CI item must be added
+  explicitly with `requiredStagesJustification`.
+- Unknown or empty classification fails closed so new repository areas are
+  classified deliberately.
+- Policy is evaluated from `allowedFiles` at verification time; the report
+  records `{class, requiredStages, source: derived|explicit}`.
+
+## 9. Verification results and gate policy
+
+### 9.1 Result semantics (frozen)
+
+Every check carries `{name, code, required, result, exitCode, reason?}` with
+`result ∈ {pass, fail, skipped, not_applicable}`.
+
+| required | result | effect on completion |
+|----------|--------|----------------------|
+| yes | `pass` | allowed |
+| yes | `fail` | blocked |
+| yes | `skipped` (no exemption) | **blocked** |
+| yes | `not_applicable` | **invalid state** — `gate.invalid_result` |
+| yes | `skipped` (policy-exempt, §9.2) | visible, non-blocking, distinct code |
+| no | `pass` | allowed |
+| no | `fail` | visible, non-blocking (advisory checks only; none in v1 stage gates) |
+| no | `skipped` | allowed |
+| no | `not_applicable` | allowed (`stage.not_required`) |
+
+`SKIPPED ≠ PASS`, `NOT_APPLICABLE ≠ SKIPPED`, and a required check can never be
+`not_applicable`. Overall `verify-candidate` exits non-zero iff any required
+check is `fail` or non-exempt `skipped`, or any combination is invalid.
+
+### 9.2 Bootstrap exemptions (frozen mechanism)
+
+Because required + skipped blocks completion, unavailable product tooling needs
+an explicit, reviewable waiver — otherwise v1 deadlocks. `.agent/gate-policy.json`:
+
+```json
+{
+  "exemptions": [
+    { "gate": "G-L", "blocks": ["stage.tooling_absent"],
+      "scope": ["product", "metadata"],
+      "code": "stage.tooling_bootstrap_exempt",
+      "reason": "complexity/CRAP analyzer not implemented yet",
+      "trackedBy": "FJ-040" }
+  ]
+}
+```
+
+Shape only: `trackedBy` must be an existing work item id — the rules below
+decide which id is acceptable.
+
+An exemption matches a blocking check only when **all** of these hold:
+
+- `gate` equals the check's gate;
+- `blocks` contains the code the check would otherwise report;
+- the item's path class is in `scope`.
+
+Matching is deliberately narrow: exempting `G-L` cannot waive a missing
+`python3`, and exempting `stage.tooling_absent` for `G-L` cannot waive the same
+code under `G-H`. A matched check is reported `skipped` with the exemption's
+`code` — visibly non-green, never a `pass`, distinguishable from an unmet
+requirement by its code alone.
+
+v1 commits four exemptions: `G-L` (`product`+`metadata`), `G-H` (`product`),
+`G-Q` (`product`+`metadata`), and `G-C` with
+`blocks: ["toolchain.pyyaml_missing"]` (both classes, reported as
+`toolchain.pyyaml_exempt`). Their tracking work items are created before this
+file is first committed.
+
+- Every exemption requires `trackedBy`, the id of an existing work item.
+  Verification fails with `policy.exemption_unknown` when no such item exists,
+  and with `policy.exemption_stale` when that item has reached `complete` —
+  the exemption must then be removed or the tooling shipped. Exemptions clean
+  up after themselves instead of lingering.
+- Exemptions are policy, not worker choice: a worker cannot switch one on for a
+  single task.
+
+### 9.3 Gate inventory
+
+| Gate | Stage | Checks | Codes when inactive |
+|------|-------|--------|---------------------|
+| `G-S` | specifier | artifact + header present; every ID under `## Traces` exists in `docs/development/acceptance-catalog.md` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.trace_unknown` |
+| `G-C` | coder | repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
+| `G-L` | cleaner | artifact + chain link + complexity/CRAP analysis | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+| `G-H` | hardener | artifact + chain link + mutation/hardening of executable product code | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+| `G-Q` | qa | artifact + chain link + public-surface/system tests | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+
+A gate belonging to a stage outside `requiredStages` reports
+`required: false, result: not_applicable, code: stage.not_required,
+reason: product|metadata`.
+
+## 10. `agent-context` view
+
+Additive, still deterministic (no wall-clock in output):
+
+- header line: `stage`, `requiredStages`, lease, fingerprint of the current
+  workspace;
+- `GAUNTLET` block — one row per required stage:
+
+```text
+Specifier   artifact: fresh    gate: pass
+Coder       artifact: fresh    gate: pass
+Cleaner     artifact: stale    gate: pass@4ab1…
+Hardener    artifact: pending  gate: not run
+QA          not required       gate: not_applicable
+```
+
+  `fresh`/`stale` are recomputed from fingerprints, not read from prose;
+  `pending` means not yet due under §8.1 (distinct from `missing`, which is due
+  and absent and fails verification); gate results are read from the latest
+  report recorded against the current fingerprint;
+- `EXPERTISE` block — required packs listed as paths to read; optional packs
+  listed as pointers only (progressive disclosure, no inlining).
+
+## 11. Schemas
+
+`.agent/schema/{role-pack,stage-artifact,work-item}.schema.json` are the
+canonical contracts; `verify-candidate`'s validator is an implementation of
+those contracts. `role-pack.schema.json` ships with this design; the other two
+cover the front matter of stage artifacts and the `state.json` fields added
+here (`stage`, `requiredStages`, `requiredStagesJustification`).
+
+`jsonschema` is not available in this environment and is not a dependency: the
+validator enforces the schema rules directly, and `scripts/selftest` holds the
+parity cases so schema and validator cannot silently drift. If a schema is
+edited without its validator, a selftest case fails. `work-item.schema.json`
+covers the whole `state.json` contract — including the pre-existing
+`leaseOwner` rules — not only the fields introduced here.
+
+## 12. Self-test matrix (frozen)
+
+`scripts/selftest` builds fixtures in temp directories — no network, no
+modification of the real repository — and asserts:
+
+```text
+required + pass                    → verify success
+required + fail                    → verify failure
+required + skipped                 → verify failure
+required + not_applicable          → invalid state (gate.invalid_result)
+required + skipped + exemption     → success, code stage.tooling_bootstrap_exempt
+exemption whose trackedBy is complete → failure (policy.exemption_stale)
+exemption with unknown trackedBy  → failure (policy.exemption_unknown)
+exemption whose `blocks`/`gate` does not match the blocking code → failure (still blocked)
+optional + skipped                 → success
+optional + not_applicable          → success
+stale evidence chain               → failure (stage.evidence_stale)
+missing due artifact             → failure (stage.artifact_missing)
+artifact header absent/invalid     → failure (stage.evidence_invalid)
+dangling expertise reference       → failure
+unknown front-matter key           → failure
+required/optional not an array     → failure
+invalid requiredStages order       → failure (policy.invalid_stages)
+mixed path classes                 → strongest policy wins
+unknown path classification        → failure (policy.unknown_scope)
+unknown trace id in specifier.md   → failure (stage.trace_unknown)
+fingerprint excludes .agent/work   → artifact write does not change digest
+```
+
+This applies the gauntlet to the gauntlet itself.
+
+## 13. Known limitations (deferred, deliberately)
+
+- **Trace validation is one-way in v1.** Specifier traces are validated
+  `artifact → catalog`. Deferred: `selected acceptance → artifact
+  completeness`, until the work-item `acceptance` representation is stable.
+  Unknown trace IDs already fail.
+- **PyYAML is conditional.** Role-pack validation is `skipped` (visible,
+  exempt while tracked) when PyYAML is missing; pin it when this becomes a
+  required CI gate.
+- **Fingerprint excludes evidence directories by design.** Edits confined to
+  `.agent/work|reports|logs` are not part of candidate identity.
+- **No harness adapters are produced.** By design: portability is achieved
+  through repo convention. Harness-specific agent registries are out of scope.
+
+## 14. Non-goals
+
+- No workflow engine, no new status vocabulary, no stage history database.
+- No generated persona prompts; packs stay short and pointer-based.
+- No model-specific or harness-specific files in the repository.
+- No self-certification: artifacts never carry verdicts.
+
+## 15. How this design will be known to work
+
+1. `scripts/selftest` passes every case in §12.
+2. `./scripts/verify-candidate <task-id>` enforces §9 semantics on a real item,
+   including a deliberately staged stale-chain scenario.
+3. Continuity test: a fresh worker given only `./scripts/agent-context
+   <task-id>` identifies the current stage, the required packs, fresh vs stale
+   evidence, and the next action without reading any chat history.
