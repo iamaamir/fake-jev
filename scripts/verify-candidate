@@ -2,12 +2,16 @@
 # verify-candidate [task-id]
 #
 # Deterministic verification entry point for this repository. Offline: no network,
-# no model/provider calls, no services. Prints each check it runs and exits non-zero
-# if any mandatory check fails.
+# no model/provider calls, no services. Prints each check it runs.
+#
+# Every check is a row {name, gate, required, result, exitCode, code, exempted}
+# with result in {pass, fail, skipped, not_applicable} (design §9.1). The run is
+# acceptable iff no required row is `fail` or a non-exempt `skipped`, and no
+# required row is invalidly `not_applicable` (rewritten to gate.invalid_result).
 #
 # With a task id, structured evidence is written to
-# .agent/reports/<task-id>/report-<utc-timestamp>.json, bound to the revision that
-# was verified (null when Git metadata is unavailable).
+# .agent/reports/<task-id>/report-<utc-timestamp>.json, bound to the candidate
+# fingerprint and — once the task engine lands — the task fingerprint.
 #
 # PRODUCT VERIFICATION EXPANDS HERE: as implementation phases land, add the product
 # checks centrally (e.g. `go test ./...`, `go vet ./...`, `go build ./cmd/fake-jev`
@@ -15,7 +19,8 @@
 # Do not fork per-task verification scripts. Checks that cannot apply yet are
 # reported as "skipped", never as a silent pass.
 #
-# Exit codes: 0 = all mandatory checks passed; 1 = a check failed or usage/state error.
+# Exit codes: 0 = acceptable; 1 = a required check is fail/skipped-without-exemption,
+# or a usage/state error.
 
 set -euo pipefail
 
@@ -29,6 +34,8 @@ TASK_ID="${1:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 REVISION="unknown"
 GIT_AVAILABLE=0
@@ -74,13 +81,39 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
   GIT_JSON=true
 fi
 
+# --- check row infrastructure -------------------------------------------------
+
 CHECK_NAMES=()
 CHECK_CMDS=()
-CHECK_STATUS=()
+CHECK_GATES=()
+CHECK_REQUIRED=()
+CHECK_RESULTS=()
 CHECK_EXITS=()
 CHECK_CODES=()
-FAILED=0
-SKIPPED=0
+CHECK_EXEMPTED=()
+CHECK_REASONS=()
+
+# record_row <name> <display> <gate> <required 0/1> <result> <exit> <code> <reason>
+# One row per check; the report writer (python) turns these into report v2 and
+# computes the overall status. display/reason are flattened to one line so the
+# TSV hand-off stays unambiguous.
+record_row() {
+  local name="$1" display="$2" gate="$3" required="$4" result="$5"
+  local exit_code="$6" code="$7" reason="$8"
+  display="${display//$'\t'/ }"
+  display="${display//$'\n'/ }"
+  reason="${reason//$'\t'/ }"
+  reason="${reason//$'\n'/ }"
+  CHECK_NAMES+=("$name")
+  CHECK_CMDS+=("$display")
+  CHECK_GATES+=("$gate")
+  CHECK_REQUIRED+=("$required")
+  CHECK_RESULTS+=("$result")
+  CHECK_EXITS+=("$exit_code")
+  CHECK_CODES+=("$code")
+  CHECK_EXEMPTED+=("0")
+  CHECK_REASONS+=("$reason")
+}
 
 # Stable machine code per check. Reports carry it so a failure is data, not prose:
 # agents fingerprint repeated failures from code + check name instead of scraping
@@ -102,43 +135,35 @@ check_code() {
   esac
 }
 
-# run_check <display> <function> — runs the check function in a subshell so that a
-# failing `exit` inside a check cannot abort the whole verification run.
+# run_check <display> <function> [required=1] [gate=G-C] — runs the check
+# function in a subshell so that a failing `exit` inside a check cannot abort
+# the whole verification run.
 run_check() {
-  local display="$1" fn="$2" rc code
+  local display="$1" fn="$2" required="${3:-1}" gate="${4:-G-C}" rc code result
   code="$(check_code "$fn")"
   printf '==> %s\n' "$display"
   set +e
   ( "$fn" )
   rc=$?
   set -e
-  CHECK_NAMES+=("$fn")
-  CHECK_CMDS+=("$display")
-  CHECK_EXITS+=("$rc")
-  CHECK_CODES+=("$code")
   if [ "$rc" -eq 0 ]; then
-    CHECK_STATUS+=("passed")
+    result="pass"
     printf '    PASS\n\n'
   else
-    CHECK_STATUS+=("failed")
-    FAILED=$((FAILED + 1))
+    result="fail"
     printf '    FAIL (exit %s, code %s)\n\n' "$rc" "$code"
   fi
+  record_row "$fn" "$display" "$gate" "$required" "$result" "$rc" "$code" ""
 }
 
+# skip_check <display> <function> <reason> [code] [required=1] [gate=G-C]
 skip_check() {
-  local display="$1" fn="$2" reason="$3" explicit_code="${4:-}"
+  local display="$1" fn="$2" reason="$3" code="${4:-}" required="${5:-1}" gate="${6:-G-C}"
+  if [ -z "$code" ]; then
+    code="$(check_code "$fn")"
+  fi
   printf '==> %s\n    SKIPPED: %s\n\n' "$display" "$reason"
-  CHECK_NAMES+=("$fn")
-  CHECK_CMDS+=("$display")
-  CHECK_STATUS+=("skipped")
-  CHECK_EXITS+=("-1")
-  CHECK_CODES+=("${explicit_code:-$(check_code "$fn")}")
-  SKIPPED=$((SKIPPED + 1))
-}
-
-json_escape() {
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+  record_row "$fn" "$display" "$gate" "$required" "skipped" "-1" "$code" "$reason"
 }
 
 echo "verify-candidate: repository=$REPO_ROOT revision=$REVISION"
@@ -161,6 +186,27 @@ if [ -n "$TASK_ID" ] && [ ! -f ".agent/work/$TASK_ID/state.json" ]; then
   exit 1
 fi
 
+# --- candidate fingerprint ----------------------------------------------------
+
+FP_ERR="$(mktemp)"
+CAND_FP=""
+set +e
+CAND_FP_RAW="$(./scripts/candidate-fingerprint candidate 2>"$FP_ERR")"
+FP_RC=$?
+set -e
+if [ "$FP_RC" -eq 0 ] && [[ "$CAND_FP_RAW" =~ ^[0-9a-f]{64}$ ]]; then
+  CAND_FP="$CAND_FP_RAW"
+  printf '==> candidate fingerprint computed\n    PASS\n\n'
+  record_row "check_candidate_fingerprint" "candidate fingerprint computed" \
+    "G-C" 1 "pass" 0 "verify.check_failed" ""
+else
+  FP_REASON="$(tr '\n' ' ' < "$FP_ERR")"
+  printf '==> candidate fingerprint computed\n    FAIL (code verify.check_failed)\n\n'
+  record_row "check_candidate_fingerprint" "candidate fingerprint computed" \
+    "G-C" 1 "fail" "$FP_RC" "verify.check_failed" "$FP_REASON"
+fi
+rm -f "$FP_ERR"
+
 # --- foundation checks -------------------------------------------------------
 
 check_required_files() {
@@ -168,12 +214,12 @@ check_required_files() {
   for f in README.md AGENTS.md .gitignore spec/README.md \
            spec/fake-jev-technical-spec-v2.md docs/development/agent-workflow.md \
            docs/adr/README.md .agent/README.md \
-           scripts/agent-context scripts/verify-candidate \
-           scripts/candidate-fingerprint scripts/selftest \
            docs/agents/README.md .agent/gate-policy.json \
            .agent/schema/role-pack.schema.json \
            .agent/schema/stage-artifact.schema.json \
-           .agent/schema/work-item.schema.json; do
+           .agent/schema/work-item.schema.json \
+           scripts/agent-context scripts/verify-candidate \
+           scripts/candidate-fingerprint scripts/selftest; do
     if [ ! -f "$f" ]; then
       echo "missing: $f"
       missing=1
@@ -247,6 +293,7 @@ REQUIRED = ["id", "title", "phase", "objective", "status", "acceptance",
             "allowedFiles", "verificationCommands", "nextAction"]
 STATUSES = {"planned", "ready", "implementing", "verifying", "review",
             "blocked", "complete"}
+STAGES = ["specifier", "coder", "cleaner", "hardener", "qa"]
 LISTS = ["specReferences", "relevantFiles", "allowedFiles", "acceptance",
          "nonGoals", "verificationCommands", "notes"]
 # Active execution must be leased: two agents sharing one tree need to know who
@@ -273,9 +320,15 @@ for p in paths:
         problems.append(f"id {data.get('id')!r} does not match directory {p.parent.name!r}")
     if data.get("status") not in STATUSES:
         problems.append(f"status {data.get('status')!r} not in vocabulary")
+    stage = data.get("stage", None)
+    if stage is not None and stage not in STAGES:
+        problems.append(f"stage {stage!r} not in vocabulary or null")
     for key in LISTS:
         if key in data and not isinstance(data[key], list):
             problems.append(f"{key} must be a list")
+    if "verificationCommands" in data and isinstance(data["verificationCommands"], list):
+        if any(not isinstance(c, str) or not c.strip() for c in data["verificationCommands"]):
+            problems.append("verificationCommands entries must be non-empty strings")
     lease = data.get("leaseOwner")
     if lease is not None and (not isinstance(lease, str) or not lease.strip()):
         problems.append("leaseOwner must be a non-empty string or null")
@@ -510,69 +563,133 @@ check_go_vet() {
 
 check_go_build() { go build ./cmd/fake-jev; }
 
+# Go checks are required iff class == product (design §8.3). Until the task
+# engine computes the class (Task 5), they run non-required so a foundation
+# checkout stays green (interpretation note 1).
 if [ -f go.mod ]; then
-  run_check "go test (repository packages)" check_go_test
-  run_check "go vet (repository packages)" check_go_vet
+  run_check "go test (repository packages)" check_go_test 0
+  run_check "go vet (repository packages)" check_go_vet 0
   if [ -d cmd/fake-jev ]; then
-    run_check "go build ./cmd/fake-jev" check_go_build
+    run_check "go build ./cmd/fake-jev" check_go_build 0
   else
-    skip_check "go build ./cmd/fake-jev" check_go_build "cmd/fake-jev does not exist yet"
+    skip_check "go build ./cmd/fake-jev" check_go_build \
+      "cmd/fake-jev does not exist yet" "" 0
   fi
 else
-  skip_check "go test (repository packages)" check_go_test "no go.mod yet (foundation phase)"
-  skip_check "go vet (repository packages)" check_go_vet "no go.mod yet (foundation phase)"
-  skip_check "go build ./cmd/fake-jev" check_go_build "no go.mod yet (foundation phase)"
+  skip_check "go test (repository packages)" check_go_test \
+    "no go.mod yet (foundation phase)" "" 0
+  skip_check "go vet (repository packages)" check_go_vet \
+    "no go.mod yet (foundation phase)" "" 0
+  skip_check "go build ./cmd/fake-jev" check_go_build \
+    "no go.mod yet (foundation phase)" "" 0
 fi
 
-# --- report ------------------------------------------------------------------
+# --- aggregate: status + report ----------------------------------------------
+
+ROWS_TSV="$(mktemp)"
+STATUS_FILE="$(mktemp)"
+: > "$ROWS_TSV"
+for i in "${!CHECK_NAMES[@]}"; do
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "${CHECK_NAMES[$i]}" "${CHECK_GATES[$i]}" "${CHECK_REQUIRED[$i]}" \
+    "${CHECK_RESULTS[$i]}" "${CHECK_EXITS[$i]}" "${CHECK_CODES[$i]}" \
+    "${CHECK_EXEMPTED[$i]}" "${CHECK_CMDS[$i]}" "${CHECK_REASONS[$i]}" \
+    >> "$ROWS_TSV"
+done
 
 if [ -n "$TASK_ID" ]; then
-  REPORT_DIR=".agent/reports/$TASK_ID"
-  mkdir -p "$REPORT_DIR"
-  REPORT_PATH="$REPORT_DIR/report-$(date -u +%Y%m%dT%H%M%SZ).json"
-  STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-  OVERALL="passed"
-  if [ "$FAILED" -ne 0 ]; then
-    OVERALL="failed"
-  fi
-
-  {
-    printf '{\n'
-    printf '  "taskId": "%s",\n' "$(json_escape "$TASK_ID")"
-    printf '  "revision": "%s",\n' "$(json_escape "$REVISION")"
-    printf '  "treeState": {"gitAvailable": %s, "clean": %s, "staged": %s, "unstaged": %s, "untracked": %s},\n' \
-      "$GIT_JSON" "$TREE_CLEAN" "$TREE_STAGED" "$TREE_UNSTAGED" "$TREE_UNTRACKED"
-    printf '  "startedAt": "%s",\n' "$STARTED_AT"
-    printf '  "finishedAt": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf '  "status": "%s",\n' "$OVERALL"
-    printf '  "checks": [\n'
-    for i in "${!CHECK_NAMES[@]}"; do
-      if [ "$i" -gt 0 ]; then
-        printf ',\n'
-      fi
-      exit_json="${CHECK_EXITS[$i]}"
-      if [ "$exit_json" = "-1" ]; then
-        exit_json="null"
-      fi
-      printf '    {"name": "%s", "command": "%s", "status": "%s", "exitCode": %s, "code": "%s"}' \
-        "$(json_escape "${CHECK_NAMES[$i]}")" \
-        "$(json_escape "${CHECK_CMDS[$i]}")" \
-        "${CHECK_STATUS[$i]}" \
-        "$exit_json" \
-        "$(json_escape "${CHECK_CODES[$i]}")"
-    done
-    printf '\n  ]\n}\n'
-  } > "$REPORT_PATH"
-  echo "report: $REPORT_PATH"
+  mkdir -p ".agent/reports/$TASK_ID"
+  REPORT_PATH=".agent/reports/$TASK_ID/report-$(date -u +%Y%m%dT%H%M%SZ).json"
+else
+  REPORT_PATH=""
 fi
+FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-PASSED=$(( ${#CHECK_NAMES[@]} - FAILED - SKIPPED ))
+export ROWS_TSV STATUS_FILE REPORT_PATH TASK_ID STARTED_AT FINISHED_AT REVISION
+export CAND_FP="${CAND_FP:-}"
+export GIT_JSON TREE_CLEAN TREE_STAGED TREE_UNSTAGED TREE_UNTRACKED
+
+python3 - <<'PY'
+import json
+import os
+
+rows = []
+with open(os.environ["ROWS_TSV"], encoding="utf-8") as handle:
+    for line in handle:
+        parts = line.rstrip("\n").split("\t")
+        while len(parts) < 9:
+            parts.append("")
+        (name, gate, required, result, exit_code, code, exempted,
+         display, reason) = parts
+        rows.append({
+            "name": name,
+            "gate": gate,
+            "required": required == "1",
+            "result": result,
+            "exitCode": None if exit_code in ("-1", "") else int(exit_code),
+            "code": code,
+            "exempted": exempted == "1",
+            "command": display,
+            "reason": reason or None,
+        })
+
+# Design §9.1: a required check may never be not_applicable — an invalid
+# combination is materialized as fail/gate.invalid_result (interpretation note 4).
+for row in rows:
+    if row["required"] and row["result"] == "not_applicable":
+        row["result"] = "fail"
+        row["code"] = "gate.invalid_result"
+        row["reason"] = "required check reported not_applicable"
+
+blocking = [row for row in rows if row["required"] and (
+    row["result"] == "fail"
+    or (row["result"] == "skipped" and not row["exempted"]))]
+status = "failed" if blocking else "passed"
+
+counts = {"pass": 0, "fail": 0, "skipped": 0, "not_applicable": 0}
+for row in rows:
+    counts[row["result"]] = counts.get(row["result"], 0) + 1
+
+report_path = os.environ.get("REPORT_PATH") or ""
+if report_path:
+    clean = os.environ.get("TREE_CLEAN")
+    tree = {
+        "gitAvailable": os.environ.get("GIT_JSON") == "true",
+        "clean": True if clean == "true" else (False if clean == "false" else None),
+        "staged": int(os.environ.get("TREE_STAGED") or 0),
+        "unstaged": int(os.environ.get("TREE_UNSTAGED") or 0),
+        "untracked": int(os.environ.get("TREE_UNTRACKED") or 0),
+    }
+    report = {
+        "taskId": os.environ.get("TASK_ID") or None,
+        "candidateFingerprint": os.environ.get("CAND_FP") or None,
+        "taskFingerprint": None,   # populated by the task engine (Task 5)
+        "policy": None,            # populated by the task engine (Task 5)
+        "revision": os.environ.get("REVISION") or "unknown",
+        "treeState": tree,
+        "startedAt": os.environ.get("STARTED_AT"),
+        "finishedAt": os.environ.get("FINISHED_AT"),
+        "status": status,
+        "checks": rows,
+    }
+    with open(report_path, "w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
+        handle.write("\n")
+    print("report: %s" % report_path)
+
+print("summary: %d passed, %d failed, %d skipped, %d not_applicable"
+      % (counts.get("pass", 0), counts.get("fail", 0),
+         counts.get("skipped", 0), counts.get("not_applicable", 0)))
+with open(os.environ["STATUS_FILE"], "w", encoding="utf-8") as handle:
+    handle.write(status)
+PY
+
+OVERALL="$(cat "$STATUS_FILE")"
+rm -f "$ROWS_TSV" "$STATUS_FILE"
 echo
-echo "summary: $PASSED passed, $FAILED failed, $SKIPPED skipped (revision $REVISION)"
-if [ "$FAILED" -ne 0 ]; then
-  echo "RESULT: FAIL"
-  exit 1
+if [ "$OVERALL" = "passed" ]; then
+  echo "RESULT: PASS"
+  exit 0
 fi
-echo "RESULT: PASS"
-exit 0
+echo "RESULT: FAIL"
+exit 1

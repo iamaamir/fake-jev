@@ -95,22 +95,34 @@ One JSON file per verification run, written by `./scripts/verify-candidate <task
 ```json
 {
   "taskId": "FJ-001",
+  "candidateFingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+  "taskFingerprint": null,
+  "policy": null,
   "revision": "abc123",
   "treeState": { "gitAvailable": true, "clean": true, "staged": 0, "unstaged": 0, "untracked": 0 },
   "startedAt": "2026-09-25T10:00:00Z",
   "finishedAt": "2026-09-25T10:00:02Z",
   "status": "failed",
   "checks": [
-    { "name": "check_go_test", "command": "go test (repository packages)", "status": "passed", "exitCode": 0, "code": "go.test_failed" },
-    { "name": "check_work_item_schema", "command": "work items match the state.json schema", "status": "failed", "exitCode": 1, "code": "agent.work_item_schema" }
+    { "name": "check_go_test", "gate": "G-C", "required": false, "result": "skipped",
+      "exitCode": null, "code": "go.test_failed", "exempted": false,
+      "command": "go test (repository packages)", "reason": "no go.mod yet (foundation phase)" },
+    { "name": "check_work_item_schema", "gate": "G-C", "required": true, "result": "fail",
+      "exitCode": 1, "code": "agent.work_item_schema", "exempted": false,
+      "command": "work items match the state.json schema", "reason": null }
   ]
 }
 ```
 
-Every check carries a stable `code`. On failure it names the failure class
-(`go.test_failed`, `agent.work_item_schema`, `spec.missing`, ...) so an agent
-fingerprints repeated failures from `code` + `name` instead of scraping stderr; the
-same code is printed on the console as `FAIL (exit N, code X)`.
+Every check carries a stable `code` and a `result` in
+`pass | fail | skipped | not_applicable`. The run is acceptable (`status:
+"passed"`) iff no check with `"required": true` is `fail` or a non-exempt
+`skipped` (design §9.1) — `SKIPPED ≠ PASS`. `gate` names the check's gate
+(`G-S`/`G-C`/`G-L`/`G-H`/`G-Q`); `exempted` marks a policy waiver
+(`.agent/gate-policy.json`). `candidateFingerprint` is the §6.1 content digest
+of the workspace; `taskFingerprint` and `policy` are `null` without a task id
+and bound to the item when one is given. An agent fingerprints repeated
+failures from `code` + `name` instead of scraping stderr.
 
 `treeState` makes the evidence's coverage explicit. A report with
 `"clean": false` describes revision `abc123` **plus** the listed dirty entries — the
