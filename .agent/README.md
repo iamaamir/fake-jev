@@ -46,7 +46,7 @@ Field meanings:
 | `baseRevision` / `candidateRevision` | Git revisions before/after the attempt; `null` when Git metadata is unavailable. |
 | `specReferences` | Pointers into the specification. Never paste spec content here. |
 | `relevantFiles` | Files an implementor should read. |
-| `allowedFiles` | Files the implementor may modify. |
+| `allowedFiles` | Files the implementor may modify. Entries are paths or `dir/*.go`-style globs; anything else is out of bounds. |
 | `acceptance` | Observable criteria that define done. |
 | `nonGoals` | Explicit exclusions that prevent scope creep. |
 | `lastVerification` | Copy of the most recent verification result (see below). |
@@ -76,6 +76,7 @@ One JSON file per verification run, written by `./scripts/verify-candidate <task
 {
   "taskId": "FJ-001",
   "revision": "abc123",
+  "treeState": { "gitAvailable": true, "clean": true, "staged": 0, "unstaged": 0, "untracked": 0 },
   "startedAt": "2026-09-25T10:00:00Z",
   "finishedAt": "2026-09-25T10:00:02Z",
   "status": "passed",
@@ -84,6 +85,11 @@ One JSON file per verification run, written by `./scripts/verify-candidate <task
   ]
 }
 ```
+
+`treeState` makes the evidence's coverage explicit. A report with
+`"clean": false` describes revision `abc123` **plus** the listed dirty entries — the
+reviewer must not treat it as evidence for the committed tree alone. `clean` is
+`null` when no git metadata is available.
 
 Reports are durable evidence another agent or CI can inspect. They are small; keep
 them. If report volume ever becomes noisy, commit reports only for accepted

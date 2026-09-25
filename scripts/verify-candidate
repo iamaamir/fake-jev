@@ -31,8 +31,47 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 REVISION="unknown"
+GIT_AVAILABLE=0
 if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+  GIT_AVAILABLE=1
   REVISION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+
+# Tree state: evidence bound to HEAD is only meaningful when the worktree matches
+# it. Report, do not assume — verifying a dirty tree is legitimate, but the report
+# must say so.
+TREE_KNOWN=0
+TREE_CLEAN=null
+TREE_STAGED=0
+TREE_UNSTAGED=0
+TREE_UNTRACKED=0
+if [ "$GIT_AVAILABLE" -eq 1 ]; then
+  TREE_KNOWN=1
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    x="${line:0:1}"
+    y="${line:1:1}"
+    if [ "$x" = "?" ] && [ "$y" = "?" ]; then
+      TREE_UNTRACKED=$((TREE_UNTRACKED + 1))
+      continue
+    fi
+    if [ "$x" != " " ]; then
+      TREE_STAGED=$((TREE_STAGED + 1))
+    fi
+    if [ "$y" != " " ]; then
+      TREE_UNSTAGED=$((TREE_UNSTAGED + 1))
+    fi
+  done < <(git status --porcelain 2>/dev/null || true)
+  if [ "$TREE_STAGED" -eq 0 ] && [ "$TREE_UNSTAGED" -eq 0 ] && [ "$TREE_UNTRACKED" -eq 0 ]; then
+    TREE_CLEAN=true
+  else
+    TREE_CLEAN=false
+  fi
+fi
+
+GIT_JSON=false
+if [ "$GIT_AVAILABLE" -eq 1 ]; then
+  GIT_JSON=true
 fi
 
 CHECK_NAMES=()
@@ -79,6 +118,15 @@ json_escape() {
 }
 
 echo "verify-candidate: repository=$REPO_ROOT revision=$REVISION"
+if [ "$TREE_KNOWN" -eq 1 ]; then
+  if [ "$TREE_CLEAN" = "true" ]; then
+    echo "verify-candidate: tree clean"
+  else
+    echo "verify-candidate: tree DIRTY ($TREE_STAGED staged, $TREE_UNSTAGED unstaged, $TREE_UNTRACKED untracked) — evidence is bound to $REVISION plus these changes"
+  fi
+else
+  echo "verify-candidate: tree state unknown (no git metadata)"
+fi
 if [ -n "$TASK_ID" ]; then
   echo "verify-candidate: task=$TASK_ID"
 fi
@@ -208,21 +256,68 @@ run_check "work items match the state.json schema" check_work_item_schema
 
 # --- product checks (activated as phases land) -------------------------------
 
-check_go_test() { go test ./...; }
-check_go_vet() { go vet ./...; }
+# Repository-owned packages only. Tool-managed skill installs live inside the
+# module but are gitignored; their sample .go files are not part of this
+# repository's verification. Anything else that fails to load must fail loudly.
+NON_REPO_DIRS="agent .agents .claude .pi .scratch"
+
+repo_packages() {
+  local import_path dir rel excluded=0 line
+  while IFS= read -r line; do
+    import_path="${line%% *}"
+    dir="${line#* }"
+    if [ -z "$import_path" ] || [ "$dir" = "$line" ]; then
+      printf '%s\n' "$line" >&2
+      continue
+    fi
+    rel="${dir#"$REPO_ROOT"/}"
+    for skip in $NON_REPO_DIRS; do
+      case "$rel" in
+        "$skip"|"$skip"/*)
+          excluded=$((excluded + 1))
+          continue 2 ;;
+      esac
+    done
+    printf '%s\n' "$import_path"
+  done < <(go list -e -f '{{.ImportPath}} {{.Dir}}' ./... 2>&1)
+  if [ "$excluded" -gt 0 ]; then
+    echo "verify-candidate: excluded $excluded package(s) under gitignored tool dirs ($NON_REPO_DIRS)" >&2
+  fi
+}
+
+check_go_test() {
+  local pkgs
+  pkgs="$(repo_packages | tr '\n' ' ')"
+  if [ -z "${pkgs// /}" ]; then
+    echo "no repository Go packages discovered"
+    return 1
+  fi
+  go test $pkgs
+}
+
+check_go_vet() {
+  local pkgs
+  pkgs="$(repo_packages | tr '\n' ' ')"
+  if [ -z "${pkgs// /}" ]; then
+    echo "no repository Go packages discovered"
+    return 1
+  fi
+  go vet $pkgs
+}
+
 check_go_build() { go build ./cmd/fake-jev; }
 
 if [ -f go.mod ]; then
-  run_check "go test ./..." check_go_test
-  run_check "go vet ./..." check_go_vet
+  run_check "go test (repository packages)" check_go_test
+  run_check "go vet (repository packages)" check_go_vet
   if [ -d cmd/fake-jev ]; then
     run_check "go build ./cmd/fake-jev" check_go_build
   else
     skip_check "go build ./cmd/fake-jev" check_go_build "cmd/fake-jev does not exist yet"
   fi
 else
-  skip_check "go test ./..." check_go_test "no go.mod yet (foundation phase)"
-  skip_check "go vet ./..." check_go_vet "no go.mod yet (foundation phase)"
+  skip_check "go test (repository packages)" check_go_test "no go.mod yet (foundation phase)"
+  skip_check "go vet (repository packages)" check_go_vet "no go.mod yet (foundation phase)"
   skip_check "go build ./cmd/fake-jev" check_go_build "no go.mod yet (foundation phase)"
 fi
 
@@ -243,6 +338,8 @@ if [ -n "$TASK_ID" ]; then
     printf '{\n'
     printf '  "taskId": "%s",\n' "$(json_escape "$TASK_ID")"
     printf '  "revision": "%s",\n' "$(json_escape "$REVISION")"
+    printf '  "treeState": {"gitAvailable": %s, "clean": %s, "staged": %s, "unstaged": %s, "untracked": %s},\n' \
+      "$GIT_JSON" "$TREE_CLEAN" "$TREE_STAGED" "$TREE_UNSTAGED" "$TREE_UNTRACKED"
     printf '  "startedAt": "%s",\n' "$STARTED_AT"
     printf '  "finishedAt": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '  "status": "%s",\n' "$OVERALL"
