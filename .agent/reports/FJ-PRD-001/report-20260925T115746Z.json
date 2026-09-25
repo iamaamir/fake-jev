@@ -1,0 +1,20 @@
+{
+  "taskId": "FJ-PRD-001",
+  "revision": "b1b435b",
+  "treeState": {"gitAvailable": true, "clean": false, "staged": 0, "unstaged": 5, "untracked": 1},
+  "startedAt": "2026-09-25T11:57:46Z",
+  "finishedAt": "2026-09-25T11:57:46Z",
+  "status": "passed",
+  "checks": [
+    {"name": "check_required_files", "command": "required repository files exist", "status": "passed", "exitCode": 0, "code": "repo.required_files_missing"},
+    {"name": "check_scripts_executable", "command": "scripts are executable", "status": "passed", "exitCode": 0, "code": "repo.scripts_not_executable"},
+    {"name": "check_shell_syntax", "command": "shell syntax: bash -n scripts/*", "status": "passed", "exitCode": 0, "code": "shell.syntax_error"},
+    {"name": "check_toolchain_python3", "command": "toolchain: python3 available", "status": "passed", "exitCode": 0, "code": "toolchain.python3_missing"},
+    {"name": "check_spec_present", "command": "authoritative spec present and intact", "status": "passed", "exitCode": 0, "code": "spec.missing"},
+    {"name": "check_json_files", "command": "all .agent JSON files parse", "status": "passed", "exitCode": 0, "code": "agent.json_malformed"},
+    {"name": "check_work_item_schema", "command": "work items match the state.json schema", "status": "passed", "exitCode": 0, "code": "agent.work_item_schema"},
+    {"name": "check_go_test", "command": "go test (repository packages)", "status": "skipped", "exitCode": null, "code": "go.test_failed"},
+    {"name": "check_go_vet", "command": "go vet (repository packages)", "status": "skipped", "exitCode": null, "code": "go.vet_failed"},
+    {"name": "check_go_build", "command": "go build ./cmd/fake-jev", "status": "skipped", "exitCode": null, "code": "go.build_failed"}
+  ]
+}

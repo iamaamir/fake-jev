@@ -39,8 +39,41 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 4
 fi
 
+# Orientation inputs: the packet reports the repository as it is now (§4 of the
+# operating model — report, do not assume). Works in a dirty checkout; degrades
+# to "unknown" when git metadata is unavailable. No wall-clock values.
+ORIENT_GIT=0
+ORIENT_REV=""
+ORIENT_STAGED=0
+ORIENT_UNSTAGED=0
+ORIENT_UNTRACKED=0
+ORIENT_RECENT=""
+if command -v git >/dev/null 2>&1 && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  ORIENT_GIT=1
+  ORIENT_REV="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+  ORIENT_RECENT="$(git -C "$REPO_ROOT" log --oneline -5 2>/dev/null || true)"
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    x="${line:0:1}"
+    y="${line:1:1}"
+    if [ "$x" = "?" ] && [ "$y" = "?" ]; then
+      ORIENT_UNTRACKED=$((ORIENT_UNTRACKED + 1))
+      continue
+    fi
+    if [ "$x" != " " ]; then
+      ORIENT_STAGED=$((ORIENT_STAGED + 1))
+    fi
+    if [ "$y" != " " ]; then
+      ORIENT_UNSTAGED=$((ORIENT_UNSTAGED + 1))
+    fi
+  done < <(git -C "$REPO_ROOT" status --porcelain 2>/dev/null || true)
+fi
+export ORIENT_GIT ORIENT_REV ORIENT_STAGED ORIENT_UNSTAGED ORIENT_UNTRACKED
+export ORIENT_RECENT REPO_ROOT
+
 python3 - "$TASK_ID" "$STATE_FILE" <<'PY'
 import json
+import os
 import sys
 
 task_id, state_file = sys.argv[1], sys.argv[2]
@@ -96,13 +129,70 @@ def line_or_none(value):
     return str(value)
 
 
+def orientation():
+    """Report the repository as it is now: root, revision, deltas, recent commits."""
+    print("ORIENTATION")
+    print(f"  repository: {os.environ.get('REPO_ROOT')}")
+    git = os.environ.get("ORIENT_GIT") == "1"
+    rev = os.environ.get("ORIENT_REV") or ""
+    dirty = False
+    if git:
+        print(f"  revision: {rev or '(no commits yet)'}")
+        staged = int(os.environ.get("ORIENT_STAGED") or 0)
+        unstaged = int(os.environ.get("ORIENT_UNSTAGED") or 0)
+        untracked = int(os.environ.get("ORIENT_UNTRACKED") or 0)
+        dirty = bool(staged or unstaged or untracked)
+        if dirty:
+            print(f"  tree: DIRTY ({staged} staged, {unstaged} unstaged, {untracked} untracked)")
+        else:
+            print("  tree: clean")
+        recent = [l for l in os.environ.get("ORIENT_RECENT", "").splitlines() if l.strip()]
+        if recent:
+            print("  recent commits:")
+            for entry in recent:
+                print(f"    - {entry}")
+    else:
+        print("  revision: (unknown — no git metadata)")
+        print("  tree: (unknown)")
+    print()
+    return git, rev, dirty
+
+
+def evidence_freshness(git, rev, dirty):
+    """Distinguish passed, failed, missing and stale evidence for this item."""
+    print("EVIDENCE FRESHNESS")
+    last = state.get("lastVerification")
+    if not isinstance(last, dict) or not last:
+        print("  none recorded for this work item")
+    elif not git or not rev:
+        print(f"  unknown (no current revision); last recorded at "
+              f"{line_or_none(last.get('revision'))} status {line_or_none(last.get('status'))}")
+    else:
+        recorded = last.get("revision")
+        status = line_or_none(last.get("status"))
+        if recorded != rev:
+            print(f"  STALE — verified {line_or_none(recorded)} ({status}), current {rev}: "
+                  f"rerun before trusting it")
+        elif last.get("status") == "passed":
+            suffix = ("; tree is dirty, so evidence covers the revision plus local changes"
+                      if dirty else "")
+            print(f"  fresh — passed at {rev}{suffix}")
+        else:
+            print(f"  latest run at {rev} is {status}")
+    print()
+
+
+GIT, REV, DIRTY = orientation()
+
+
 print("WORK ITEM")
 print(task_id)
 print(f"phase: {line_or_none(state.get('phase'))}  |  "
       f"status: {line_or_none(state.get('status'))}  |  "
       f"attempts: {state.get('attempts', 0)}  |  "
       f"role: {line_or_none(state.get('assignedRole'))}")
-print(f"base revision: {line_or_none(state.get('baseRevision'))}  |  "
+print(f"lease: {line_or_none(state.get('leaseOwner'))}  |  "
+      f"base revision: {line_or_none(state.get('baseRevision'))}  |  "
       f"candidate revision: {line_or_none(state.get('candidateRevision'))}")
 print()
 
@@ -144,6 +234,7 @@ elif last:
 else:
     print("  (none)")
 print()
+evidence_freshness(GIT, REV, DIRTY)
 
 block("BLOCKERS", state.get("blockers") or [])
 

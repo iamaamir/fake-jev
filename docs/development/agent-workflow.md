@@ -137,6 +137,11 @@ Establish shared contracts first, then fan out.
 
 - **One git worktree per work item**, created from an exact base revision. Work in
   the worktree, not in the shared checkout.
+- **Claim the lease first.** Set `leaseOwner` in `state.json` to your own identifier
+  before your first edit, and set it back to `null` when you hand the item off.
+  `implementing`/`verifying` without a lease — or two items claiming the same lease —
+  fails verification, so a collision shows up as an exit code instead of a surprise
+  diff.
 - **Verify inside the worktree.** `./scripts/verify-candidate <task-id>` records the
   revision and `treeState` it actually saw, so evidence stays meaningful per branch.
 - **Hand off with a clean tree.** Commit the candidate before marking an item

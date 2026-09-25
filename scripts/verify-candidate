@@ -78,13 +78,34 @@ CHECK_NAMES=()
 CHECK_CMDS=()
 CHECK_STATUS=()
 CHECK_EXITS=()
+CHECK_CODES=()
 FAILED=0
 SKIPPED=0
+
+# Stable machine code per check. Reports carry it so a failure is data, not prose:
+# agents fingerprint repeated failures from code + check name instead of scraping
+# stderr (spec-independent house rule, see docs/development/agent-workflow.md).
+check_code() {
+  case "$1" in
+    check_required_files)      echo "repo.required_files_missing" ;;
+    check_scripts_executable)  echo "repo.scripts_not_executable" ;;
+    check_shell_syntax)        echo "shell.syntax_error" ;;
+    check_toolchain_python3)   echo "toolchain.python3_missing" ;;
+    check_spec_present)        echo "spec.missing" ;;
+    check_json_files)          echo "agent.json_malformed" ;;
+    check_work_item_schema)    echo "agent.work_item_schema" ;;
+    check_go_test)             echo "go.test_failed" ;;
+    check_go_vet)              echo "go.vet_failed" ;;
+    check_go_build)            echo "go.build_failed" ;;
+    *)                         echo "verify.check_failed" ;;
+  esac
+}
 
 # run_check <display> <function> — runs the check function in a subshell so that a
 # failing `exit` inside a check cannot abort the whole verification run.
 run_check() {
-  local display="$1" fn="$2" rc
+  local display="$1" fn="$2" rc code
+  code="$(check_code "$fn")"
   printf '==> %s\n' "$display"
   set +e
   ( "$fn" )
@@ -93,13 +114,14 @@ run_check() {
   CHECK_NAMES+=("$fn")
   CHECK_CMDS+=("$display")
   CHECK_EXITS+=("$rc")
+  CHECK_CODES+=("$code")
   if [ "$rc" -eq 0 ]; then
     CHECK_STATUS+=("passed")
     printf '    PASS\n\n'
   else
     CHECK_STATUS+=("failed")
     FAILED=$((FAILED + 1))
-    printf '    FAIL (exit %s)\n\n' "$rc"
+    printf '    FAIL (exit %s, code %s)\n\n' "$rc" "$code"
   fi
 }
 
@@ -110,6 +132,7 @@ skip_check() {
   CHECK_CMDS+=("$display")
   CHECK_STATUS+=("skipped")
   CHECK_EXITS+=("-1")
+  CHECK_CODES+=("$(check_code "$fn")")
   SKIPPED=$((SKIPPED + 1))
 }
 
@@ -219,11 +242,15 @@ STATUSES = {"planned", "ready", "implementing", "verifying", "review",
             "blocked", "complete"}
 LISTS = ["specReferences", "relevantFiles", "allowedFiles", "acceptance",
          "nonGoals", "verificationCommands", "notes"]
+# Active execution must be leased: two agents sharing one tree need to know who
+# owns a work item. Verification fails closed on a missing or contended lease.
+LEASE_REQUIRED = {"implementing", "verifying"}
 
 failed = False
 paths = sorted(pathlib.Path(".agent/work").glob("*/state.json"))
 if not paths:
     print("no work items found (ok during foundation phase)")
+claims = {}
 for p in paths:
     try:
         data = json.loads(p.read_text())
@@ -242,6 +269,13 @@ for p in paths:
     for key in LISTS:
         if key in data and not isinstance(data[key], list):
             problems.append(f"{key} must be a list")
+    lease = data.get("leaseOwner")
+    if lease is not None and (not isinstance(lease, str) or not lease.strip()):
+        problems.append("leaseOwner must be a non-empty string or null")
+    elif isinstance(lease, str) and lease.strip():
+        claims.setdefault(lease.strip(), []).append(p.parent.name)
+    if data.get("status") in LEASE_REQUIRED and not (isinstance(lease, str) and lease.strip()):
+        problems.append(f"status {data.get('status')!r} requires a non-empty leaseOwner")
     if problems:
         failed = True
         print(f"{p}:")
@@ -249,6 +283,11 @@ for p in paths:
             print(f"  - {problem}")
     else:
         print(f"{p}: ok")
+for owner in sorted(claims):
+    holders = claims[owner]
+    if len(holders) > 1:
+        failed = True
+        print(f"lease conflict: {owner!r} claimed by {', '.join(holders)}")
 sys.exit(1 if failed else 0)
 PY
 }
@@ -352,11 +391,12 @@ if [ -n "$TASK_ID" ]; then
       if [ "$exit_json" = "-1" ]; then
         exit_json="null"
       fi
-      printf '    {"name": "%s", "command": "%s", "status": "%s", "exitCode": %s}' \
+      printf '    {"name": "%s", "command": "%s", "status": "%s", "exitCode": %s, "code": "%s"}' \
         "$(json_escape "${CHECK_NAMES[$i]}")" \
         "$(json_escape "${CHECK_CMDS[$i]}")" \
         "${CHECK_STATUS[$i]}" \
-        "$exit_json"
+        "$exit_json" \
+        "$(json_escape "${CHECK_CODES[$i]}")"
     done
     printf '\n  ]\n}\n'
   } > "$REPORT_PATH"

@@ -22,6 +22,7 @@ each other without chat history.
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
+  "leaseOwner": null,
   "attempts": 0,
   "specReferences": ["spec/fake-jev-technical-spec-v2.md § 40"],
   "relevantFiles": ["internal/engine/stub.go"],
@@ -43,6 +44,8 @@ Field meanings:
 | `id` | Stable task id; matches the directory name. |
 | `phase` | Which specification phase the item belongs to (e.g. `foundation`, `phase-1`). |
 | `status` | One of the vocabulary values below. |
+| `assignedRole` | Optional role label for the worker (e.g. `implementer`); informational only. |
+| `leaseOwner` | Exclusive claim on this item by a worker identifier (e.g. `agent-7` or a session id). Required while `status` is `implementing`/`verifying`; must be unique across work items. `null` when unclaimed. |
 | `baseRevision` / `candidateRevision` | Git revisions before/after the attempt; `null` when Git metadata is unavailable. |
 | `specReferences` | Pointers into the specification. Never paste spec content here. |
 | `relevantFiles` | Files an implementor should read. |
@@ -62,6 +65,23 @@ planned -> ready -> implementing -> verifying -> review -> complete
 
 Keep it small. Do not invent a workflow engine.
 
+### Lease
+
+When several workers share one checkout, task state is the only thing that says who
+owns what:
+
+```text
+claim:   set leaseOwner to your own identifier before your first edit
+rule:    status implementing | verifying requires a non-empty leaseOwner
+contention: two items claiming the same leaseOwner fails verification
+release: set leaseOwner back to null when you hand the item off (review/complete/blocked)
+```
+
+`verify-candidate` enforces the two mechanical rules; the rest is discipline. A lease
+is not a lock — it is a visible claim, so a second agent can see the collision instead
+of discovering it in the diff. `./scripts/agent-context <task-id>` prints the current
+lease alongside the orientation packet.
+
 ### Revision binding
 
 `verify-candidate` records the revision it actually verified. Evidence for revision A
@@ -79,12 +99,18 @@ One JSON file per verification run, written by `./scripts/verify-candidate <task
   "treeState": { "gitAvailable": true, "clean": true, "staged": 0, "unstaged": 0, "untracked": 0 },
   "startedAt": "2026-09-25T10:00:00Z",
   "finishedAt": "2026-09-25T10:00:02Z",
-  "status": "passed",
+  "status": "failed",
   "checks": [
-    { "name": "go-test", "command": "go test ./...", "status": "passed", "exitCode": 0 }
+    { "name": "check_go_test", "command": "go test (repository packages)", "status": "passed", "exitCode": 0, "code": "go.test_failed" },
+    { "name": "check_work_item_schema", "command": "work items match the state.json schema", "status": "failed", "exitCode": 1, "code": "agent.work_item_schema" }
   ]
 }
 ```
+
+Every check carries a stable `code`. On failure it names the failure class
+(`go.test_failed`, `agent.work_item_schema`, `spec.missing`, ...) so an agent
+fingerprints repeated failures from `code` + `name` instead of scraping stderr; the
+same code is printed on the console as `FAIL (exit N, code X)`.
 
 `treeState` makes the evidence's coverage explicit. A report with
 `"clean": false` describes revision `abc123` **plus** the listed dirty entries — the
