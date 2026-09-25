@@ -73,7 +73,7 @@ docs/agents/
     gate-policy.json          bootstrap exemptions (new, committed)
     work/<task-id>/           state.json + stage artifacts (exists)
 scripts/
-    candidate-fingerprint      workspace content digest (new)
+    candidate-fingerprint      workspace and task digests (new)
     selftest                   harness scenario suite (new)
 ```
 
@@ -160,13 +160,16 @@ stage: hardener
 task: FJ-017
 inputFingerprint: 9f2c…
 outputFingerprint: 4ab1…
+taskFingerprint: 7c2e…
 gitHead: a5a7846
 generatedAt: 2026-09-25T11:00:00Z
 ---
 ```
 
 - `inputFingerprint` / `outputFingerprint`: workspace content digest before and
-  after the stage (§6).
+  after the stage (§6.1).
+- `taskFingerprint`: the task-semantic digest (§6.2) computed when the stage
+  ran; verification requires it to equal the current task fingerprint (§7).
 - `gitHead`: diagnostic metadata only. It is never evidence identity.
 - No `status`/verdict field exists in an artifact. Verdicts
   (`pass|fail|skipped|not_applicable`) are produced solely by
@@ -174,7 +177,18 @@ generatedAt: 2026-09-25T11:00:00Z
 
 Below the header: concise prose — what was done, what was found, what remains.
 
-## 6. Candidate fingerprint (frozen)
+## 6. Fingerprints (frozen)
+
+Two independent identities, two staleness dimensions:
+
+- **candidate fingerprint** (§6.1) — what the workspace contains; a content
+  change invalidates downstream evidence;
+- **task fingerprint** (§6.2) — what work is being accepted; a task-semantics
+  change invalidates the recorded evidence itself.
+
+Both are sha256 over canonical forms, computed offline with no timestamps.
+
+### 6.1 Candidate fingerprint
 
 A revision means **workspace content**, not `HEAD`. Two workers on uncommitted
 trees must be distinguishable.
@@ -187,21 +201,63 @@ fingerprint = sha256( canonical JSON array, sorted by path, of:
     minus EXCLUDED prefixes )
 ```
 
-- `mode` is the git mode (`100644`, `100755`, `120000` symlink → hash of target).
+Frozen mode/path semantics, so independent implementations agree:
+
+- `path` is repository-relative with `/` separators (no `./` prefix, no
+  absolute paths), byte-exact otherwise.
+- Tracked files use the effective worktree mode: `120000` for symlinks
+  (content hash = bytes of the link target), else `100755` when the
+  executable bit is set, `100644` otherwise.
+- Untracked regular files: `100755` iff the executable bit is set, else
+  `100644`; content hash = file bytes.
+- Untracked symlinks: `120000`, content hash = bytes of the link target.
 - `EXCLUDED = [".agent/work/", ".agent/reports/", ".agent/logs/", ".scratch/"]`.
   Evidence and runtime files must not perturb the fingerprint they record —
   writing `hardener.md` cannot change `outputFingerprint`.
 - Gitignored paths are excluded automatically (tool installs, build output).
 - Content only: a commit with identical content yields the identical
-  fingerprint, so chains survive commits.
+  fingerprint, so chains survive commits. `HEAD` is never part of identity.
+
+### 6.2 Task fingerprint
+
+`taskFingerprint = sha256(canonical JSON of the task object)`, where the task
+object contains exactly these fields (frozen set), taken from `state.json`
+except where noted:
+
+- `id`, `objective`, `nonGoals`, `acceptance`, `specReferences`,
+  `allowedFiles`, `verificationCommands` — values as stored;
+- `requiredStages` — the **effective** value: the explicit list when present,
+  otherwise the value derived by policy (§8.2), so an override that restates
+  the default hashes identically to no override;
+- `requiredStagesJustification` — only when present (§8 fields).
+
+Canonical JSON: keys sorted lexicographically, no insignificant whitespace,
+UTF-8, arrays in stored order; a field that is absent (or `null`) is omitted
+from the object entirely. Classification failure (`policy.unknown_scope`)
+prevents derivation and fails verification first (§8.2).
+
+Every field not listed above is non-semantic by default and excluded —
+`title`, `phase`, `assignedRole`, `relevantFiles`, `baseRevision`,
+`candidateRevision`, `status`, `stage`, `leaseOwner`, `attempts`,
+`lastVerification`, `reviews`, `blockers`, `nextAction`, `notes`. The
+include-set is frozen: making another field semantic requires a design
+revision. Workflow-only changes (status transitions, lease moves) therefore
+leave `taskFingerprint` unchanged by construction.
+
+Consequence, fail-closed by design: a task-semantics change stales **every**
+existing stage artifact at once — each recorded the prior task fingerprint —
+so evidence must be re-recorded against the new acceptance.
+
 - One implementation, `scripts/candidate-fingerprint`, shared by
-  `verify-candidate` and `agent-context`, guarantees both compute the same
-  value. Deterministic, offline, no timestamps.
+  `verify-candidate` and `agent-context`, computes both fingerprints (the task
+  fingerprint from a `state.json` path), so verification and display cannot
+  disagree. Deterministic, offline, no timestamps.
 
 ## 7. Evidence chain and invalidation (B8/B9)
 
-Invariant: **stage evidence is fingerprint-bound, and any candidate change
-invalidates downstream evidence.**
+Invariant: **stage evidence is fingerprint-bound. Candidate content changes
+invalidate downstream evidence; task-semantics changes invalidate the recorded
+evidence itself.**
 
 For a required stage B whose artifact is due (§8.1), verification requires the
 chain link to the immediately preceding required stage A:
@@ -213,34 +269,39 @@ B.inputFingerprint == A.outputFingerprint
 | Condition | Result | Code |
 |-----------|--------|------|
 | chain mismatch | `fail` | `stage.evidence_stale` |
+| artifact `taskFingerprint` ≠ current task fingerprint (§6.2) | `fail` | `stage.evidence_stale` |
 | missing/unparseable header, unknown `stage`/`task` | `fail` | `stage.evidence_invalid` |
 | artifact absent for a stage due under §8.1 | `fail` | `stage.artifact_missing` |
 
 The check belongs to stage B's gate (each stage gate validates its own link),
-so no new gate id is introduced. A cleaner that edits code after hardening
-produces a new fingerprint; `hardener` and `qa` no longer chain and cannot
-complete.
+so no new gate id is introduced. The task-fingerprint check is a separate
+check from the chain check — distinct `name`, same code — so reports tell
+candidate staleness from task staleness. A cleaner that edits code after
+hardening produces a new fingerprint; `hardener` and `qa` no longer chain and
+cannot complete.
 
-`agent-context` recomputes the current fingerprint itself (never trusts stored
-prose) and renders each stage as `fresh`, `stale`, `missing` (due and absent),
-`invalid` (present but unparseable), `pending` (not yet due under §8.1), or
-`not required` (§8.3).
+`agent-context` recomputes the current candidate and task fingerprints itself
+(never trusts stored prose) and renders each stage as `fresh`, `stale`,
+`missing` (due and absent), `invalid` (present but unparseable), `pending`
+(not yet due under §8.1), or `not required` (§8.3).
 
 **Terminal freshness.** When `status` is `verifying`, the current stage's
 `outputFingerprint` must equal the current workspace fingerprint; when `status`
 is `review` or `complete`, the last required stage's `outputFingerprint` must
-equal it. A mismatch fails `stage.evidence_stale`. `implementing` and `blocked` have no terminal check (work in progress;
-blocked preserves evidence as-is), and `planned`/`ready` have no stage to
-check. The check is evaluated only when the relevant artifact exists — a
-missing artifact already fails the table above — and belongs to that stage's
-gate, so no new gate id is introduced.
+equal it. A mismatch fails `stage.evidence_stale`. `implementing` and `blocked`
+have no terminal check (work in progress; blocked preserves evidence as-is),
+and `planned`/`ready` have no stage to check. The check is evaluated only when
+the relevant artifact exists — a missing artifact already fails the table
+above — and belongs to that stage's gate, so no new gate id is introduced.
 
 **Display rule.** A broken link is attributed to its target stage: the stage
 whose `inputFingerprint` no longer matches its predecessor's `outputFingerprint`
 renders `stale`, while the predecessor stays `fresh`. The terminal freshness
 check attributes `stale` to the stage it covers (current stage under
-`verifying`; last required stage under `review`/`complete`). The first required
-stage has no predecessor link — its `inputFingerprint` is recorded for
+`verifying`; last required stage under `review`/`complete`). A recorded
+`taskFingerprint` mismatch marks that artifact `stale` too — when task
+semantics change, every existing artifact renders `stale` at once. The first
+required stage has no predecessor link — its `inputFingerprint` is recorded for
 diagnostics only. A stage superseded by later, chain-intact work still renders
 `fresh`.
 
@@ -254,9 +315,10 @@ diagnostics only. A stage superseded by later, chain-intact work still renders
   stages the policy derives, but must still contain every derived stage in
   canonical order. Removing a derived stage fails
   `policy.stage_reduction_forbidden`;
-- `requiredStagesJustification` — required non-empty string whenever the
+- `requiredStagesJustification` — a non-empty string is required whenever the
   explicit list differs from the derived value (i.e. whenever stages were
-  added), else the schema check fails.
+  added), and the field must be absent when the list equals it; either
+  violation fails the schema check.
 
 ### 8.1 State rules (frozen)
 
@@ -298,7 +360,9 @@ The classes above cover every `allowedFiles` path in the current work items
   `testdata/contracts/` (spec §45).
 - `scripts/` and CI are `metadata`: the default excludes Hardener because G-H
   mutates executable product code. Hardener for a script/CI item must be added
-  explicitly with `requiredStagesJustification`.
+  explicitly with `requiredStagesJustification` — and because the G-H
+  bootstrap exemption is scoped to `product` (§9.2), such an opt-in blocks
+  until mutation tooling ships.
 - Unknown or empty classification fails closed so new repository areas are
   classified deliberately.
 - Policy is evaluated from `allowedFiles` at verification time; the report
@@ -306,18 +370,21 @@ The classes above cover every `allowedFiles` path in the current work items
 
 ### 8.3 Gate scheduling (frozen)
 
-- A stage's own checks — artifact presence/validity, chain link, stage tools —
-  are emitted and evaluated only when that stage is due under §8.1.
+- A stage's own checks — artifact presence, header/task-fingerprint validity,
+  chain link, stage tools — are emitted and evaluated only when that stage is
+  due under §8.1.
 - A required stage that is not yet due is **pending**: it produces no check
   entry and no verdict — it is not `skipped`, which would be a verdict — so a
   future required stage can never block the current stage's verification.
 - A stage outside `requiredStages` is not pending; it is evaluated as
   non-required exactly as §9.3 specifies (`not_applicable`,
-  `stage.not_required`). Under v1's additive-only rule this set is always
-  empty — every derived list contains all stages (H excepted only for
-  `metadata`) — so the path is reserved for future policy revisions.
-  `stage.not_required` remains reachable today through G-C's Go checks on
-  `metadata` items.
+  `stage.not_required`). In v1 this happens exactly once by policy:
+  `product` items require all five stages; `metadata` items derive
+  `S, C, L, Q`, so **Hardener is the one policy-derived stage-level
+  `not_applicable` case** (an explicit additive override can bring it back,
+  §8 fields). Further stage-level `not_applicable` cases are reserved for
+  future policy revisions. `stage.not_required` is additionally reported by
+  G-C's Go checks on `metadata` items.
 - G-C's repository-integrity checks and its Go checks (required iff class ==
   `product`) are unconditional: they run on every verification, independent of
   `status` and `stage`.
@@ -395,11 +462,11 @@ file is first committed.
 
 | Gate | Stage | Checks | Codes |
 |------|-------|--------|---------------------|
-| `G-S` | specifier | artifact + header present; every ID under `## Traces` exists in `docs/development/acceptance-catalog.md` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.trace_unknown` |
-| `G-C` | coder | artifact + chain link, then repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — the integrity and Go portions required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
-| `G-L` | cleaner | artifact + chain link + complexity/CRAP analysis | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
-| `G-H` | hardener | artifact + chain link + mutation/hardening of executable product code | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
-| `G-Q` | qa | artifact + chain link + public-surface/system tests | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+| `G-S` | specifier | artifact + task fingerprint + header validated; every ID under `## Traces` exists in `docs/development/acceptance-catalog.md` | `stage.evidence_stale`, `stage.evidence_invalid`, `stage.trace_unknown`, `stage.artifact_missing` |
+| `G-C` | coder | artifact + chain link + task fingerprint, then repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — the integrity and Go portions required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
+| `G-L` | cleaner | artifact + chain link + task fingerprint + complexity/CRAP analysis | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+| `G-H` | hardener | artifact + chain link + task fingerprint + mutation/hardening of executable product code | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
+| `G-Q` | qa | artifact + chain link + task fingerprint + public-surface/system tests | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
 
 A gate belonging to a stage outside `requiredStages` reports
 `required: false, result: not_applicable, code: stage.not_required,
@@ -409,8 +476,8 @@ reason: product|metadata`.
 
 Additive, still deterministic (no wall-clock in output):
 
-- header line: `stage`, `requiredStages`, lease, fingerprint of the current
-  workspace;
+- header line: `stage`, `requiredStages`, lease, the current candidate and
+  task fingerprints;
 - `GAUNTLET` block — one row per required stage:
 
 ```text
@@ -426,9 +493,11 @@ QA          artifact: pending  gate: not run
   - `pending` means not yet due under §8.1: no check entry exists, hence
     `not run`. It is distinct from `missing`, which is due and absent and
     fails verification;
-  - gate results come from the latest report bound to the current workspace
-    fingerprint; reports at older fingerprints are ignored here (they surface
-    in the `EVIDENCE FRESHNESS` block instead);
+  - gate results come from the latest report bound to the current candidate
+    **and** task fingerprints; a report bound to either older fingerprint is
+    ignored here (it surfaces in the `EVIDENCE FRESHNESS` block instead) —
+    this keeps an artifact that renders `stale` from pairing with a `pass`
+    from before the change;
   - gate display collapses required checks as: `fail` if any required check
     failed, else `exempt` if any required check is bootstrap-exempt (§9.2),
     else `pass`; `not_applicable` for stages outside `requiredStages` (§9.3),
@@ -483,6 +552,12 @@ source modified after the terminal artifact
   (verifying: current stage; review/complete: last required stage)
                                   → failure (stage.evidence_stale)
 testdata/ or spec/contracts/ fixture change → class product, go test required
+metadata item                    → Hardener gate not_applicable (stage.not_required), non-blocking
+task semantics changed after the final artifact → failure (stage.evidence_stale)
+workflow-only state change (status transition, lease move)
+                                  → taskFingerprint unchanged
+candidate source change           → candidate staleness while the task-fingerprint check passes (independent dimensions)
+untracked regular file and symlink → canonical repo-relative `/` paths and 100644/100755/120000 mode rules reflected in the digest (§6.1), when creatable in the test environment
 mixed path classes                 → strongest policy wins
 unknown path classification        → failure (policy.unknown_scope)
 unknown trace id in specifier.md   → failure (stage.trace_unknown)
@@ -504,7 +579,9 @@ This applies the gauntlet to the gauntlet itself.
   exempt while tracked) when PyYAML is missing; pin it when this becomes a
   required CI gate.
 - **Fingerprint excludes evidence directories by design.** Edits confined to
-  `.agent/work|reports|logs` are not part of candidate identity.
+  `.agent/work|reports|logs` are not part of candidate identity;
+  `state.json` semantic changes are caught by the task fingerprint (§6.2),
+  workflow-only field changes intentionally are not.
 - **Evidence is workspace-wide.** The fingerprint covers the whole checkout:
   two work items interleaved in one worktree invalidate each other's chains and
   terminal freshness. Items that must both produce evidence run in separate
@@ -523,7 +600,7 @@ This applies the gauntlet to the gauntlet itself.
 
 1. `scripts/selftest` passes every case in §12.
 2. `./scripts/verify-candidate <task-id>` enforces §9 semantics on a real item,
-   including a deliberately staged stale-chain scenario.
+   including deliberately staged candidate-stale and task-stale scenarios.
 3. Continuity test: a fresh worker given only `./scripts/agent-context
    <task-id>` identifies the current stage, the required packs, fresh vs stale
    evidence, and the next action without reading any chat history.
