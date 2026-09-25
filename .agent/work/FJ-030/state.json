@@ -1,0 +1,40 @@
+{
+  "id": "FJ-030",
+  "title": "Phase 3: validate command",
+  "phase": "phase-3",
+  "objective": "Implement `fake-jev validate <path>` so every statically checkable configuration rule runs without starting a server or touching the network.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§15.2 validate",
+    "§42.1 process exit codes"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/cli/validate.go",
+    "internal/cli/validate_test.go"
+  ],
+  "acceptance": [
+    "C-CLI-005",
+    "C-CLI-001",
+    "exit 2 on any configuration or schema violation, 0 on success",
+    "no network request and no listener is created"
+  ],
+  "nonGoals": [
+    "no server startup",
+    "no runtime matching checks"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-030"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement validate on top of the configuration validator",
+  "notes": []
+}

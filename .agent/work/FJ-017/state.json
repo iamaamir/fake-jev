@@ -1,0 +1,47 @@
+{
+  "id": "FJ-017",
+  "title": "Phase 1: HTTP host dispatch, limits, and failure mapping",
+  "phase": "phase-1",
+  "objective": "Serve the data plane over HTTP with per-plane body limits, journal capacity enforcement, unknown-route handling, and the exact §43 fake-failure bodies.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§7 high-level system design",
+    "§17.4 concurrency",
+    "§19.4 resource limits",
+    "§43 normative fake-server HTTP failures"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/host/http/server.go",
+    "internal/host/http/router.go",
+    "internal/host/http/server_test.go"
+  ],
+  "acceptance": [
+    "C-HOST-004",
+    "C-HOST-006",
+    "C-HOST-007",
+    "C-HOST-008",
+    "C-MATCH-010",
+    "C-GOLD-014",
+    "C-GOLD-015"
+  ],
+  "nonGoals": [
+    "no control API (FJ-020)",
+    "no signals or ready file (FJ-031)",
+    "no journal bookkeeping (FJ-013)"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-017"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement dispatch, limit enforcement, and failure bodies; test through a real listener",
+  "notes": []
+}

@@ -1,0 +1,49 @@
+{
+  "id": "FJ-014",
+  "title": "Phase 1: jev/v1 routing and request validation",
+  "phase": "phase-1",
+  "objective": "Implement exact data-plane route recognition and the frozen request validation order returning the deterministic 422 detail envelope.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§39.2 request validation",
+    "§39.3 deterministic 422 envelope",
+    "§39.8 route and method exactness"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/compat/jev/v1/routes.go",
+    "internal/compat/jev/v1/request.go",
+    "internal/compat/jev/v1/validation.go",
+    "internal/compat/jev/v1/validation_test.go"
+  ],
+  "acceptance": [
+    "C-JEV-003",
+    "C-JEV-004",
+    "C-JEV-005",
+    "C-JEV-006",
+    "C-JEV-007",
+    "C-JEV-019",
+    "C-GOLD-010",
+    "C-GOLD-011",
+    "C-GOLD-016"
+  ],
+  "nonGoals": [
+    "no answer generation",
+    "no stub selection",
+    "no exact upstream framework prose emulation (§39.3)"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-014"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement route matching and first-error validation with golden 422 tests",
+  "notes": []
+}

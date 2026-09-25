@@ -1,0 +1,53 @@
+{
+  "id": "FJ-011",
+  "title": "Phase 1: engine stub registry, ordering, and matching",
+  "phase": "phase-1",
+  "objective": "Implement the provider-neutral stub registry with static/dynamic provenance, registration indices, the AND-combined matcher with wildcard omissions, and the total ordering priority DESC then registrationIndex ASC.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§40 normative matching, ordering, sequences, and state",
+    "§8 core domain model",
+    "§17.3 engine purity"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/engine/engine.go",
+    "internal/engine/exchange.go",
+    "internal/engine/stub.go",
+    "internal/engine/matcher.go",
+    "internal/engine/matcher_test.go"
+  ],
+  "acceptance": [
+    "C-MATCH-001",
+    "C-MATCH-002",
+    "C-MATCH-003",
+    "C-MATCH-004",
+    "C-MATCH-005",
+    "C-MATCH-006",
+    "C-MATCH-007",
+    "C-MATCH-008",
+    "C-MATCH-009",
+    "C-ARCH-001",
+    "C-HOST-010"
+  ],
+  "nonGoals": [
+    "no response sequences",
+    "no interaction journal",
+    "no Jev or HTTP knowledge in the engine",
+    "no specificity scoring"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-011"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement registry, matcher, and ordering with table-driven tests from §44.5/§44.6",
+  "notes": []
+}

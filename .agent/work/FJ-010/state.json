@@ -1,0 +1,51 @@
+{
+  "id": "FJ-010",
+  "title": "Phase 1: configuration loader and validator",
+  "phase": "phase-1",
+  "objective": "Load YAML or JSON configuration into a validated model, rejecting unknown keys, invalid expect forms, duplicate static IDs, non-strict modes, and unknown profiles, while applying the §12.2 defaults.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§12 configuration and fixture format",
+    "§38 normative configuration contract"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/config/load.go",
+    "internal/config/schema.go",
+    "internal/config/validate.go",
+    "internal/config/validate_test.go"
+  ],
+  "acceptance": [
+    "C-CFG-001",
+    "C-CFG-002",
+    "C-CFG-003",
+    "C-CFG-004",
+    "C-CFG-005",
+    "C-CFG-006",
+    "C-CFG-007",
+    "C-CFG-008",
+    "C-CFG-009",
+    "C-CFG-010",
+    "C-CFG-011",
+    "C-SEQ-007"
+  ],
+  "nonGoals": [
+    "no server startup",
+    "no engine wiring",
+    "no profile-specific answer validation beyond envelope shape"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-010"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement parsing, alias normalization, unknown-key rejection, and defaults",
+  "notes": []
+}

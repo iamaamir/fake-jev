@@ -1,0 +1,47 @@
+{
+  "id": "FJ-001",
+  "title": "Phase 0: Go module, package skeleton, and version command",
+  "phase": "phase-0",
+  "objective": "Create the Go module at minimum Go 1.26, the cmd/fake-jev entry point, the internal package boundaries defined by specification §17, and a working `version` command.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§17 Go implementation architecture",
+    "§17.1 toolchain baseline",
+    "§17.2 dependency policy",
+    "§15.5 version command"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md",
+    "cmd/fake-jev/main.go"
+  ],
+  "allowedFiles": [
+    "go.mod",
+    "cmd/fake-jev/main.go",
+    "internal/cli/version.go",
+    "internal/cli/dispatch.go"
+  ],
+  "acceptance": [
+    "C-CLI-009",
+    "C-QUAL-001",
+    "C-QUAL-003",
+    "go.mod declares minimum Go 1.26 and no Go 1.27-only language feature is used",
+    "standard library preferred; at most one mature YAML dependency (C-ARCH-002 context, §17.2)"
+  ],
+  "nonGoals": [
+    "no HTTP server, matching, or fixtures",
+    "no Go 1.27-only language features",
+    "no CLI framework dependency"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-001"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement the module, entry point, and version command",
+  "notes": []
+}

@@ -1,19 +1,19 @@
 {
   "id": "FJ-PRD-001",
-  "title": "PRD: fake-jev v1 — deterministic local test server for System One-style decision APIs",
+  "title": "PRD: fake-jev v1 \u2014 deterministic local test server for System One-style decision APIs",
   "phase": "foundation",
   "objective": "Decompose the published v1 PRD (PRD.md in this work item) into bounded, independently verifiable work items covering specification phases 0-4, and drive them through verify-candidate.",
-  "status": "ready",
+  "status": "review",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
   "attempts": 0,
   "specReferences": [
-    "spec/fake-jev-technical-spec-v2.md § 17 Go implementation architecture",
-    "spec/fake-jev-technical-spec-v2.md § 31 implementation phases",
-    "spec/fake-jev-technical-spec-v2.md § 32 definition of done",
-    "spec/fake-jev-technical-spec-v2.md § 37-44 normative conformance contracts",
-    "spec/fake-jev-technical-spec-v2.md § 45 required repository contract artifacts"
+    "spec/fake-jev-technical-spec-v2.md \u00a7 17 Go implementation architecture",
+    "spec/fake-jev-technical-spec-v2.md \u00a7 31 implementation phases",
+    "spec/fake-jev-technical-spec-v2.md \u00a7 32 definition of done",
+    "spec/fake-jev-technical-spec-v2.md \u00a7 37-44 normative conformance contracts",
+    "spec/fake-jev-technical-spec-v2.md \u00a7 45 required repository contract artifacts"
   ],
   "relevantFiles": [
     ".agent/work/FJ-PRD-001/PRD.md",
@@ -28,9 +28,9 @@
   "acceptance": [
     "PRD.md covers all seven agreed modules: engine, jev/v1 profile, configuration, HTTP host, control API, CLI, contract artifacts and golden harness",
     "PRD.md user stories, implementation decisions, testing decisions, out-of-scope and further-notes sections are all present",
-    "One child work item exists per specification § 31 phase slice (0-4), each with objective, specReferences, allowedFiles, acceptance, nonGoals and verificationCommands",
-    "No child work item requests a feature listed in specification § 33 deferred decisions",
-    "Every child work item's acceptance criteria traces to a specification section or a § 44 golden contract vector",
+    "One child work item exists per specification \u00a7 31 phase slice (0-4), each with objective, specReferences, allowedFiles, acceptance, nonGoals and verificationCommands",
+    "No child work item requests a feature listed in specification \u00a7 33 deferred decisions",
+    "Every child work item's acceptance criteria traces to a specification section or a \u00a7 44 golden contract vector",
     "./scripts/verify-candidate FJ-PRD-001 exits 0"
   ],
   "nonGoals": [
@@ -42,15 +42,19 @@
     "./scripts/verify-candidate FJ-PRD-001"
   ],
   "lastVerification": {
-    "status": "passed",
-    "revision": null,
-    "finishedAt": "2026-09-25T11:11:33Z",
-    "report": ".agent/reports/FJ-PRD-001/report-20260925T111133Z.json"
+    "runAt": "2026-09-25T11:40:46Z",
+    "revision": "a5a7846",
+    "status": "failed",
+    "report": ".agent/reports/FJ-PRD-001/report-20260925T114046Z.json",
+    "summary": "7 passed, 3 failed, 0 skipped"
   },
   "blockers": [],
-  "nextAction": "Orchestrator reads PRD.md, then creates .agent/work/FJ-<NNN>/state.json for each § 31 phase slice and flips those to ready.",
+  "nextAction": "Reviewer checks the 21 phase work items (FJ-001..FJ-042) against specification \u00a731; on approval the orchestrator starts FJ-001..FJ-004, which are already status ready.",
   "notes": [
     "Triage label ready-for-agent maps to status \"ready\" in this tracker (see docs/agents/triage-labels.md).",
-    "PRD was authored from the user's confirmed module breakdown: all seven modules in scope for tests."
+    "PRD was authored from the user's confirmed module breakdown: all seven modules in scope for tests.",
+    "Decomposition: 21 work items across specification phases 0-4; acceptance IDs are defined in docs/development/acceptance-catalog.md.",
+    "Item statuses: FJ-001..FJ-004 ready (phase 0 needs no predecessor); everything else planned until its predecessor lands.",
+    "Verification currently fails only on go test/vet/build of cmd/fake-jev: concurrent FJ-001 work landed cmd/fake-jev/main_test.go (test-first) with no implementation yet. Gitignored tool skill dirs no longer pollute go test (verify-candidate filters agent/ and other tool dirs). Re-run once FJ-001 lands."
   ]
 }

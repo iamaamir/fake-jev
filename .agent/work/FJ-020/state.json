@@ -1,0 +1,53 @@
+{
+  "id": "FJ-020",
+  "title": "Phase 2: control API health, meta, and stub management",
+  "phase": "phase-2",
+  "objective": "Implement health, meta, dynamic stub creation with duplicate rejection, stub listing, dynamic-only clearing, and the 400 control error contract.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§41.1 general rules",
+    "§41.2 health",
+    "§41.3 metadata",
+    "§41.4 create dynamic stub",
+    "§41.5 list stubs",
+    "§41.6 clear dynamic stubs",
+    "§11.2 static and dynamic stubs"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/control/api.go",
+    "internal/control/handlers.go",
+    "internal/control/handlers_test.go"
+  ],
+  "acceptance": [
+    "C-CTRL-001",
+    "C-CTRL-002",
+    "C-CTRL-003",
+    "C-CTRL-004",
+    "C-CTRL-005",
+    "C-CTRL-010",
+    "C-CTRL-011",
+    "C-MATCH-003",
+    "C-GOLD-012"
+  ],
+  "nonGoals": [
+    "no request history",
+    "no reset",
+    "no verify",
+    "no journal-visible control requests"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-020"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement the stub and meta endpoints against the engine",
+  "notes": []
+}

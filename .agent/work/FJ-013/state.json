@@ -1,0 +1,44 @@
+{
+  "id": "FJ-013",
+  "title": "Phase 1: engine interaction journal and atomic transitions",
+  "phase": "phase-1",
+  "objective": "Implement monotonic interaction sequencing assigned before routing, the bounded journal, serialized state transitions, sticky failures for states the journal cannot represent, and reset/clear primitives.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§8.6 interaction journal",
+    "§17.4 concurrency",
+    "§19.4 resource limits",
+    "§43.5 journal full"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/engine/journal.go",
+    "internal/engine/engine.go",
+    "internal/engine/journal_test.go"
+  ],
+  "acceptance": [
+    "C-HOST-001",
+    "C-HOST-002",
+    "C-HOST-003",
+    "C-HOST-005",
+    "C-HOST-009"
+  ],
+  "nonGoals": [
+    "no HTTP status mapping (host concern)",
+    "no control API surface"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-013"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement sequencing, journal capacity, and the atomicity guarantees under -race",
+  "notes": []
+}

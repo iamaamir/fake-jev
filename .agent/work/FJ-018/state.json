@@ -1,0 +1,59 @@
+{
+  "id": "FJ-018",
+  "title": "Phase 1 gate: data-plane golden contracts through real HTTP",
+  "phase": "phase-1",
+  "objective": "Wire configuration, engine, compatibility profile, and host together and run every data-plane §44 vector through an ephemeral-port HTTP client with no model, API key, or network.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§31 phase 1 acceptance",
+    "§44 golden contract vectors",
+    "§32 definition of done for v1"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md",
+    ".agent/work/FJ-PRD-001/PRD.md"
+  ],
+  "allowedFiles": [
+    "test/integration/dataplane_test.go",
+    "internal/config/*.go",
+    "internal/engine/*.go",
+    "internal/compat/jev/v1/*.go",
+    "internal/host/http/*.go"
+  ],
+  "acceptance": [
+    "C-GOLD-001",
+    "C-GOLD-002",
+    "C-GOLD-003",
+    "C-GOLD-004",
+    "C-GOLD-005",
+    "C-GOLD-006",
+    "C-GOLD-007",
+    "C-GOLD-009",
+    "C-GOLD-010",
+    "C-GOLD-011",
+    "C-GOLD-014",
+    "C-GOLD-015",
+    "C-GOLD-016",
+    "C-QUAL-001",
+    "C-QUAL-005",
+    "C-ARCH-003",
+    "C-ARCH-004"
+  ],
+  "nonGoals": [
+    "no control API coverage",
+    "no CLI coverage",
+    "no deferred §33 features"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-018"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "integrate the modules and drive the golden corpus through HTTP",
+  "notes": []
+}

@@ -1,0 +1,61 @@
+{
+  "id": "FJ-003",
+  "title": "Phase 0: golden contract vector corpus",
+  "phase": "phase-0",
+  "objective": "Materialize every §44 golden vector as committed data under the testdata/contracts/ concern directories required by §45, with each vector recording stub/config preconditions, request, expected status, and expected body.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§44 golden contract vectors",
+    "§45 required repository contract artifacts"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "testdata/contracts/models",
+    "testdata/contracts/noul",
+    "testdata/contracts/choice",
+    "testdata/contracts/score",
+    "testdata/contracts/mixed",
+    "testdata/contracts/validation",
+    "testdata/contracts/matching",
+    "testdata/contracts/sequences",
+    "testdata/contracts/reset",
+    "testdata/contracts/verification",
+    "testdata/contracts/cli"
+  ],
+  "acceptance": [
+    "C-GOLD-001",
+    "C-GOLD-002",
+    "C-GOLD-003",
+    "C-GOLD-004",
+    "C-GOLD-005",
+    "C-GOLD-006",
+    "C-GOLD-007",
+    "C-GOLD-008",
+    "C-GOLD-009",
+    "C-GOLD-010",
+    "C-GOLD-011",
+    "C-GOLD-012",
+    "C-GOLD-013",
+    "C-GOLD-014",
+    "C-GOLD-015",
+    "C-GOLD-016"
+  ],
+  "nonGoals": [
+    "no executable assertions yet, only vector data",
+    "no behavior invented beyond §44"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-003"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "transcribe §44 into the concern directories and add an index the harness can load",
+  "notes": []
+}

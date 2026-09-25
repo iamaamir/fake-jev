@@ -1,0 +1,40 @@
+{
+  "id": "FJ-004",
+  "title": "Phase 0: CI pipeline",
+  "phase": "phase-0",
+  "objective": "Add CI that runs tests, the race detector, vet, and the build matrix offline with no model, credential, or paid service.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§23 CI requirements",
+    "§23.1 build matrix",
+    "§22 testing strategy"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    ".github/workflows/ci.yml"
+  ],
+  "acceptance": [
+    "C-QUAL-005",
+    "C-QUAL-002",
+    "build matrix covers linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64",
+    "no CI secret or paid external service is required for a normal change"
+  ],
+  "nonGoals": [
+    "no release publishing yet",
+    "no live upstream drift job"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-004"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "add the workflow and confirm it passes on an empty tree",
+  "notes": []
+}

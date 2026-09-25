@@ -1,0 +1,47 @@
+{
+  "id": "FJ-032",
+  "title": "Phase 3: verify and run commands with exit precedence",
+  "phase": "phase-3",
+  "objective": "Implement `fake-jev verify --url` as a thin control-API call and `fake-jev run -- <cmd>` with URL injection, ephemeral port, child lifecycle, post-run verification, and the exact exit-code precedence table.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§15.3 verify",
+    "§15.4 run",
+    "§42.1 process exit codes",
+    "§42.2 run child exit precedence",
+    "§42.3 signals"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/cli/run.go",
+    "internal/cli/verify.go",
+    "internal/cli/run_test.go"
+  ],
+  "acceptance": [
+    "C-CLI-001",
+    "C-CLI-002",
+    "C-CLI-003",
+    "C-CLI-004",
+    "C-CLI-007",
+    "C-CLI-008",
+    "C-GOLD-013"
+  ],
+  "nonGoals": [
+    "no duplicated verification logic in the CLI",
+    "no interactive prompts"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-032"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement run and verify, then encode the §44.13 precedence table as tests",
+  "notes": []
+}

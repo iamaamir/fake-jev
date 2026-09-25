@@ -1,0 +1,46 @@
+{
+  "id": "FJ-002",
+  "title": "Phase 0: machine-readable contract artifacts",
+  "phase": "phase-0",
+  "objective": "Author spec/config.schema.json from §38, spec/control-api.openapi.yaml from §41, and spec/compat/jev-v1/openapi.snapshot.json from the frozen §6/§39 surface, so protocol behavior is reviewable as artifacts before implementation begins.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§45 required repository contract artifacts",
+    "§38 normative configuration contract",
+    "§41 normative control API contract",
+    "§6 current Jev compatibility snapshot",
+    "§39 normative jev/v1 wire contract"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "spec/config.schema.json",
+    "spec/control-api.openapi.yaml",
+    "spec/compat/jev-v1/openapi.snapshot.json",
+    "spec/README.md"
+  ],
+  "acceptance": [
+    "C-QUAL-006",
+    "config schema encodes C-CFG-001 through C-CFG-011 as machine-checkable rules",
+    "control OpenAPI encodes C-CTRL-001 through C-CTRL-011",
+    "jev snapshot records the frozen §6 surface without contacting the network"
+  ],
+  "nonGoals": [
+    "no implementation code",
+    "no network fetch of the upstream OpenAPI document",
+    "no golden test harness yet"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-002"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "write the three artifacts from the specification and review them against §38/§41/§39",
+  "notes": []
+}

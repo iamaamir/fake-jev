@@ -1,0 +1,53 @@
+{
+  "id": "FJ-016",
+  "title": "Phase 1: jev/v1 response encoding, models endpoint, and raw responses",
+  "phase": "phase-1",
+  "objective": "Encode engine results into the §39.4 response shape with model/usage defaults, serve GET /v1/models, encode then.raw responses, and accept auth without validation or logging.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§39.1 GET /v1/models",
+    "§39.4 successful response",
+    "§39.5 authentication",
+    "§39.7 raw response encoding",
+    "§39.9 content type",
+    "§13.6 response model and usage defaults"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/compat/jev/v1/response.go",
+    "internal/compat/jev/v1/models.go",
+    "internal/compat/jev/v1/profile.go",
+    "internal/compat/jev/v1/response_test.go"
+  ],
+  "acceptance": [
+    "C-JEV-001",
+    "C-JEV-002",
+    "C-JEV-009",
+    "C-JEV-010",
+    "C-JEV-017",
+    "C-JEV-018",
+    "C-JEV-020",
+    "C-ARCH-002",
+    "C-GOLD-001",
+    "C-GOLD-009"
+  ],
+  "nonGoals": [
+    "no stub selection logic",
+    "no HTTP host",
+    "no auth enforcement of any kind"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-016"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement encoding, models, and raw responses with golden tests",
+  "notes": []
+}

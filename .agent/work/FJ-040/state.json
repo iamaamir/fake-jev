@@ -1,0 +1,42 @@
+{
+  "id": "FJ-040",
+  "title": "Phase 4: race and fuzz coverage",
+  "phase": "phase-4",
+  "objective": "Prove engine and control state are race-free and that malformed untrusted input produces controlled errors rather than panics or corrupted state.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§22.1 engine unit tests",
+    "§22.2 property and fuzz testing",
+    "§17.4 concurrency"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/engine/race_test.go",
+    "internal/control/fuzz_test.go",
+    "internal/compat/jev/v1/fuzz_test.go",
+    "internal/config/fuzz_test.go"
+  ],
+  "acceptance": [
+    "C-QUAL-002",
+    "C-QUAL-004",
+    "C-HOST-009"
+  ],
+  "nonGoals": [
+    "no performance benchmarking targets",
+    "no sleeps-as-sync anywhere in the tests"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-040"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "add race tests and fuzz targets for parsing, matcher input, and state transitions",
+  "notes": []
+}

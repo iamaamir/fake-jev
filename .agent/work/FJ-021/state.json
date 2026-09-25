@@ -1,0 +1,48 @@
+{
+  "id": "FJ-021",
+  "title": "Phase 2: request history, reset, and verification",
+  "phase": "phase-2",
+  "objective": "Implement request history read/clear, the atomic full reset, and the verify endpoint with its fixed failure shape, codes, and ordering.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§41.7 request history",
+    "§41.8 clear request history",
+    "§41.9 verify",
+    "§41.10 full reset",
+    "§11.4 verification"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/control/api.go",
+    "internal/control/handlers.go",
+    "internal/control/verify.go",
+    "internal/control/handlers_test.go"
+  ],
+  "acceptance": [
+    "C-CTRL-006",
+    "C-CTRL-007",
+    "C-CTRL-008",
+    "C-CTRL-009",
+    "C-SEQ-006",
+    "C-SEQ-008",
+    "C-GOLD-008"
+  ],
+  "nonGoals": [
+    "no CLI verify command (FJ-032)",
+    "no interaction-derived failure not covered by §41.9"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-021"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement history, reset, and verify with the §44.8 reset vector as a test",
+  "notes": []
+}

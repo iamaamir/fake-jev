@@ -1,0 +1,49 @@
+{
+  "id": "FJ-042",
+  "title": "Phase 4: release matrix, container, and examples",
+  "phase": "phase-4",
+  "objective": "Produce the platform build matrix with checksums, a minimal container image, and usage examples for TypeScript, Python, Go, and raw HTTP.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§23.1 build matrix",
+    "§23.2 release integrity",
+    "§24 distribution",
+    "§31 phase 4 acceptance",
+    "§32 definition of done for v1"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "Dockerfile",
+    "examples/",
+    ".github/workflows/release.yml",
+    "README.md"
+  ],
+  "acceptance": [
+    "C-QUAL-005",
+    "C-ARCH-003",
+    "C-ARCH-004",
+    "a user can run the binary or image with no Go toolchain, model, or provider SDK",
+    "public documentation states fake-jev does not simulate model quality"
+  ],
+  "nonGoals": [
+    "no npm package",
+    "no Homebrew formula",
+    "no GitHub Action",
+    "no TypeScript wrapper (phase 5)",
+    "no WASM (phase 6)"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-042"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "add the release workflow, image, and examples",
+  "notes": []
+}

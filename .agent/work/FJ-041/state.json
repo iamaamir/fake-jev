@@ -1,0 +1,47 @@
+{
+  "id": "FJ-041",
+  "title": "Phase 4: limits, redaction, and no-egress enforcement",
+  "phase": "phase-4",
+  "objective": "Harden the operational envelope: enforced default limits, log truncation, Authorization redaction, loopback default bind, and an offline runtime that cannot execute fixture code.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§19 security model",
+    "§19.2 no network egress",
+    "§19.3 no arbitrary code execution in fixtures",
+    "§20 observability and diagnostics",
+    "§12.2 built-in defaults"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/host/http/limits_test.go",
+    "internal/cli/logging.go",
+    "internal/cli/logging_test.go"
+  ],
+  "acceptance": [
+    "C-HOST-008",
+    "C-CLI-010",
+    "C-ARCH-004",
+    "C-ARCH-005",
+    "C-ARCH-006",
+    "C-JEV-017"
+  ],
+  "nonGoals": [
+    "no latency or fault injection",
+    "no control-plane auth",
+    "no metrics backend"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-041"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "add limit, redaction, and egress assertions as deterministic tests",
+  "notes": []
+}

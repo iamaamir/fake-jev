@@ -1,0 +1,46 @@
+{
+  "id": "FJ-031",
+  "title": "Phase 3: serve command, ready file, signals, and logging",
+  "phase": "phase-3",
+  "objective": "Implement `fake-jev serve` with flag precedence, loopback default bind, ephemeral port support, atomic ready file, graceful shutdown on SIGINT/SIGTERM, and stderr logging with Authorization redaction.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§15.1 serve",
+    "§42.3 signals",
+    "§42.4 ready file",
+    "§42.5 logging destinations",
+    "§20 observability and diagnostics"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/cli/serve.go",
+    "internal/cli/serve_test.go",
+    "internal/host/http/server.go"
+  ],
+  "acceptance": [
+    "C-CLI-004",
+    "C-CLI-006",
+    "C-CLI-007",
+    "C-CLI-010",
+    "C-ARCH-006"
+  ],
+  "nonGoals": [
+    "no run orchestration",
+    "no log-format json beyond the flag contract",
+    "no control-plane authentication"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-031"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement serve, ready-file atomicity, and signal handling",
+  "notes": []
+}

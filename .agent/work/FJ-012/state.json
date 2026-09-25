@@ -1,0 +1,48 @@
+{
+  "id": "FJ-012",
+  "title": "Phase 1: engine sequences, invocation counts, and expectations",
+  "phase": "phase-1",
+  "objective": "Implement zero-based response-sequence consumption, invocation counting at selection time, sequence-exhausted outcomes, and expect evaluation.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§40.6 invocation count",
+    "§40.7 response sequences",
+    "§12.7 invocation expectations",
+    "§44.7 golden vector"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/engine/sequence.go",
+    "internal/engine/stub.go",
+    "internal/engine/engine.go",
+    "internal/engine/sequence_test.go"
+  ],
+  "acceptance": [
+    "C-SEQ-001",
+    "C-SEQ-002",
+    "C-SEQ-003",
+    "C-SEQ-004",
+    "C-SEQ-005",
+    "C-SEQ-007",
+    "C-SEQ-008"
+  ],
+  "nonGoals": [
+    "no named scenario DSL",
+    "no implicit repeat-last",
+    "no reset endpoint (that is FJ-021)"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-012"
+  ],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "implement sequence consumption and counters, then encode §44.7 as a test",
+  "notes": []
+}
