@@ -231,6 +231,28 @@ except where noted:
   the default hashes identically to no override;
 - `requiredStagesJustification` — only when present (§8 fields).
 
+`verificationCommands` is semantic because it records work-item-specific
+mandatory verification beyond the repository-wide gauntlet; it MUST NOT
+contain optional debugging, exploratory, or convenience commands.
+
+```text
+verificationCommands are requirements, not suggestions.
+```
+
+Enforcement: when invoked with a task id, `verify-candidate` executes each
+entry from the repository root (offline, exit 0 = pass) and reports it as a
+required check — `task.verify_command_failed` on failure — attributed to
+G-C (§8.3, §9.3); an empty list contributes no checks. An entry that would
+invoke `scripts/verify-candidate` itself fails `task.verify_command_recursive`
+— the gauntlet does not recurse. A field the fingerprint treats as acceptance
+but verification never enforces would break the repository's central
+principle, so execution is part of this design, not an optional follow-up.
+
+Migration note: every current work item still stores
+`./scripts/verify-candidate <id>` in this field — a display pointer, not an
+acceptance command. Those entries must be re-seeded to real acceptance
+commands before enforcement lands; the implementation plan sequences this.
+
 Canonical JSON: keys sorted lexicographically, no insignificant whitespace,
 UTF-8, arrays in stored order; a field that is absent (or `null`) is omitted
 from the object entirely. Classification failure (`policy.unknown_scope`)
@@ -387,7 +409,9 @@ The classes above cover every `allowedFiles` path in the current work items
   G-C's Go checks on `metadata` items.
 - G-C's repository-integrity checks and its Go checks (required iff class ==
   `product`) are unconditional: they run on every verification, independent of
-  `status` and `stage`.
+  `status` and `stage`. When a task id is given, G-C additionally executes the
+  item's `verificationCommands` (§6.2), equally status-independent; without a
+  task id they are unknowable and do not run.
 
 ## 9. Verification results and gate policy
 
@@ -463,7 +487,7 @@ file is first committed.
 | Gate | Stage | Checks | Codes |
 |------|-------|--------|---------------------|
 | `G-S` | specifier | artifact + task fingerprint + header validated; every ID under `## Traces` exists in `docs/development/acceptance-catalog.md` | `stage.evidence_stale`, `stage.evidence_invalid`, `stage.trace_unknown`, `stage.artifact_missing` |
-| `G-C` | coder | artifact + chain link + task fingerprint, then repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — the integrity and Go portions required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
+| `G-C` | coder | artifact + chain link + task fingerprint, then repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — the integrity and Go portions required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product`, plus the item's `verificationCommands` when a task id is given (status-independent, §6.2) | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `go.test_failed`, `task.verify_command_failed`, `task.verify_command_recursive`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
 | `G-L` | cleaner | artifact + chain link + task fingerprint + complexity/CRAP analysis | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
 | `G-H` | hardener | artifact + chain link + task fingerprint + mutation/hardening of executable product code | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
 | `G-Q` | qa | artifact + chain link + task fingerprint + public-surface/system tests | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
@@ -552,6 +576,8 @@ source modified after the terminal artifact
   (verifying: current stage; review/complete: last required stage)
                                   → failure (stage.evidence_stale)
 testdata/ or spec/contracts/ fixture change → class product, go test required
+failing verificationCommands entry → failure (task.verify_command_failed)
+verificationCommands entry invoking the verifier itself → failure (task.verify_command_recursive)
 metadata item                    → Hardener gate not_applicable (stage.not_required), non-blocking
 task semantics changed after the final artifact → failure (stage.evidence_stale)
 workflow-only state change (status transition, lease move)
