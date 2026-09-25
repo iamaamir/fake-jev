@@ -148,7 +148,11 @@ def scheduling(status, stage, required):
         due = list(required)
     else:
         due = []
-    pending = [s for s in required if s not in due]
+    # A stage in progress (implementing at the current stage) is neither due
+    # nor pending: its artifact is not yet required, and it is not a future
+    # stage. Everything else: pending = required \ due.
+    in_progress = stage if status == "implementing" and stage in required else None
+    pending = [s for s in required if s not in due and s != in_progress]
     return due, pending
 
 
@@ -176,11 +180,14 @@ def task_info(path):
         die("cannot classify allowedFiles: %s" % ", ".join(unknown[:5]), 3)
 
     # §6.2 canonical task object: sorted keys, no insignificant whitespace,
-    # arrays in stored order, absent/null fields omitted entirely.
+    # arrays in stored order; absent, null, and empty-list fields are all
+    # omitted entirely (absent ≡ null ≡ []).
     obj = {}
     for key in SEMANTIC_FIELDS:
-        if key in state and state[key] is not None:
-            obj[key] = state[key]
+        value = state.get(key)
+        if value is None or value == []:
+            continue
+        obj[key] = value
     if effective is not None:
         obj["requiredStages"] = effective
     if state.get("requiredStagesJustification") is not None:

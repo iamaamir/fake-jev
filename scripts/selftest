@@ -45,6 +45,11 @@ GIT_HERMETIC_ENV = {
 }
 COMMAND_TIMEOUT_SECONDS = 120
 
+# Hermetic: in-process script loads must not write __pycache__. The repo does
+# not gitignore it, so a stray mtime-bearing .pyc would dirty the tree and
+# perturb the candidate digest.
+sys.dont_write_bytecode = True
+
 
 def scenario(name):
     def decorate(fn):
@@ -326,6 +331,135 @@ def candidate_tracked_dirty_content():
         os.remove(root / "a.txt")  # tracked-but-deleted: not workspace content
         deleted = candidate_fp(root, root)
         assert deleted != clean, "deletion not reflected"
+
+
+# --------------------------------------------------------------------------
+# Task 2 scenarios: task fingerprint, classification, scheduling (§6.2, §8)
+# --------------------------------------------------------------------------
+
+@scenario("task_workflow_only_fields_ignored")
+def task_workflow_only_fields_ignored():
+    with tempfile.TemporaryDirectory() as td:
+        state = base_item()
+        before = task_fp(state, td)["taskFingerprint"]
+        for field, value in (("status", "implementing"), ("leaseOwner", "agent-9"),
+                             ("attempts", 3), ("stage", "coder"),
+                             ("nextAction", "something else"),
+                             ("lastVerification", {"status": "passed"}),
+                             ("blockers", [{"type": "spec-gap", "description": "x"}])):
+            mutated = dict(state)
+            mutated[field] = value
+            after = task_fp(mutated, td)["taskFingerprint"]
+            assert after == before, "workflow-only field %r changed task fingerprint" % field
+
+
+@scenario("task_semantic_change_changes_fingerprint")
+def task_semantic_change_changes_fingerprint():
+    with tempfile.TemporaryDirectory() as td:
+        before = task_fp(base_item(), td)["taskFingerprint"]
+        for field, value in (("nonGoals", ["one more exclusion"]),
+                             ("verificationCommands", ["go test ./..."]),
+                             ("acceptance", ["extra criterion"]),
+                             ("allowedFiles", ["docs/example.md", "docs/other.md"])):
+            mutated = dict(base_item())
+            mutated[field] = value
+            after = task_fp(mutated, td)["taskFingerprint"]
+            assert after != before, "semantic field %r did not change fingerprint" % field
+        # Absent vs null must hash identically (both omitted, §6.2 canonical form).
+        with_null = base_item()
+        with_null["nonGoals"] = None
+        assert task_fp(with_null, td)["taskFingerprint"] == before
+
+
+@scenario("task_effective_required_stages_hashing")
+def task_effective_required_stages_hashing():
+    with tempfile.TemporaryDirectory() as td:
+        derived = task_fp(base_item(), td)
+        assert derived["source"] == "derived"
+        assert derived["requiredStages"] == derived["derivedRequiredStages"]
+        # An override that restates the default hashes identically to no override.
+        restated = base_item()
+        restated["requiredStages"] = derived["derivedRequiredStages"]
+        assert task_fp(restated, td)["taskFingerprint"] == derived["taskFingerprint"]
+        # A real addition changes the fingerprint and reports explicit source.
+        added = base_item()
+        added["requiredStages"] = ["specifier", "coder", "cleaner", "hardener", "qa"]
+        info = task_fp(added, td)
+        assert info["source"] == "explicit"
+        assert info["taskFingerprint"] != derived["taskFingerprint"]
+        assert info["derivedRequiredStages"] == ["specifier", "coder", "cleaner", "qa"]
+
+
+@scenario("task_mixed_classes_strongest")
+def task_mixed_classes_strongest():
+    with tempfile.TemporaryDirectory() as td:
+        mixed = base_item()
+        mixed["allowedFiles"] = ["docs/example.md", "internal/engine/stub.go"]
+        info = task_fp(mixed, td)
+        assert info["class"] == "product", info
+        assert info["derivedRequiredStages"] == \
+            ["specifier", "coder", "cleaner", "hardener", "qa"]
+        metadata = base_item()
+        metadata["allowedFiles"] = [".agent/work/FJ-900/state.json", "docs/x.md"]
+        assert task_fp(metadata, td)["class"] == "metadata"
+        # spec/contracts/** must classify product before generic spec/** (metadata).
+        contract = base_item()
+        contract["allowedFiles"] = ["spec/contracts/vector.json"]
+        assert task_fp(contract, td)["class"] == "product"
+
+
+@scenario("task_unknown_class_unit")
+def task_unknown_class_unit():
+    with tempfile.TemporaryDirectory() as td:
+        unknown = base_item()
+        unknown["allowedFiles"] = ["weird/thing.bin"]
+        (pathlib.Path(td) / "state.json").write_text(
+            json.dumps(unknown), encoding="utf-8")
+        proc = sh("%s task %s"
+                  % (fingerprint_script(pathlib.Path(td)),
+                     pathlib.Path(td) / "state.json"),
+                  pathlib.Path(td), check=False)
+        assert proc.returncode == 3, (proc.returncode, proc.stderr)
+        assert "cannot classify" in proc.stderr
+
+
+@scenario("task_scheduling_due_sets")
+def task_scheduling_due_sets():
+    sys.path.insert(0, str(REAL / "scripts"))
+    try:
+        import importlib.util
+        import importlib.machinery
+        # spec_from_file_location finds no loader for an extensionless file
+        # and returns None; supply SourceFileLoader explicitly.
+        loader = importlib.machinery.SourceFileLoader(
+            "candidate_fingerprint", str(REAL / "scripts" / "candidate-fingerprint"))
+        spec = importlib.util.spec_from_file_location(
+            "candidate_fingerprint", REAL / "scripts" / "candidate-fingerprint",
+            loader=loader)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    finally:
+        sys.path.pop(0)
+    five = ["specifier", "coder", "cleaner", "hardener", "qa"]
+    four = ["specifier", "coder", "cleaner", "qa"]
+    cases = [
+        # (status, stage, required, due, pending)
+        ("ready", None, five, [], five),
+        ("planned", None, four, [], four),
+        ("blocked", "coder", five, [], five),
+        ("implementing", "coder", five, ["specifier"],
+         ["cleaner", "hardener", "qa"]),
+        ("implementing", None, five, five, []),
+        ("verifying", "coder", five, ["specifier", "coder"],
+         ["cleaner", "hardener", "qa"]),
+        ("review", "qa", four, four, []),
+        ("complete", "qa", five, five, []),
+        ("implementing", "hardener", four, four, []),  # stage outside RS: fail-closed, all due
+    ]
+    for status, stage, required, due, pending in cases:
+        got_due, got_pending = mod.scheduling(status, stage, required)
+        assert got_due == due, (status, stage, got_due, due)
+        assert got_pending == pending, (status, stage, got_pending, pending)
 
 
 # --- runner ---
