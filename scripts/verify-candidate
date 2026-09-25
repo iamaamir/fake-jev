@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# verify-candidate [task-id]
+#
+# Deterministic verification entry point for this repository. Offline: no network,
+# no model/provider calls, no services. Prints each check it runs and exits non-zero
+# if any mandatory check fails.
+#
+# With a task id, structured evidence is written to
+# .agent/reports/<task-id>/report-<utc-timestamp>.json, bound to the revision that
+# was verified (null when Git metadata is unavailable).
+#
+# PRODUCT VERIFICATION EXPANDS HERE: as implementation phases land, add the product
+# checks centrally (e.g. `go test ./...`, `go vet ./...`, `go build ./cmd/fake-jev`
+# once go.mod exists, then contract/integration checks defined by the specification).
+# Do not fork per-task verification scripts. Checks that cannot apply yet are
+# reported as "skipped", never as a silent pass.
+#
+# Exit codes: 0 = all mandatory checks passed; 1 = a check failed or usage/state error.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: $0 [task-id]" >&2
+  exit 1
+}
+
+[ "$#" -le 1 ] || usage
+TASK_ID="${1:-}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+REVISION="unknown"
+if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+  REVISION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+
+CHECK_NAMES=()
+CHECK_CMDS=()
+CHECK_STATUS=()
+CHECK_EXITS=()
+FAILED=0
+SKIPPED=0
+
+# run_check <display> <function> — runs the check function in a subshell so that a
+# failing `exit` inside a check cannot abort the whole verification run.
+run_check() {
+  local display="$1" fn="$2" rc
+  printf '==> %s\n' "$display"
+  set +e
+  ( "$fn" )
+  rc=$?
+  set -e
+  CHECK_NAMES+=("$fn")
+  CHECK_CMDS+=("$display")
+  CHECK_EXITS+=("$rc")
+  if [ "$rc" -eq 0 ]; then
+    CHECK_STATUS+=("passed")
+    printf '    PASS\n\n'
+  else
+    CHECK_STATUS+=("failed")
+    FAILED=$((FAILED + 1))
+    printf '    FAIL (exit %s)\n\n' "$rc"
+  fi
+}
+
+skip_check() {
+  local display="$1" fn="$2" reason="$3"
+  printf '==> %s\n    SKIPPED: %s\n\n' "$display" "$reason"
+  CHECK_NAMES+=("$fn")
+  CHECK_CMDS+=("$display")
+  CHECK_STATUS+=("skipped")
+  CHECK_EXITS+=("-1")
+  SKIPPED=$((SKIPPED + 1))
+}
+
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+echo "verify-candidate: repository=$REPO_ROOT revision=$REVISION"
+if [ -n "$TASK_ID" ]; then
+  echo "verify-candidate: task=$TASK_ID"
+fi
+echo
+
+if [ -n "$TASK_ID" ] && [ ! -f ".agent/work/$TASK_ID/state.json" ]; then
+  echo "ERROR: no work item at .agent/work/$TASK_ID/state.json" >&2
+  exit 1
+fi
+
+# --- foundation checks -------------------------------------------------------
+
+check_required_files() {
+  local missing=0 f
+  for f in README.md AGENTS.md .gitignore spec/README.md \
+           spec/fake-jev-technical-spec-v2.md docs/development/agent-workflow.md \
+           docs/adr/README.md .agent/README.md \
+           scripts/agent-context scripts/verify-candidate; do
+    if [ ! -f "$f" ]; then
+      echo "missing: $f"
+      missing=1
+    fi
+  done
+  return "$missing"
+}
+run_check "required repository files exist" check_required_files
+
+check_scripts_executable() {
+  local missing=0 s
+  for s in scripts/agent-context scripts/verify-candidate; do
+    if [ ! -x "$s" ]; then
+      echo "not executable: $s"
+      missing=1
+    fi
+  done
+  return "$missing"
+}
+run_check "scripts are executable" check_scripts_executable
+
+check_shell_syntax() {
+  bash -n scripts/verify-candidate && bash -n scripts/agent-context
+}
+run_check "shell syntax: bash -n scripts/*" check_shell_syntax
+
+check_toolchain_python3() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 not found (required by scripts/agent-context)"
+    return 1
+  fi
+  echo "python3: $(command -v python3)"
+}
+run_check "toolchain: python3 available" check_toolchain_python3
+
+check_spec_present() {
+  local spec="spec/fake-jev-technical-spec-v2.md"
+  if [ ! -s "$spec" ]; then
+    echo "missing or empty: $spec"
+    return 1
+  fi
+  if ! grep -q '^## 0\. Normative status' "$spec"; then
+    echo "spec does not look intact (missing section 0 header): $spec"
+    return 1
+  fi
+  echo "spec present: $spec ($(wc -c < "$spec" | tr -d ' ') bytes)"
+}
+run_check "authoritative spec present and intact" check_spec_present
+
+check_json_files() {
+  local bad=0 f
+  for f in $(find .agent -name '*.json' -type f | sort); do
+    if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>/dev/null; then
+      echo "malformed JSON: $f"
+      bad=1
+    fi
+  done
+  if [ "$bad" -eq 0 ]; then
+    echo "all .agent JSON files parse"
+  fi
+  return "$bad"
+}
+run_check "all .agent JSON files parse" check_json_files
+
+check_work_item_schema() {
+  python3 - <<'PY'
+import json, pathlib, sys
+
+REQUIRED = ["id", "title", "phase", "objective", "status", "acceptance",
+            "allowedFiles", "verificationCommands", "nextAction"]
+STATUSES = {"planned", "ready", "implementing", "verifying", "review",
+            "blocked", "complete"}
+LISTS = ["specReferences", "relevantFiles", "allowedFiles", "acceptance",
+         "nonGoals", "verificationCommands", "notes"]
+
+failed = False
+paths = sorted(pathlib.Path(".agent/work").glob("*/state.json"))
+if not paths:
+    print("no work items found (ok during foundation phase)")
+for p in paths:
+    try:
+        data = json.loads(p.read_text())
+    except Exception as exc:
+        print(f"{p}: malformed: {exc}")
+        failed = True
+        continue
+    problems = []
+    for key in REQUIRED:
+        if key not in data:
+            problems.append(f"missing field: {key}")
+    if data.get("id") != p.parent.name:
+        problems.append(f"id {data.get('id')!r} does not match directory {p.parent.name!r}")
+    if data.get("status") not in STATUSES:
+        problems.append(f"status {data.get('status')!r} not in vocabulary")
+    for key in LISTS:
+        if key in data and not isinstance(data[key], list):
+            problems.append(f"{key} must be a list")
+    if problems:
+        failed = True
+        print(f"{p}:")
+        for problem in problems:
+            print(f"  - {problem}")
+    else:
+        print(f"{p}: ok")
+sys.exit(1 if failed else 0)
+PY
+}
+run_check "work items match the state.json schema" check_work_item_schema
+
+# --- product checks (activated as phases land) -------------------------------
+
+check_go_test() { go test ./...; }
+check_go_vet() { go vet ./...; }
+check_go_build() { go build ./cmd/fake-jev; }
+
+if [ -f go.mod ]; then
+  run_check "go test ./..." check_go_test
+  run_check "go vet ./..." check_go_vet
+  if [ -d cmd/fake-jev ]; then
+    run_check "go build ./cmd/fake-jev" check_go_build
+  else
+    skip_check "go build ./cmd/fake-jev" check_go_build "cmd/fake-jev does not exist yet"
+  fi
+else
+  skip_check "go test ./..." check_go_test "no go.mod yet (foundation phase)"
+  skip_check "go vet ./..." check_go_vet "no go.mod yet (foundation phase)"
+  skip_check "go build ./cmd/fake-jev" check_go_build "no go.mod yet (foundation phase)"
+fi
+
+# --- report ------------------------------------------------------------------
+
+if [ -n "$TASK_ID" ]; then
+  REPORT_DIR=".agent/reports/$TASK_ID"
+  mkdir -p "$REPORT_DIR"
+  REPORT_PATH="$REPORT_DIR/report-$(date -u +%Y%m%dT%H%M%SZ).json"
+  STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  OVERALL="passed"
+  if [ "$FAILED" -ne 0 ]; then
+    OVERALL="failed"
+  fi
+
+  {
+    printf '{\n'
+    printf '  "taskId": "%s",\n' "$(json_escape "$TASK_ID")"
+    printf '  "revision": "%s",\n' "$(json_escape "$REVISION")"
+    printf '  "startedAt": "%s",\n' "$STARTED_AT"
+    printf '  "finishedAt": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '  "status": "%s",\n' "$OVERALL"
+    printf '  "checks": [\n'
+    for i in "${!CHECK_NAMES[@]}"; do
+      if [ "$i" -gt 0 ]; then
+        printf ',\n'
+      fi
+      exit_json="${CHECK_EXITS[$i]}"
+      if [ "$exit_json" = "-1" ]; then
+        exit_json="null"
+      fi
+      printf '    {"name": "%s", "command": "%s", "status": "%s", "exitCode": %s}' \
+        "$(json_escape "${CHECK_NAMES[$i]}")" \
+        "$(json_escape "${CHECK_CMDS[$i]}")" \
+        "${CHECK_STATUS[$i]}" \
+        "$exit_json"
+    done
+    printf '\n  ]\n}\n'
+  } > "$REPORT_PATH"
+  echo "report: $REPORT_PATH"
+fi
+
+PASSED=$(( ${#CHECK_NAMES[@]} - FAILED - SKIPPED ))
+echo
+echo "summary: $PASSED passed, $FAILED failed, $SKIPPED skipped (revision $REVISION)"
+if [ "$FAILED" -ne 0 ]; then
+  echo "RESULT: FAIL"
+  exit 1
+fi
+echo "RESULT: PASS"
+exit 0

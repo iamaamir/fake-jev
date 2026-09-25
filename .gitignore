@@ -1,0 +1,24 @@
+# Transient agent state — durable work items and reports are committed.
+/.agent/logs/
+
+# Local scratch and tool state
+/.scratch/
+/.pi/
+
+# Tool-managed agent skill installs (temporary — revisit before release)
+/.agents/
+/.claude/
+/agent/
+/skills-lock.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Build output (added when the Go implementation lands)
+/bin/
+/dist/
+*.test
+*.out

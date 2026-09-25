@@ -1,0 +1,56 @@
+{
+  "id": "FJ-PRD-001",
+  "title": "PRD: fake-jev v1 — deterministic local test server for System One-style decision APIs",
+  "phase": "foundation",
+  "objective": "Decompose the published v1 PRD (PRD.md in this work item) into bounded, independently verifiable work items covering specification phases 0-4, and drive them through verify-candidate.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "spec/fake-jev-technical-spec-v2.md § 17 Go implementation architecture",
+    "spec/fake-jev-technical-spec-v2.md § 31 implementation phases",
+    "spec/fake-jev-technical-spec-v2.md § 32 definition of done",
+    "spec/fake-jev-technical-spec-v2.md § 37-44 normative conformance contracts",
+    "spec/fake-jev-technical-spec-v2.md § 45 required repository contract artifacts"
+  ],
+  "relevantFiles": [
+    ".agent/work/FJ-PRD-001/PRD.md",
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/agent-workflow.md",
+    ".agent/README.md"
+  ],
+  "allowedFiles": [
+    ".agent/work/FJ-PRD-001/PRD.md",
+    ".agent/work/FJ-PRD-001/state.json"
+  ],
+  "acceptance": [
+    "PRD.md covers all seven agreed modules: engine, jev/v1 profile, configuration, HTTP host, control API, CLI, contract artifacts and golden harness",
+    "PRD.md user stories, implementation decisions, testing decisions, out-of-scope and further-notes sections are all present",
+    "One child work item exists per specification § 31 phase slice (0-4), each with objective, specReferences, allowedFiles, acceptance, nonGoals and verificationCommands",
+    "No child work item requests a feature listed in specification § 33 deferred decisions",
+    "Every child work item's acceptance criteria traces to a specification section or a § 44 golden contract vector",
+    "./scripts/verify-candidate FJ-PRD-001 exits 0"
+  ],
+  "nonGoals": [
+    "This item does not implement product code; implementation happens in the child work items it creates",
+    "No TypeScript wrapper (phase 5) or WASM work (phase 6)",
+    "No redesign of the specification or of the architecture it defines"
+  ],
+  "verificationCommands": [
+    "./scripts/verify-candidate FJ-PRD-001"
+  ],
+  "lastVerification": {
+    "status": "passed",
+    "revision": null,
+    "finishedAt": "2026-09-25T11:11:33Z",
+    "report": ".agent/reports/FJ-PRD-001/report-20260925T111133Z.json"
+  },
+  "blockers": [],
+  "nextAction": "Orchestrator reads PRD.md, then creates .agent/work/FJ-<NNN>/state.json for each § 31 phase slice and flips those to ready.",
+  "notes": [
+    "Triage label ready-for-agent maps to status \"ready\" in this tracker (see docs/agents/triage-labels.md).",
+    "PRD was authored from the user's confirmed module breakdown: all seven modules in scope for tests."
+  ]
+}
