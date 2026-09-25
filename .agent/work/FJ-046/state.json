@@ -1,0 +1,29 @@
+{
+  "id": "FJ-046",
+  "title": "G-Q tooling: public-surface/system test harness for the qa gate",
+  "phase": "foundation",
+  "objective": "Implement public-surface and system tests (HTTP+JSON contract, golden vectors) so the qa gate G-Q can enforce instead of exempting, then remove the G-Q bootstrap exemption.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": [
+    "spec/fake-jev-technical-spec-v2.md §44 golden contract vectors",
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2"
+  ],
+  "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
+  "allowedFiles": ["test/"],
+  "acceptance": [
+    "System tests exercise the public HTTP+JSON surface offline against golden vectors",
+    "Failures surface from the qa gate with a stable machine code",
+    ".agent/gate-policy.json no longer lists a G-Q exemption and ./scripts/verify-candidate still exits 0"
+  ],
+  "nonGoals": ["No product feature work; tests only"],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "Pick up once Go product code and go.mod exist.",
+  "notes": ["Tracking item for the stage.tooling_bootstrap_exempt exemption on G-Q (gate-policy.json)."]
+}

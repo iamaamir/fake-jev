@@ -1,0 +1,26 @@
+{
+  "id": "FJ-047",
+  "title": "Pin PyYAML as a verification dependency",
+  "phase": "foundation",
+  "objective": "Make PyYAML an explicit, pinned dependency of repository verification so role-pack validation stops being conditional, then remove the G-C PyYAML exemption.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §4, §13"],
+  "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
+  "allowedFiles": ["scripts/", "docs/", ".agent/gate-policy.json"],
+  "acceptance": [
+    "PyYAML version is pinned and documented for offline installation",
+    "Role-pack validation runs as a required check rather than a conditional skip",
+    ".agent/gate-policy.json no longer lists the toolchain.pyyaml_missing exemption and ./scripts/verify-candidate still exits 0"
+  ],
+  "nonGoals": ["No other new dependencies (jsonschema stays out, design §11)"],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "Pick up when CI needs role-pack validation to be unconditional.",
+  "notes": ["Tracking item for the toolchain.pyyaml_missing exemption on G-C (gate-policy.json)."]
+}

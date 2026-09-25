@@ -25,7 +25,8 @@ _PRISTINE = None
 _PRISTINE_DIR = None
 
 COPY_FILES = ["scripts/verify-candidate", "scripts/agent-context",
-              "scripts/candidate-fingerprint", "README.md", "AGENTS.md", ".gitignore"]
+              "scripts/candidate-fingerprint", "scripts/selftest",
+              "README.md", "AGENTS.md", ".gitignore"]
 COPY_DIRS = ["docs", "spec"]
 
 # Fixture git must be hermetic: neutralize machine-global/system config
@@ -92,7 +93,9 @@ def build_pristine(directory):
     root = pathlib.Path(directory) / "pristine"
     root.mkdir(parents=True)
     for rel in COPY_FILES:
-        shutil.copy2(REAL / rel, root / rel)
+        dest = root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REAL / rel, dest)
     for rel in COPY_DIRS:
         shutil.copytree(REAL / rel, root / rel, symlinks=True)
     (root / ".agent").mkdir()
@@ -460,6 +463,80 @@ def task_scheduling_due_sets():
         got_due, got_pending = mod.scheduling(status, stage, required)
         assert got_due == due, (status, stage, got_due, due)
         assert got_pending == pending, (status, stage, got_pending, pending)
+
+
+# --------------------------------------------------------------------------
+# Task 3 scenarios: role pack validation (design §4)
+# --------------------------------------------------------------------------
+
+ROLE_PACK_TEMPLATE = """---
+id: specifier
+stage: specifier
+expertise:
+  required:
+    - product-manager
+  optional: []
+inputs:
+  - work-item.objective
+output: .agent/work/<id>/<stage>.md
+gate: G-S
+escalate:
+  - condition: spec-change-required
+    blocker: spec-gap
+---
+
+# Specifier (fixture pack)
+"""
+
+
+def with_specifier_pack(text):
+    def apply(repo):
+        (repo / "docs" / "agents" / "roles" / "specifier.md").write_text(
+            text, encoding="utf-8")
+    return apply
+
+
+@scenario("role_pack_dangling_reference")
+def role_pack_dangling_reference():
+    repo = fixture("rp-dangling", mutate=with_specifier_pack(
+        ROLE_PACK_TEMPLATE.replace("    - product-manager", "    - no-such-pack")))
+    proc, _ = run_verify(repo)
+    assert_exit(proc, False)
+    assert "agent.role_pack_invalid" in proc.stdout, proc.stdout
+    assert "dangling expertise reference: no-such-pack" in proc.stdout, proc.stdout
+
+
+@scenario("role_pack_unknown_key")
+def role_pack_unknown_key():
+    repo = fixture("rp-unknown", mutate=with_specifier_pack(
+        ROLE_PACK_TEMPLATE.replace("gate: G-S", "gate: G-S\nexpertice: []")))
+    proc, _ = run_verify(repo)
+    assert_exit(proc, False)
+    assert "unknown front-matter key: expertice" in proc.stdout, proc.stdout
+    assert "agent.role_pack_invalid" in proc.stdout, proc.stdout
+
+
+@scenario("role_pack_not_array")
+def role_pack_not_array():
+    repo = fixture("rp-notarray", mutate=with_specifier_pack(
+        ROLE_PACK_TEMPLATE.replace("  required:\n    - product-manager",
+                                    "  required: product-manager")))
+    proc, _ = run_verify(repo)
+    assert_exit(proc, False)
+    assert "expertise.required must be a list" in proc.stdout, proc.stdout
+    assert "agent.role_pack_invalid" in proc.stdout, proc.stdout
+
+
+@scenario("packs_frontmatter_valid")
+def packs_frontmatter_valid():
+    # Positive path: the committed packs themselves satisfy the front-matter
+    # contract — every role pack prints ": ok" and verification stays green.
+    repo = fixture("packs-valid")
+    proc = sh("./scripts/verify-candidate", repo, check=False)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    for stage in ("specifier", "coder", "cleaner", "hardener", "qa"):
+        needle = "docs/agents/roles/%s.md: ok" % stage
+        assert needle in proc.stdout, (needle, proc.stdout)
 
 
 # --- runner ---

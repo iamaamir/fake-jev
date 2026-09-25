@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage-artifact.schema.json",
+  "title": "Stage artifact front matter (design §5)",
+  "description": "Canonical contract for the YAML front matter of .agent/work/<id>/<stage>.md. There is deliberately no status/verdict field: only verify-candidate emits results. The gauntlet engine in scripts/verify-candidate is the validator; parity is scenario-bound (§11, §13).",
+  "type": "object",
+  "required": ["stage", "task", "inputFingerprint", "outputFingerprint",
+               "taskFingerprint", "gitHead", "generatedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "stage": { "enum": ["specifier", "coder", "cleaner", "hardener", "qa"] },
+    "task": { "type": "string", "pattern": "^FJ-[A-Za-z0-9-]+$" },
+    "inputFingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "outputFingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "taskFingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitHead": { "type": "string", "minLength": 1, "description": "Diagnostic metadata only; never evidence identity." },
+    "generatedAt": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  }
+}

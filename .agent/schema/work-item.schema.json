@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "work-item.schema.json",
+  "title": "Work item state.json contract (design §8, §11)",
+  "description": "Whole state.json contract, including the pre-existing leaseOwner rules. check_work_item_schema in scripts/verify-candidate is the validator. requiredStages ordering/additive-only/justification rules are policy checks (policy.invalid_stages, policy.stage_reduction_forbidden, policy.justification_required) evaluated at verification, not expressible here. Parity is scenario-bound (§11, §13).",
+  "type": "object",
+  "required": ["id", "title", "phase", "objective", "status", "acceptance",
+               "allowedFiles", "verificationCommands", "nextAction"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^FJ-[A-Za-z0-9-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "phase": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["planned", "ready", "implementing", "verifying",
+                          "review", "blocked", "complete"] },
+    "stage": { "enum": [null, "specifier", "coder", "cleaner", "hardener", "qa"],
+               "description": "Current stage or null (design §8)." },
+    "requiredStages": {
+      "type": "array", "maxItems": 5, "uniqueItems": true,
+      "items": { "enum": ["specifier", "coder", "cleaner", "hardener", "qa"] },
+      "description": "Explicit additive-only override; must be an ordered subsequence of the vocabulary (enforced as policy.invalid_stages at verification, §8.1)."
+    },
+    "requiredStagesJustification": {
+      "type": "string", "minLength": 1,
+      "description": "Required (non-empty) iff the explicit list differs from the policy-derived value; must be absent otherwise (enforced at verification)."
+    },
+    "baseRevision": { "type": ["string", "null"] },
+    "candidateRevision": { "type": ["string", "null"] },
+    "assignedRole": { "type": ["string", "null"] },
+    "leaseOwner": {
+      "type": ["string", "null"],
+      "description": "Non-empty while status is implementing/verifying; unique across work items; null when unclaimed."
+    },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "specReferences": { "type": "array", "items": { "type": "string" } },
+    "relevantFiles": { "type": "array", "items": { "type": "string" } },
+    "allowedFiles": { "type": "array", "items": { "type": "string" } },
+    "acceptance": { "type": "array", "items": { "type": "string" } },
+    "nonGoals": { "type": "array", "items": { "type": "string" } },
+    "verificationCommands": {
+      "type": "array", "items": { "type": "string", "minLength": 1 },
+      "description": "Work-item-specific mandatory verification beyond the repo-wide gauntlet; requirements, not suggestions (design §6.2). Never a pointer to verify-candidate itself."
+    },
+    "lastVerification": { "type": ["object", "null"] },
+    "blockers": { "type": "array", "items": { "type": "object" } },
+    "nextAction": { "type": ["string", "null"] },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

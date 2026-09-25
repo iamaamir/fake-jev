@@ -1,0 +1,36 @@
+{
+  "exemptions": [
+    {
+      "gate": "G-L",
+      "blocks": ["stage.tooling_absent"],
+      "scope": ["product", "metadata"],
+      "code": "stage.tooling_bootstrap_exempt",
+      "reason": "complexity/CRAP analyzer not implemented yet",
+      "trackedBy": "FJ-044"
+    },
+    {
+      "gate": "G-H",
+      "blocks": ["stage.tooling_absent"],
+      "scope": ["product"],
+      "code": "stage.tooling_bootstrap_exempt",
+      "reason": "mutation/hardening tooling not implemented yet",
+      "trackedBy": "FJ-045"
+    },
+    {
+      "gate": "G-Q",
+      "blocks": ["stage.tooling_absent"],
+      "scope": ["product", "metadata"],
+      "code": "stage.tooling_bootstrap_exempt",
+      "reason": "public-surface/system test harness not implemented yet",
+      "trackedBy": "FJ-046"
+    },
+    {
+      "gate": "G-C",
+      "blocks": ["toolchain.pyyaml_missing"],
+      "scope": ["product", "metadata"],
+      "code": "toolchain.pyyaml_exempt",
+      "reason": "PyYAML not pinned as a verification dependency yet",
+      "trackedBy": "FJ-047"
+    }
+  ]
+}

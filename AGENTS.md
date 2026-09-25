@@ -84,6 +84,13 @@ without running it.
 Work items live as `.agent/work/<task-id>/state.json` (durable, committed). See
 `docs/agents/issue-tracker.md`.
 
+### Team packs
+
+Stage packs (workflow authority) and advisory expertise packs live in
+`docs/agents/` — start at `docs/agents/README.md`, which records the authority
+hierarchy (specification > acceptance > role pack > expertise > model
+knowledge) and the advisory MUST-NOT rule.
+
 ### Triage labels
 
 Mapped onto the `state.json` status vocabulary (`planned`, `ready`, `blocked`,

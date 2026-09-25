@@ -1,0 +1,26 @@
+{
+  "id": "FJ-044",
+  "title": "G-L tooling: complexity/CRAP analysis for the cleaner gate",
+  "phase": "foundation",
+  "objective": "Implement offline complexity/CRAP analysis over repository Go packages so the cleaner gate G-L can enforce instead of exempting, then remove the G-L bootstrap exemption.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2"],
+  "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
+  "allowedFiles": ["internal/quality/"],
+  "acceptance": [
+    "Complexity analysis runs offline over repository Go packages with deterministic output",
+    "Threshold failures surface from the cleaner gate with a stable machine code",
+    ".agent/gate-policy.json no longer lists a G-L exemption and ./scripts/verify-candidate still exits 0"
+  ],
+  "nonGoals": ["No mutation testing (tracked by FJ-045)", "No network-based analysis services"],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "Pick up once Go product code and go.mod exist.",
+  "notes": ["Tracking item for the stage.tooling_bootstrap_exempt exemption on G-L (gate-policy.json)."]
+}

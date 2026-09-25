@@ -94,6 +94,7 @@ check_code() {
     check_spec_present)        echo "spec.missing" ;;
     check_json_files)          echo "agent.json_malformed" ;;
     check_work_item_schema)    echo "agent.work_item_schema" ;;
+    check_role_packs)          echo "agent.role_pack_invalid" ;;
     check_go_test)             echo "go.test_failed" ;;
     check_go_vet)              echo "go.vet_failed" ;;
     check_go_build)            echo "go.build_failed" ;;
@@ -126,13 +127,13 @@ run_check() {
 }
 
 skip_check() {
-  local display="$1" fn="$2" reason="$3"
+  local display="$1" fn="$2" reason="$3" explicit_code="${4:-}"
   printf '==> %s\n    SKIPPED: %s\n\n' "$display" "$reason"
   CHECK_NAMES+=("$fn")
   CHECK_CMDS+=("$display")
   CHECK_STATUS+=("skipped")
   CHECK_EXITS+=("-1")
-  CHECK_CODES+=("$(check_code "$fn")")
+  CHECK_CODES+=("${explicit_code:-$(check_code "$fn")}")
   SKIPPED=$((SKIPPED + 1))
 }
 
@@ -168,7 +169,11 @@ check_required_files() {
            spec/fake-jev-technical-spec-v2.md docs/development/agent-workflow.md \
            docs/adr/README.md .agent/README.md \
            scripts/agent-context scripts/verify-candidate \
-           scripts/candidate-fingerprint scripts/selftest; do
+           scripts/candidate-fingerprint scripts/selftest \
+           docs/agents/README.md .agent/gate-policy.json \
+           .agent/schema/role-pack.schema.json \
+           .agent/schema/stage-artifact.schema.json \
+           .agent/schema/work-item.schema.json; do
     if [ ! -f "$f" ]; then
       echo "missing: $f"
       missing=1
@@ -294,6 +299,123 @@ sys.exit(1 if failed else 0)
 PY
 }
 run_check "work items match the state.json schema" check_work_item_schema
+
+check_role_packs() {
+  python3 - <<'PY'
+import pathlib
+import re
+import sys
+
+import yaml
+
+STAGES = ["specifier", "coder", "cleaner", "hardener", "qa"]
+GATES = {"specifier": "G-S", "coder": "G-C", "cleaner": "G-L",
+         "hardener": "G-H", "qa": "G-Q"}
+BLOCKERS = {"spec-gap", "needs-info", "needs-human", "wontfix"}
+ALLOWED_KEYS = {"id", "stage", "expertise", "inputs", "output", "gate", "escalate"}
+EXPERTISE_DIR = pathlib.Path("docs/agents/expertise")
+
+failed = False
+packs = sorted(pathlib.Path("docs/agents/roles").glob("*.md"))
+if not packs:
+    print("no role packs found at docs/agents/roles/")
+    sys.exit(1)
+for path in packs:
+    problems = []
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    data = {}
+    if not match:
+        problems.append("missing YAML front matter")
+    else:
+        try:
+            loaded = yaml.safe_load(match.group(1))
+        except yaml.YAMLError as exc:
+            problems.append(f"unparseable front matter: {exc}")
+            loaded = None
+        if isinstance(loaded, dict):
+            data = loaded
+        elif loaded is not None:
+            problems.append("front matter is not a mapping")
+    if data:
+        for key in sorted(set(data) - ALLOWED_KEYS):
+            problems.append(f"unknown front-matter key: {key}")
+        for key in sorted(ALLOWED_KEYS - set(data)):
+            problems.append(f"missing front-matter key: {key}")
+        sid, stage = data.get("id"), data.get("stage")
+        if stage not in STAGES:
+            problems.append(f"stage {stage!r} not in vocabulary")
+        if sid is not None and sid != stage:
+            problems.append(f"id {sid!r} != stage {stage!r}")
+        if stage in GATES and data.get("gate") != GATES[stage]:
+            problems.append(f"gate {data.get('gate')!r} != {GATES[stage]!r} for stage {stage!r}")
+        if data.get("output") != ".agent/work/<id>/<stage>.md":
+            problems.append(f"output {data.get('output')!r} != '.agent/work/<id>/<stage>.md'")
+        expertise = data.get("expertise")
+        req, opt = [], []
+        if not isinstance(expertise, dict):
+            problems.append("expertise must be a mapping")
+        else:
+            for kind in ("required", "optional"):
+                value = expertise.get(kind)
+                if not isinstance(value, list):
+                    problems.append(f"expertise.{kind} must be a list (even when empty)")
+                elif any(not isinstance(item, str) for item in value):
+                    problems.append(f"expertise.{kind} entries must be strings")
+                elif len(value) != len(set(value)):
+                    problems.append(f"expertise.{kind} has duplicates")
+            if isinstance(expertise.get("required"), list):
+                req = expertise["required"]
+            if isinstance(expertise.get("optional"), list):
+                opt = expertise["optional"]
+            for name in sorted(set(req) | set(opt)):
+                if not (EXPERTISE_DIR / f"{name}.md").is_file():
+                    problems.append(f"dangling expertise reference: {name}")
+            overlap = sorted(set(req) & set(opt))
+            if overlap:
+                problems.append(f"expertise required and optional overlap: {overlap}")
+        inputs = data.get("inputs")
+        if not isinstance(inputs, list) or any(not isinstance(x, str) for x in inputs):
+            problems.append("inputs must be a list of strings")
+        escalate = data.get("escalate")
+        if not isinstance(escalate, list):
+            problems.append("escalate must be a list")
+        else:
+            for index, entry in enumerate(escalate):
+                if not isinstance(entry, dict) or set(entry) != {"condition", "blocker"}:
+                    problems.append(f"escalate[{index}] must be exactly {{condition, blocker}}")
+                    continue
+                if entry.get("blocker") not in BLOCKERS:
+                    problems.append(f"escalate[{index}].blocker {entry.get('blocker')!r} not in vocabulary")
+                if not isinstance(entry.get("condition"), str) or not entry.get("condition").strip():
+                    problems.append(f"escalate[{index}].condition must be a non-empty string")
+    else:
+        failed = True
+        print(f"{path}:")
+        for problem in problems:
+            print(f"  - {problem}")
+        continue
+    if problems:
+        failed = True
+        print(f"{path}:")
+        for problem in problems:
+            print(f"  - {problem}")
+    else:
+        print(f"{path}: ok")
+named = {pack.stem for pack in packs}
+for stage in STAGES:
+    if stage not in named:
+        failed = True
+        print(f"missing role pack: docs/agents/roles/{stage}.md")
+sys.exit(1 if failed else 0)
+PY
+}
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+  run_check "role packs match the role-pack contract" check_role_packs
+else
+  skip_check "role packs match the role-pack contract" check_role_packs \
+    "PyYAML not importable (design §4 conditional)" "toolchain.pyyaml_missing"
+fi
 
 # --- product checks (activated as phases land) -------------------------------
 

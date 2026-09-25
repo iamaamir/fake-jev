@@ -1,0 +1,26 @@
+{
+  "id": "FJ-045",
+  "title": "G-H tooling: mutation/hardening analysis for the hardener gate",
+  "phase": "foundation",
+  "objective": "Implement offline mutation/hardening analysis for executable product code so the hardener gate G-H can enforce instead of exempting, then remove the G-H bootstrap exemption.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2"],
+  "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
+  "allowedFiles": ["internal/hardening/"],
+  "acceptance": [
+    "Mutation/hardening analysis runs offline and deterministically over product packages",
+    "Surviving mutants surface from the hardener gate with a stable machine code",
+    ".agent/gate-policy.json no longer lists a G-H exemption and ./scripts/verify-candidate still exits 0"
+  ],
+  "nonGoals": ["No complexity analysis (tracked by FJ-044)", "No network-based mutation services"],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "Pick up once Go product code and go.mod exist.",
+  "notes": ["Tracking item for the stage.tooling_bootstrap_exempt exemption on G-H (gate-policy.json), scoped to product items."]
+}
