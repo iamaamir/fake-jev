@@ -223,7 +223,26 @@ complete.
 
 `agent-context` recomputes the current fingerprint itself (never trusts stored
 prose) and renders each stage as `fresh`, `stale`, `missing` (due and absent),
-`pending` (not yet due under §8.1), or `not required`.
+`invalid` (present but unparseable), `pending` (not yet due under §8.1), or
+`not required` (§8.3).
+
+**Terminal freshness.** When `status` is `verifying`, the current stage's
+`outputFingerprint` must equal the current workspace fingerprint; when `status`
+is `review` or `complete`, the last required stage's `outputFingerprint` must
+equal it. A mismatch fails `stage.evidence_stale`. `implementing` and `blocked` have no terminal check (work in progress;
+blocked preserves evidence as-is), and `planned`/`ready` have no stage to
+check. The check is evaluated only when the relevant artifact exists — a
+missing artifact already fails the table above — and belongs to that stage's
+gate, so no new gate id is introduced.
+
+**Display rule.** A broken link is attributed to its target stage: the stage
+whose `inputFingerprint` no longer matches its predecessor's `outputFingerprint`
+renders `stale`, while the predecessor stays `fresh`. The terminal freshness
+check attributes `stale` to the stage it covers (current stage under
+`verifying`; last required stage under `review`/`complete`). The first required
+stage has no predecessor link — its `inputFingerprint` is recorded for
+diagnostics only. A stage superseded by later, chain-intact work still renders
+`fresh`.
 
 ## 8. Stage state machine and `requiredStages`
 
@@ -231,9 +250,13 @@ prose) and renders each stage as `fresh`, `stale`, `missing` (due and absent),
 
 - `stage` — current stage or `null`;
 - `requiredStages` — explicit override; when absent it is derived by policy
-  (§8.2);
+  (§8.2). Overrides are **additive-only** in v1: the explicit list may add
+  stages the policy derives, but must still contain every derived stage in
+  canonical order. Removing a derived stage fails
+  `policy.stage_reduction_forbidden`;
 - `requiredStagesJustification` — required non-empty string whenever the
-  override differs from the derived value, else the schema check fails.
+  explicit list differs from the derived value (i.e. whenever stages were
+  added), else the schema check fails.
 
 ### 8.1 State rules (frozen)
 
@@ -248,20 +271,31 @@ prose) and renders each stage as `fresh`, `stale`, `missing` (due and absent),
 
 `requiredStages` MUST be a unique ordered subsequence of
 `specifier → coder → cleaner → hardener → qa`. Out-of-order or duplicate
-entries fail (`policy.invalid_stages`).
+entries fail (`policy.invalid_stages`). An explicit list that omits a
+policy-derived stage fails `policy.stage_reduction_forbidden` (§8 fields,
+additive-only rule).
 
 ### 8.2 Path-derived policy (frozen)
 
 | Class | Matches | Default `requiredStages` |
 |-------|---------|--------------------------|
-| `product` | `cmd/**`, `internal/**`, `test/**`, `go.mod`, `go.sum` | `S, C, L, H, Q` |
-| `metadata` | `docs/**`, `.agent/**`, `scripts/**`, `.github/**`, `spec/**`, `testdata/**`, `examples/**`, `Dockerfile`, and the root files `README.md`, `AGENTS.md`, `CONTEXT.md`, `.gitignore` | `S, C, L, Q` |
+| `product` | `cmd/**`, `internal/**`, `test/**`, `testdata/**`, `spec/contracts/**`, `go.mod`, `go.sum` | `S, C, L, H, Q` |
+| `metadata` | `docs/**`, `.agent/**`, `scripts/**`, `.github/**`, `spec/**` (except `spec/contracts/**`), `examples/**`, `Dockerfile`, and the root files `README.md`, `AGENTS.md`, `CONTEXT.md`, `.gitignore` | `S, C, L, Q` |
 | `unknown` | anything else | **fail** `policy.unknown_scope` |
+
+Classification is prefix-ordered: `spec/contracts/**` is checked before the
+generic `spec/**` rule.
 
 The classes above cover every `allowedFiles` path in the current work items
 (validated 2026-09-25); new repository areas fail closed until classified.
 
 - Mixed classes take the **strongest** policy: `product > metadata`.
+- Executable contract fixtures are product work: `testdata/**` (the golden
+  corpus) and `spec/contracts/**` (currently absent, classified if
+  reintroduced) are `product`, so changing a fixture requires
+  `go test/vet/build` and cannot slip through under the `metadata` policy.
+  `spec/contracts/**` is absent today because contracts live under
+  `testdata/contracts/` (spec §45).
 - `scripts/` and CI are `metadata`: the default excludes Hardener because G-H
   mutates executable product code. Hardener for a script/CI item must be added
   explicitly with `requiredStagesJustification`.
@@ -269,6 +303,24 @@ The classes above cover every `allowedFiles` path in the current work items
   classified deliberately.
 - Policy is evaluated from `allowedFiles` at verification time; the report
   records `{class, requiredStages, source: derived|explicit}`.
+
+### 8.3 Gate scheduling (frozen)
+
+- A stage's own checks — artifact presence/validity, chain link, stage tools —
+  are emitted and evaluated only when that stage is due under §8.1.
+- A required stage that is not yet due is **pending**: it produces no check
+  entry and no verdict — it is not `skipped`, which would be a verdict — so a
+  future required stage can never block the current stage's verification.
+- A stage outside `requiredStages` is not pending; it is evaluated as
+  non-required exactly as §9.3 specifies (`not_applicable`,
+  `stage.not_required`). Under v1's additive-only rule this set is always
+  empty — every derived list contains all stages (H excepted only for
+  `metadata`) — so the path is reserved for future policy revisions.
+  `stage.not_required` remains reachable today through G-C's Go checks on
+  `metadata` items.
+- G-C's repository-integrity checks and its Go checks (required iff class ==
+  `product`) are unconditional: they run on every verification, independent of
+  `status` and `stage`.
 
 ## 9. Verification results and gate policy
 
@@ -341,10 +393,10 @@ file is first committed.
 
 ### 9.3 Gate inventory
 
-| Gate | Stage | Checks | Codes when inactive |
+| Gate | Stage | Checks | Codes |
 |------|-------|--------|---------------------|
 | `G-S` | specifier | artifact + header present; every ID under `## Traces` exists in `docs/development/acceptance-catalog.md` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.trace_unknown` |
-| `G-C` | coder | repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
+| `G-C` | coder | artifact + chain link, then repository integrity (JSON, work-item schema, role packs, shell syntax, required files) — the integrity and Go portions required on every verification, independent of stage — plus `go test/vet/build`, required iff class == `product` | `stage.artifact_missing`, `stage.evidence_invalid`, `stage.evidence_stale`, `go.test_failed`, `toolchain.*`; for `metadata` items the Go checks are `not_applicable` (`stage.not_required`) |
 | `G-L` | cleaner | artifact + chain link + complexity/CRAP analysis | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
 | `G-H` | hardener | artifact + chain link + mutation/hardening of executable product code | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
 | `G-Q` | qa | artifact + chain link + public-surface/system tests | `stage.tooling_absent`, `stage.tooling_bootstrap_exempt` |
@@ -364,15 +416,23 @@ Additive, still deterministic (no wall-clock in output):
 ```text
 Specifier   artifact: fresh    gate: pass
 Coder       artifact: fresh    gate: pass
-Cleaner     artifact: stale    gate: pass@4ab1…
+Cleaner     artifact: stale    gate: fail
 Hardener    artifact: pending  gate: not run
-QA          not required       gate: not_applicable
+QA          artifact: pending  gate: not run
 ```
 
-  `fresh`/`stale` are recomputed from fingerprints, not read from prose;
-  `pending` means not yet due under §8.1 (distinct from `missing`, which is due
-  and absent and fails verification); gate results are read from the latest
-  report recorded against the current fingerprint;
+  - `fresh`/`stale`/`missing`/`invalid` follow §7 and are recomputed from
+    fingerprints, never read from prose;
+  - `pending` means not yet due under §8.1: no check entry exists, hence
+    `not run`. It is distinct from `missing`, which is due and absent and
+    fails verification;
+  - gate results come from the latest report bound to the current workspace
+    fingerprint; reports at older fingerprints are ignored here (they surface
+    in the `EVIDENCE FRESHNESS` block instead);
+  - gate display collapses required checks as: `fail` if any required check
+    failed, else `exempt` if any required check is bootstrap-exempt (§9.2),
+    else `pass`; `not_applicable` for stages outside `requiredStages` (§9.3),
+    `not run` when the report has no entry (pending).
 - `EXPERTISE` block — required packs listed as paths to read; optional packs
   listed as pointers only (progressive disclosure, no inlining).
 
@@ -380,16 +440,17 @@ QA          not required       gate: not_applicable
 
 `.agent/schema/{role-pack,stage-artifact,work-item}.schema.json` are the
 canonical contracts; `verify-candidate`'s validator is an implementation of
-those contracts. `role-pack.schema.json` ships with this design; the other two
-cover the front matter of stage artifacts and the `state.json` fields added
-here (`stage`, `requiredStages`, `requiredStagesJustification`).
+those contracts. `role-pack.schema.json` is fully determined by §4;
+`stage-artifact.schema.json` covers the artifact front matter (§5);
+`work-item.schema.json` covers the whole `state.json` contract — including the
+pre-existing `leaseOwner` rules — not only the fields introduced here.
 
 `jsonschema` is not available in this environment and is not a dependency: the
-validator enforces the schema rules directly, and `scripts/selftest` holds the
-parity cases so schema and validator cannot silently drift. If a schema is
-edited without its validator, a selftest case fails. `work-item.schema.json`
-covers the whole `state.json` contract — including the pre-existing
-`leaseOwner` rules — not only the fields introduced here.
+validator enforces the schema rules directly. `scripts/selftest` guarantees
+only what the §12 matrix exercises: for the fields those scenarios touch, a
+schema edit the validator does not reflect (or the reverse) fails a selftest
+case. It does **not** prove full equivalence between the JSON schemas and the
+validator — divergence in unexercised fields remains possible (§13).
 
 ## 12. Self-test matrix (frozen)
 
@@ -414,6 +475,14 @@ dangling expertise reference       → failure
 unknown front-matter key           → failure
 required/optional not an array     → failure
 invalid requiredStages order       → failure (policy.invalid_stages)
+requiredStages omitting a derived stage → failure (policy.stage_reduction_forbidden)
+additive requiredStages override   → accepted with requiredStagesJustification
+additive override without justification → failure
+future required stage              → pending: no check entry, current stage completes
+source modified after the terminal artifact
+  (verifying: current stage; review/complete: last required stage)
+                                  → failure (stage.evidence_stale)
+testdata/ or spec/contracts/ fixture change → class product, go test required
 mixed path classes                 → strongest policy wins
 unknown path classification        → failure (policy.unknown_scope)
 unknown trace id in specifier.md   → failure (stage.trace_unknown)
@@ -428,11 +497,18 @@ This applies the gauntlet to the gauntlet itself.
   `artifact → catalog`. Deferred: `selected acceptance → artifact
   completeness`, until the work-item `acceptance` representation is stable.
   Unknown trace IDs already fail.
+- **Schema/validator parity is scenario-bound.** `scripts/selftest` proves
+  parity only for the §12 scenarios; unexercised schema fields may drift
+  without detection.
 - **PyYAML is conditional.** Role-pack validation is `skipped` (visible,
   exempt while tracked) when PyYAML is missing; pin it when this becomes a
   required CI gate.
 - **Fingerprint excludes evidence directories by design.** Edits confined to
   `.agent/work|reports|logs` are not part of candidate identity.
+- **Evidence is workspace-wide.** The fingerprint covers the whole checkout:
+  two work items interleaved in one worktree invalidate each other's chains and
+  terminal freshness. Items that must both produce evidence run in separate
+  worktrees or serially.
 - **No harness adapters are produced.** By design: portability is achieved
   through repo convention. Harness-specific agent registries are out of scope.
 
