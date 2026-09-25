@@ -613,6 +613,12 @@ This applies the gauntlet to the gauntlet itself.
   two work items interleaved in one worktree invalidate each other's chains and
   terminal freshness. Items that must both produce evidence run in separate
   worktrees or serially.
+- **Ignore sources extend beyond tracked `.gitignore`.** Untracked-file
+  exclusion follows git's standard ignore sources, which include the
+  machine-local `core.excludesFile` and `.git/info/exclude`. Identical content
+  on two clones with different ignore configuration yields different candidate
+  fingerprints; fingerprints are comparable within one workspace, not across
+  machines.
 - **No harness adapters are produced.** By design: portability is achieved
   through repo convention. Harness-specific agent registries are out of scope.
 
