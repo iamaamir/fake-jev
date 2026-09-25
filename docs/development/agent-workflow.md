@@ -130,6 +130,27 @@ Non-goals: no matcher specificity scoring, no Jev-specific behavior
 
 Packets reduce reasoning scope; they do not duplicate the specification.
 
+## Parallel work
+
+Parallelism only pays when tasks have separate dependency and conflict domains.
+Establish shared contracts first, then fan out.
+
+- **One git worktree per work item**, created from an exact base revision. Work in
+  the worktree, not in the shared checkout.
+- **Verify inside the worktree.** `./scripts/verify-candidate <task-id>` records the
+  revision and `treeState` it actually saw, so evidence stays meaningful per branch.
+- **Hand off with a clean tree.** Commit the candidate before marking an item
+  `verifying`/`review`; a dirty report is evidence for "revision plus these changes",
+  which a reviewer must not confuse with the committed candidate.
+- **Merge through an integration queue.** Each candidate passes its own gauntlet;
+  the combined state passes again before anything is accepted. Git conflicts detect
+  overlapping text; shared golden contract fixtures detect disagreeing semantics.
+- **Do not parallelize mechanical work** — file listing, string search, JSON parsing,
+  running tests, comparing hashes. That is tool work, and it is cheap in one place.
+
+A single worker may cover several roles on a small change; what must stay distinct is
+the evidence boundary between producing a change and accepting one.
+
 ## Retry and escalation
 
 ```text
@@ -162,4 +183,6 @@ specification escalation.
 
 - `AGENTS.md` — universal rules injected into tasks.
 - `.agent/README.md` — work-item and report schemas.
+- `docs/development/acceptance-catalog.md` — acceptance IDs traced to spec sections.
+- `docs/agents/` — how the engineering skills read the tracker, labels, and domain docs.
 - `docs/adr/` — architecture decision records (rare, meaningful decisions only).
