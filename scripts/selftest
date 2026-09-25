@@ -31,10 +31,12 @@ COPY_DIRS = ["docs", "spec"]
 # Fixture git must be hermetic: neutralize machine-global/system config
 # (gpgsign, hooksPath, useConfigOnly, ...), forbid interactive prompts, and
 # guarantee a commit identity regardless of the host's git configuration.
-# Applied last in sh() so every subprocess inherits it over ambient config.
+# Ambient GIT_* vars are stripped and this is applied last in sh() so every
+# subprocess inherits it over ambient config.
 GIT_HERMETIC_ENV = {
     "GIT_CONFIG_GLOBAL": os.devnull,
     "GIT_CONFIG_SYSTEM": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_AUTHOR_NAME": "selftest",
     "GIT_AUTHOR_EMAIL": "selftest@example",
@@ -51,13 +53,18 @@ def scenario(name):
     return decorate
 
 
-def sh(cmd, cwd, env=None, check=True):
-    merged = dict(os.environ)
+def sh(cmd, cwd, env=None, check=True, timeout=COMMAND_TIMEOUT_SECONDS):
+    if env and any(key.startswith("GIT_") for key in env):
+        raise AssertionError(
+            "sh() env must not set GIT_* keys: the harness owns the git "
+            "environment (ambient GIT_* is stripped and GIT_HERMETIC_ENV is "
+            "forced); got: %s"
+            % ", ".join(sorted(key for key in env if key.startswith("GIT_"))))
+    merged = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     merged.update(env or {})
     merged.update(GIT_HERMETIC_ENV)
     proc = subprocess.run(cmd, shell=True, cwd=str(cwd), env=merged,
-                          capture_output=True, text=True,
-                          timeout=COMMAND_TIMEOUT_SECONDS)
+                          capture_output=True, text=True, timeout=timeout)
     if check and proc.returncode != 0:
         raise AssertionError("command failed (%d): %s\n%s\n%s"
                              % (proc.returncode, cmd, proc.stdout, proc.stderr))
