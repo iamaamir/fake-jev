@@ -1018,6 +1018,55 @@ def evidence_unknown_trace():
     assert "C-MATCH-001" not in reason, reason   # exists in the real catalog
 
 
+@scenario("evidence_unreadable_artifact")
+def evidence_unreadable_artifact():
+    # An existing-but-unopenable artifact is a per-stage verdict
+    # (stage.evidence_invalid), never a crashed engine run: failures are
+    # data, not a crashed run (:538-539), and design §7 wants a targeted row.
+    repo = fixture("ev-unreadable",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    coder = repo / ".agent" / "work" / "FJ-900" / "coder.md"
+    os.chmod(coder, 0o000)
+    try:
+        proc, report = run_verify(repo, task="FJ-900")
+    finally:
+        os.chmod(coder, 0o644)
+    assert_exit(proc, False)
+    expect(report, "stage.coder.header", code="stage.evidence_invalid",
+           result="fail", required=True, gate="G-C")
+    assert not any(c["name"] == "stage.coder.chain" for c in report["checks"]), \
+        "an unreadable artifact suppresses that stage's chain row"
+
+
+@scenario("evidence_duplicate_key_padded")
+def evidence_duplicate_key_padded():
+    # A whitespace-padded repeat of an existing key is still a duplicate: the
+    # uniqueness check must run on the stripped key, otherwise a padded
+    # taskFingerprint silently overwrites the recorded one (last-wins).
+    repo = fixture("ev-dupkey",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    coder = repo / ".agent" / "work" / "FJ-900" / "coder.md"
+    text = coder.read_text(encoding="utf-8")
+    lines = text.split("\n")
+    index = next(i for i, line in enumerate(lines)
+                 if line.startswith("taskFingerprint:"))
+    lines.insert(index + 1, " " + lines[index])
+    coder.write_text("\n".join(lines), encoding="utf-8")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.coder.header", code="stage.evidence_invalid",
+           result="fail", required=True, gate="G-C")
+    assert not any(c["name"] == "stage.coder.task_fingerprint"
+                   for c in report["checks"]), \
+        "an invalid header suppresses the dependent task-fingerprint row"
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.

@@ -751,17 +751,23 @@ HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
 
 def parse_artifact(path, stage):
     """(header, body) for a valid stage artifact (§5); ValueError otherwise."""
-    with open(path, encoding="utf-8") as handle:
-        text = handle.read()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError as exc:
+        # Unreadable/unopenable (chmod, TOCTOU unlink) must reach the caller
+        # as a verdict, not escape the engine as a crash.
+        raise ValueError("unreadable artifact: %s" % exc)
     match = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not match:
         raise ValueError("missing or unterminated front matter block")
     header = {}
     for line in match.group(1).split("\n"):
         key, sep, value = line.partition(":")
+        key = key.strip()
         if not sep or key in header:
             raise ValueError("front matter line is not a unique key: value: %r" % line)
-        header[key.strip()] = value.strip()
+        header[key] = value.strip()
     problems = []
     missing = [key for key in ARTIFACT_KEYS if key not in header]
     unknown = sorted(key for key in header if key not in ARTIFACT_KEYS)
