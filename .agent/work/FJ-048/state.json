@@ -34,6 +34,7 @@
   "blockers": [],
   "nextAction": "add /fake-jev to .gitignore, then verify FJ-001 twice to prove the evidence chain survives a repeated verification run",
   "notes": [
-    "Observed during FJ-001 (2026-09-26): `go build ./cmd/fake-jev` writes ./fake-jev at the repository root; .gitignore lists /bin/ and /dist/ only, so the file is hashed by the candidate fingerprint and stage evidence reports stage.evidence_stale on the following run."
+    "Observed during FJ-001 (2026-09-26): `go build ./cmd/fake-jev` writes ./fake-jev at the repository root; .gitignore lists /bin/ and /dist/ only, so the file is hashed by the candidate fingerprint and stage evidence reports stage.evidence_stale on the following run.",
+    "2026-09-26 reproduction: on FJ-001, `verify-candidate` run 1 = PASS (37 passed), run 2 = FAIL (36 passed, 1 failed) with the failing check on the last stage's chain link, solely because run 1's `go build ./cmd/fake-jev` left ./fake-jev untracked and unignored."
   ]
 }

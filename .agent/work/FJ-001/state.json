@@ -48,7 +48,7 @@
     "finishedAt": "2026-09-26T07:05:12Z"
   },
   "blockers": [],
-  "nextAction": "Start FJ-002 (spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, spec/compat/jev-v1/openapi.snapshot.json). The stray root build output seen during FJ-001 verification is tracked as FJ-048.",
+  "nextAction": "Start FJ-002 (spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, spec/compat/jev-v1/openapi.snapshot.json). Known defect: a second consecutive verify-candidate run fails on stage.evidence_stale until FJ-048 lands.",
   "notes": [
     "All five stage artifacts recorded and chained (S,C,L,H,Q); class is product so all five are required.",
     "verify-candidate FJ-001: 37 passed, 0 failed, 3 skipped (cleaner/hardener/qa tooling under recorded bootstrap exemptions), 0 not_applicable.",
@@ -56,6 +56,7 @@
     "check_go_build writes ./fake-jev in the repository root, which is not covered by .gitignore (`/bin/`, `/dist/` only). The binary was removed from the candidate; adding `/fake-jev` to .gitignore is a one-line change in a file outside this item's allowedFiles and is left for the orchestrator or FJ-004.",
     "The bare `go test ./...` in the \u00a731 phase-0 acceptance block also walks the gitignored tool-install dirs `agent/` and `.agents/`, which hold an unrelated Go example that cannot resolve its imports. scripts/verify-candidate excludes them via NON_REPO_DIRS, so the recorded acceptance is green; a human running the block verbatim sees the contamination.",
     "2026-09-26 review: verification was re-run against a clean tree at 9b90ba5 and passed. The root ./fake-jev binary is removed from the workspace; see the blocker for the recurrence risk.",
-    "2026-09-26: the stray ./fake-jev binary encountered during verification was removed here and handed off as FJ-048, because both .gitignore and scripts/verify-candidate are outside FJ-001's allowedFiles. It does not affect this item's acceptance, which passed on a clean tree at 9b90ba5."
+    "2026-09-26: the stray ./fake-jev binary encountered during verification was removed here and handed off as FJ-048, because both .gitignore and scripts/verify-candidate are outside FJ-001's allowedFiles. It does not affect this item's acceptance, which passed on a clean tree at 9b90ba5.",
+    "2026-09-26 reproduction: two consecutive ./scripts/verify-candidate FJ-001 runs give PASS then FAIL (36 passed, 1 failed) because the first run leaves ./fake-jev in the workspace. Acceptance for this item is unaffected \u2014 it passed on a clean tree at 9b90ba5 \u2014 but the evidence chain will re-stale on the next verification until FJ-048 is implemented."
   ]
 }
