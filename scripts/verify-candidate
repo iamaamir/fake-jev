@@ -533,7 +533,7 @@ else
     "PyYAML not importable (design §4 conditional)" "toolchain.pyyaml_missing"
 fi
 
-# --- gauntlet engine: policy rows (evidence rows arrive in Task 6) ------------
+# --- gauntlet engine: policy + evidence rows (stage applicability in Task 7) --
 # Rows are TSV: name, gate, required, result, exitCode, code, display, reason.
 # The engine exits non-zero only on internal errors; check outcomes travel as
 # rows (failures are data, not a crashed run).
@@ -544,6 +544,7 @@ python3 - "$TASK_ID" "$CAND_FP" "$TASK_JSON" "$TASK_RC" "$ENGINE_ROWS" \
   <<'PY' 2>"$ENGINE_ERR"
 import json
 import os
+import re
 import sys
 
 TASK_ID, CAND_FP, TASK_JSON, TASK_RC, OUT_PATH = sys.argv[1:6]
@@ -701,17 +702,17 @@ def task_policy_rows():
         emit("policy.classification", "G-C", True, "fail", 1, "agent.work_item_schema",
              "allowedFiles classify to product or metadata",
              "state.json is malformed (candidate-fingerprint task mode exit 2)")
-        return
+        return False
     if TASK_RC == "3":
         emit("policy.classification", "G-C", True, "fail", 1, "policy.unknown_scope",
              "allowedFiles classify to product or metadata",
              "cannot classify allowedFiles (unknown scope)")
-        return
+        return False
     if TASK_RC != "0" or not TASK_JSON:
         emit("policy.classification", "G-C", True, "fail", 1, "verify.check_failed",
              "allowedFiles classify to product or metadata",
              "candidate-fingerprint task mode failed unexpectedly")
-        return
+        return False
     info = json.loads(TASK_JSON)
     try:
         state = load_json(f".agent/work/{TASK_ID}/state.json")
@@ -719,12 +720,14 @@ def task_policy_rows():
         emit("policy.classification", "G-C", True, "fail", 1,
              "agent.work_item_schema", "allowedFiles classify to product or metadata",
              f"state.json unreadable: {exc}")
-        return
+        return False
     cls = info.get("class")
+    problems_found = False
     if cls == "unknown":
         emit("policy.classification", "G-C", True, "fail", 1, "policy.unknown_scope",
              "allowedFiles classify to product or metadata",
              "path outside the product/metadata classes")
+        problems_found = True
     else:
         emit("policy.classification", "G-C", True, "pass", 0, "policy.unknown_scope",
              "allowedFiles classify to product or metadata", f"class={cls}")
@@ -732,16 +735,185 @@ def task_policy_rows():
     if code:
         emit("policy.required_stages", "G-C", True, "fail", 1, code,
              "requiredStages is a valid additive-only ordered set", reason)
+        problems_found = True
     else:
         emit("policy.required_stages", "G-C", True, "pass", 0, "policy.invalid_stages",
              "requiredStages is a valid additive-only ordered set",
              "source=%s stages=%s" % (info.get("source"),
                                       ",".join(info.get("requiredStages") or [])))
+    return not problems_found
+
+
+ARTIFACT_KEYS = ("stage", "task", "inputFingerprint", "outputFingerprint",
+                 "taskFingerprint", "gitHead", "generatedAt")
+HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+def parse_artifact(path, stage):
+    """(header, body) for a valid stage artifact (§5); ValueError otherwise."""
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    match = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+    if not match:
+        raise ValueError("missing or unterminated front matter block")
+    header = {}
+    for line in match.group(1).split("\n"):
+        key, sep, value = line.partition(":")
+        if not sep or key in header:
+            raise ValueError("front matter line is not a unique key: value: %r" % line)
+        header[key.strip()] = value.strip()
+    problems = []
+    missing = [key for key in ARTIFACT_KEYS if key not in header]
+    unknown = sorted(key for key in header if key not in ARTIFACT_KEYS)
+    if missing:
+        problems.append("missing keys: " + ", ".join(missing))
+    if unknown:
+        problems.append("unknown keys: " + ", ".join(unknown))
+    if not missing:
+        if header["stage"] != stage:
+            problems.append("stage %r does not match artifact %r"
+                            % (header["stage"], stage))
+        if header["task"] != TASK_ID:
+            problems.append("task %r does not match %r" % (header["task"], TASK_ID))
+    for key in ("inputFingerprint", "outputFingerprint", "taskFingerprint"):
+        if key in header and not HEX64.match(header[key]):
+            problems.append("%s is not a 64-hex digest" % key)
+    for key in ("gitHead", "generatedAt"):
+        if key in header and not header[key]:
+            problems.append("%s must be non-empty" % key)
+    if problems:
+        raise ValueError("; ".join(problems))
+    return header, text[match.end():]
+
+
+def trace_tokens(body):
+    """Sorted catalog ids under the artifact's "## Traces" section (§9.3)."""
+    collecting, lines = False, []
+    for line in body.split("\n"):
+        if line.startswith("## "):
+            collecting = line.strip() == "## Traces"
+            continue
+        if collecting:
+            lines.append(line)
+    return sorted(set(re.findall(r"\bC-[A-Z0-9]+-\d+\b", "\n".join(lines))))
+
+
+def evidence_rows():
+    """§5/§7: fingerprint-bound rows for the stages due under §8.1.
+
+    Called only when task_policy_rows() returned True (interpretation note 5).
+    An absent artifact fails only its own row; an invalid header fails the
+    header row and suppresses that stage's task-fingerprint/chain/traces/
+    terminal rows (the header is the thing those rows would read). Pending
+    stages are absent from `due` and therefore emit nothing (§8.3).
+    """
+    info = json.loads(TASK_JSON)
+    required = info.get("requiredStages") or []
+    due = info.get("due") or []
+    status = info.get("status")
+    current = info.get("stage")
+    tfp = info.get("taskFingerprint")
+    parsed = {}
+    for stage in due:
+        path = ".agent/work/%s/%s.md" % (TASK_ID, stage)
+        if not os.path.isfile(path):
+            emit("stage.%s.artifact" % stage, STAGE_GATES[stage], True, "fail", 1,
+                 "stage.artifact_missing", "stage %s artifact" % stage,
+                 "missing artifact %s" % path)
+            continue
+        emit("stage.%s.artifact" % stage, STAGE_GATES[stage], True, "pass", 0,
+             "stage.artifact_missing", "stage %s artifact" % stage, "")
+        try:
+            header, body = parse_artifact(path, stage)
+        except ValueError as exc:
+            emit("stage.%s.header" % stage, STAGE_GATES[stage], True, "fail", 1,
+                 "stage.evidence_invalid", "stage %s header" % stage, str(exc))
+            continue
+        parsed[stage] = (header, body)
+        emit("stage.%s.header" % stage, STAGE_GATES[stage], True, "pass", 0,
+             "stage.evidence_invalid", "stage %s header" % stage, "")
+        if header["taskFingerprint"] == tfp:
+            emit("stage.%s.task_fingerprint" % stage, STAGE_GATES[stage], True,
+                 "pass", 0, "stage.evidence_stale",
+                 "stage %s task fingerprint" % stage, "")
+        else:
+            emit("stage.%s.task_fingerprint" % stage, STAGE_GATES[stage], True,
+                 "fail", 1, "stage.evidence_stale",
+                 "stage %s task fingerprint" % stage,
+                 "recorded task fingerprint %s does not match current %s"
+                 % (header["taskFingerprint"], tfp))
+
+    # Chain link of stage B against the immediately preceding required stage A
+    # (§7). Due sets are prefixes of required (§8.1), so a due stage's
+    # predecessor is due as well; a missing/invalid predecessor suppresses the
+    # row — its own artifact/header row already blocks (interpretation note 6).
+    required_due = [stage for stage in required if stage in due]
+    for index in range(1, len(required_due)):
+        stage, previous = required_due[index], required_due[index - 1]
+        if stage not in parsed or previous not in parsed:
+            continue
+        header = parsed[stage][0]
+        prior = parsed[previous][0]
+        if header["inputFingerprint"] == prior["outputFingerprint"]:
+            emit("stage.%s.chain" % stage, STAGE_GATES[stage], True, "pass", 0,
+                 "stage.evidence_stale", "stage %s chain link" % stage, "")
+        else:
+            emit("stage.%s.chain" % stage, STAGE_GATES[stage], True, "fail", 1,
+                 "stage.evidence_stale", "stage %s chain link" % stage,
+                 "stage %s inputFingerprint %s does not match %s "
+                 "outputFingerprint %s"
+                 % (stage, header["inputFingerprint"],
+                    previous, prior["outputFingerprint"]))
+
+    # Traces (specifier only): every id under "## Traces" must exist in the
+    # acceptance catalog (§9.3, G-S). An absent section means no claims.
+    if "specifier" in parsed:
+        found = trace_tokens(parsed["specifier"][1])
+        try:
+            with open("docs/development/acceptance-catalog.md",
+                      encoding="utf-8") as handle:
+                catalog = handle.read()
+        except OSError:
+            catalog = ""
+        known = set(re.findall(r"^\|\s*(C-[A-Z0-9]+-\d+)\s*\|", catalog, re.M))
+        unknown = [token for token in found if token not in known]
+        if unknown:
+            emit("stage.specifier.traces", STAGE_GATES["specifier"], True,
+                 "fail", 1, "stage.trace_unknown", "stage specifier traces",
+                 "unknown acceptance-catalog trace id(s): %s"
+                 % ", ".join(unknown))
+        else:
+            emit("stage.specifier.traces", STAGE_GATES["specifier"], True,
+                 "pass", 0, "stage.trace_unknown", "stage specifier traces", "")
+
+    # Terminal freshness (§7): verifying → the current stage when it is
+    # required; review/complete → the last required stage; other statuses have
+    # no terminal check. Evaluated only when that artifact parsed.
+    covered = None
+    if status == "verifying" and current in required:
+        covered = current
+    elif status in ("review", "complete") and required:
+        covered = required[-1]
+    if covered is not None and covered in parsed:
+        header = parsed[covered][0]
+        if header["outputFingerprint"] == CAND_FP:
+            emit("stage.%s.terminal" % covered, STAGE_GATES[covered], True,
+                 "pass", 0, "stage.evidence_stale",
+                 "stage %s terminal freshness" % covered, "")
+        else:
+            emit("stage.%s.terminal" % covered, STAGE_GATES[covered], True,
+                 "fail", 1, "stage.evidence_stale",
+                 "stage %s terminal freshness" % covered,
+                 "recorded outputFingerprint %s does not match current "
+                 "candidate fingerprint %s"
+                 % (header["outputFingerprint"], CAND_FP))
 
 
 exemption_rows()
 if TASK_ID:
-    task_policy_rows()
+    if task_policy_rows():
+        evidence_rows()
+        # stage_applicability_rows() arrives in Task 7
 out.close()
 PY
 ENGINE_RC=$?

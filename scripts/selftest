@@ -829,6 +829,195 @@ def go_product_zero_packages_skip():
     assert "no repository Go packages yet" in reason, reason
 
 
+# --------------------------------------------------------------------------
+# Task 6 scenarios: fingerprint-bound evidence rows (design §5, §7, §8.3)
+# --------------------------------------------------------------------------
+
+
+def task_info_json(repo, task_id):
+    """Parsed `candidate-fingerprint task` output for a fixture's work item."""
+    proc = sh("./scripts/candidate-fingerprint task .agent/work/%s/state.json"
+              % task_id, repo)
+    return json.loads(proc.stdout)
+
+
+def current_tfp(repo, task_id):
+    return task_info_json(repo, task_id)["taskFingerprint"]
+
+
+FAKE_FP = "f" * 64
+
+
+@scenario("evidence_artifact_missing")
+def evidence_artifact_missing():
+    # review + qa: every required stage is due (§8.1) and none has an artifact.
+    repo = fixture("ev-missing",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.specifier.artifact", code="stage.artifact_missing",
+           result="fail", required=True, gate="G-S")
+    assert not any(c["name"] == "stage.qa.terminal" for c in report["checks"]), \
+        "terminal row must be suppressed when the covered artifact is missing"
+
+
+@scenario("evidence_header_invalid")
+def evidence_header_invalid():
+    repo = fixture("ev-header",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    spec = repo / ".agent" / "work" / "FJ-900" / "specifier.md"
+    spec.write_text(spec.read_text(encoding="utf-8")
+                    .replace("task: FJ-900", "task: FJ-OTHER"),
+                    encoding="utf-8")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.specifier.header", code="stage.evidence_invalid",
+           result="fail", required=True, gate="G-S")
+    assert not any(c["name"] == "stage.coder.chain" for c in report["checks"]), \
+        "an invalid predecessor suppresses the chain row (interpretation note 6)"
+    expect(report, "stage.qa.task_fingerprint", result="pass")
+    expect(report, "stage.qa.terminal", result="pass")
+
+
+@scenario("evidence_chain_stale")
+def evidence_chain_stale():
+    repo = fixture("ev-chain",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    tfp = info["taskFingerprint"]
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, tfp)
+    write_artifact(repo, "FJ-900", "coder", FAKE_FP, fp, tfp)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.coder.chain", code="stage.evidence_stale",
+           result="fail", required=True, gate="G-C")
+    assert not any(c["name"] == "stage.specifier.chain" for c in report["checks"]), \
+        "the first required stage has no predecessor link"
+    expect(report, "stage.specifier.artifact", result="pass")
+
+
+@scenario("evidence_future_stage_pending")
+def evidence_future_stage_pending():
+    # implementing + coder: only specifier is due; coder/cleaner/qa are pending
+    # and must emit no check entry at all (§8.3 — pending is not a verdict).
+    item = base_item(status="implementing", stage="coder",
+                     leaseOwner="selftest-agent")
+    repo = fixture("ev-pending", items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    expect(report, "stage.specifier.artifact", result="pass", required=True)
+    for prefix in ("stage.coder.", "stage.cleaner.", "stage.qa."):
+        assert not any(c["name"].startswith(prefix) for c in report["checks"]), \
+            "%s* rows must not exist while the stage is pending" % prefix
+    # stage.hardener.* is deliberately not asserted: Task 7 adds its
+    # requiredness row (not_applicable for metadata) there.
+
+
+@scenario("evidence_terminal_freshness")
+def evidence_terminal_freshness():
+    # (a) verifying: the current stage's output must equal the workspace digest.
+    item = base_item(status="verifying", stage="coder",
+                     leaseOwner="selftest-agent")
+    repo = fixture("ev-term-a", items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    expect(report, "stage.coder.terminal", result="pass", required=True,
+           gate="G-C")
+    with (repo / "README.md").open("a", encoding="utf-8") as handle:
+        handle.write("\nprobe: candidate changed after the terminal artifact\n")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.coder.terminal", code="stage.evidence_stale",
+           result="fail", required=True)
+
+    # (b) review: the last required stage carries the terminal check, and a
+    # candidate change leaves the task-fingerprint dimension untouched.
+    repo = fixture("ev-term-b",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    with (repo / "README.md").open("a", encoding="utf-8") as handle:
+        handle.write("\nprobe: candidate changed after the terminal artifact\n")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.qa.terminal", code="stage.evidence_stale",
+           result="fail", required=True)
+    expect(report, "stage.qa.task_fingerprint", result="pass")
+
+
+@scenario("evidence_task_semantics_change")
+def evidence_task_semantics_change():
+    repo = fixture("ev-tfp",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    # Workflow state is not semantic; `acceptance` is. Mutating it moves the
+    # task fingerprint underneath the already-recorded artifacts (§6.2).
+    state_path = repo / ".agent" / "work" / "FJ-900" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["acceptance"].append("changed after the artifacts were recorded")
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    for name in ("stage.specifier.task_fingerprint",
+                 "stage.qa.task_fingerprint"):
+        row = expect(report, name, code="stage.evidence_stale", result="fail")
+        assert row["reason"].startswith("recorded task fingerprint"), row
+    expect(report, "stage.qa.terminal", result="pass")
+    expect(report, "policy.required_stages", result="pass", required=True)
+
+
+@scenario("evidence_candidate_change_independent")
+def evidence_candidate_change_independent():
+    # Candidate content changed, task semantics did not: the terminal row fails
+    # while the task-fingerprint and chain rows for the same stage pass — the
+    # two staleness dimensions are independent (§12 matrix).
+    item = base_item(status="verifying", stage="coder",
+                     leaseOwner="selftest-agent")
+    repo = fixture("ev-cand", items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    with (repo / "README.md").open("a", encoding="utf-8") as handle:
+        handle.write("\nprobe: candidate change with intact task semantics\n")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "stage.coder.terminal", code="stage.evidence_stale",
+           result="fail", required=True)
+    expect(report, "stage.coder.task_fingerprint", result="pass")
+    expect(report, "stage.coder.chain", result="pass")
+
+
+@scenario("evidence_unknown_trace")
+def evidence_unknown_trace():
+    repo = fixture("ev-trace",
+                   items={"FJ-900": base_item(status="review", stage="qa")})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"],
+                body="## Traces\n\n- C-MATCH-001\n- C-NOPE-999")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "stage.specifier.traces", code="stage.trace_unknown",
+                 result="fail", required=True, gate="G-S")
+    reason = row["reason"] or ""
+    assert "C-NOPE-999" in reason, reason
+    assert "C-MATCH-001" not in reason, reason   # exists in the real catalog
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.
