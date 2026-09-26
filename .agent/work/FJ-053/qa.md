@@ -2,10 +2,10 @@
 stage: qa
 task: FJ-053
 inputFingerprint: 95cbb205f47378b98e9835d0c3807004ceb3281a6dc81f75de87f581974171e4
-outputFingerprint: 95cbb205f47378b98e9835d0c3807004ceb3281a6dc81f581974171e4
+outputFingerprint: 95cbb205f47378b98e9835d0c3807004ceb3281a6dc81f75de87f581974171e4
 taskFingerprint: 83d86d767a7234b1ae2b171b0373044013e2c8821aa922631af2baeb80be6ba4
 gitHead: 20a2c96
-generatedAt: 2026-09-26T11:52:54Z
+generatedAt: 2026-09-26T11:54:53Z
 ---
 
 # QA — FJ-053
@@ -34,6 +34,58 @@ Every Go command in this artifact was run with `GOPROXY=off` as an inline
 environment prefix, as instructed. Ambient `GOPROXY` is the public proxy; the
 ambient `GOPROXY=off` result therefore cannot be attributed to the machine's
 proxy setting.
+
+## Header correction
+
+The `outputFingerprint` in this artifact's front matter was **malformed on
+first write**: 57 characters instead of the required 64-hex digest, i.e. a
+truncation of the candidate fingerprint, not a different value. It was a
+**transcription error** by the original session, not an observation about the
+candidate. Correct value, re-derived here rather than copied:
+
+```text
+$ ./scripts/candidate-fingerprint candidate .
+95cbb205f47378b98e9835d0c3807004ceb3281a6dc81f75de87f581974171e4   rc=0
+$ ./scripts/candidate-fingerprint task .agent/work/FJ-053/state.json
+… "taskFingerprint":"83d86d767a7234b1ae2b171b0373044013e2c8821aa922631af2baeb80be6ba4"}   rc=0
+```
+
+The other six header fields were checked key-by-key against
+`.agent/schema/stage-artifact.schema.json` and are correct as originally
+written, and were left untouched: `stage: qa` (enum), `task: FJ-053`
+(pattern), `inputFingerprint` and `taskFingerprint` (both 64-hex, and both
+equal to the live values above), `gitHead: 20a2c96` (non-empty; the schema
+types it as diagnostic metadata only, and every upstream stage artifact for
+this item records the same value), and `generatedAt`, which is re-stamped to
+the time of this rewrite. Exactly the seven required keys are present, with no
+extras.
+
+To confirm the rest of the artifact still stands, the recorded observations
+were **re-run** at the same candidate fingerprint, module-scoped
+(`./cmd/... ./internal/...`) because the repo root contains git-ignored tool
+directories outside the module:
+
+| Re-run observation | Scope | Result |
+|---|---|---|
+| `GOPROXY=off go test ./cmd/... ./internal/...` | module | **exit 0**, `?  fake-jev/cmd/fake-jev` / `?  fake-jev/internal/cli` `[no test files]` |
+| `GOPROXY=off go vet ./cmd/... ./internal/...` | module | **exit 0**, no output |
+| `GOPROXY=off go build ./cmd/fake-jev` | module | **exit 0**, no output, 2563026-byte binary (removed again) |
+| `GOPROXY=off go list -m all` | module | **exit 0**, single line `fake-jev` |
+| `ls go.sum` (and `go.work`, `go.work.sum`, `vendor`) | repo | **does not exist** |
+| `GOPROXY=off go test ./...` / `go vet ./...` | repo root, verbatim | **exit 1**, failure confined to `fake-jev/agent/skills/golang-cli/assets/examples` |
+| same three commands in a `git archive HEAD` copy without ignored dirs | module, no ignored dirs | **exit 0**; `go mod tidy -diff` exit 0, no diff, still no `go.sum` |
+| `grep -c 'require' go.mod`; `grep -nE 'cobra\|viper\|fatih\|fsnotify' go.mod` | file | `0`; no match |
+
+Every recorded result reproduced exactly; **nothing in the observations was
+wrong and no body correction was needed**. Three incidental strings in the body
+are now stale rather than inaccurate, because the candidate commit landed after
+the original session ran: `git status` no longer lists `M go.mod` (it is
+committed as `d3234a6`), `git rev-parse --short HEAD` is now `d3234a6` rather
+than the `gitHead: 20a2c96` recorded in the header, and
+`./scripts/candidate-fingerprint task …` now reports `"status":"review"`
+instead of `"status":"implementing"`. None of these is a change to the
+candidate fingerprint, which is unchanged. `./scripts/verify-candidate` was
+still **not** run and no verdict is stated.
 
 ## Gate G-Q: bootstrap exemption
 

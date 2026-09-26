@@ -3,9 +3,9 @@
   "title": "Phase 0: drop the unused third-party requires from go.mod",
   "phase": "phase-0",
   "objective": "Remove the four third-party modules that no product source imports (cobra, viper, fatih/color, fsnotify) from go.mod, leaving the standard-library-only dependency posture that \u00a715.6 and \u00a717.2 require, so the first real dependency can be introduced deliberately with a committed go.sum.",
-  "status": "implementing",
-  "baseRevision": null,
-  "candidateRevision": null,
+  "status": "complete",
+  "baseRevision": "d3234a6",
+  "candidateRevision": "d3234a6",
   "assignedRole": "qa",
   "attempts": 1,
   "specReferences": [
@@ -37,13 +37,23 @@
     "do not change any product source file"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "result": "passed",
+    "report": ".agent/reports/FJ-053/report-20260926T115537Z.json",
+    "revision": "d3234a6",
+    "candidateFingerprint": "95cbb205f47378b98e9835d0c3807004ceb3281a6dc81f75de87f581974171e4",
+    "taskFingerprint": "83d86d767a7234b1ae2b171b0373044013e2c8821aa922631af2baeb80be6ba4",
+    "finishedAt": "2026-09-26T11:55:37Z",
+    "summary": "37 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "qaTerminalRow": "pass"
+  },
   "blockers": [],
-  "nextAction": "specifier: restate \u00a717.2/\u00a715.6 as observable criteria, then coder trims go.mod",
+  "nextAction": "none \u2014 FJ-053 closed; FJ-010 may now introduce the one YAML dependency \u00a717.2 permits, with a committed go.sum",
   "notes": [
     "PM 2026-09-26: opened from the FJ-004 close-out. The golang-cli skill recommends Cobra+Viper as the default stack; spec \u00a715.6 and \u00a717.2 forbid that, so the spec wins (authority level 1 over level 5). The CLI will use the standard library flag package.",
-    "PM 2026-09-26: no go.sum exists in the tree today. FJ-004 CI runs GOPROXY=off, so the first real import would fail closed on a missing go.sum entry. This ticket removes that trap rather than arming it."
+    "PM 2026-09-26: no go.sum exists in the tree today. FJ-004 CI runs GOPROXY=off, so the first real import would fail closed on a missing go.sum entry. This ticket removes that trap rather than arming it.",
+    "PM 2026-09-26: hardener surfaced two follow-ups outside this item's allowedFiles \u2014 the verifier does not pin GOPROXY/GOFLAGS (fail-closed holds only on a clean CI runner; a parent-dir go.work or -mod=mod with a warm cache can bypass it silently), and no repo policy constrains replace/exclude/retract in go.mod. Both deferred to a new ticket."
   ],
   "stage": "qa",
-  "leaseOwner": "pi-pm-fj053"
+  "leaseOwner": null
 }
