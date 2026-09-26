@@ -1214,6 +1214,60 @@ def verify_command_recursive():
         "recursive verification command was executed"
 
 
+# --------------------------------------------------------------------------
+# Task 9 scenarios: agent-context GAUNTLET and EXPERTISE views (design §10)
+# --------------------------------------------------------------------------
+
+
+def gauntlet_fixture(name):
+    """Verifying coder-stage metadata item, chain-consistent artifacts, one
+    bound report — the baseline both scenarios render against."""
+    item = base_item(status="verifying", stage="coder",
+                     leaseOwner="selftest-agent")
+    repo = fixture(name, items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    proc, _report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)   # gates need a bound report before we render it
+    return repo, fp, info
+
+
+@scenario("gauntlet_block_renders")
+def gauntlet_block_renders():
+    repo, fp, _info = gauntlet_fixture("gauntlet-render")
+    out = sh("./scripts/agent-context FJ-900", repo).stdout
+    assert re.search(r"Specifier\s+artifact: fresh\s+gate: pass", out), out
+    assert re.search(r"Coder\s+artifact: fresh\s+gate: pass", out), out
+    assert re.search(r"Cleaner\s+artifact: pending\s+gate: not run", out), out
+    assert re.search(r"QA\s+artifact: pending\s+gate: not run", out), out
+    assert re.search(r"Hardener\s+artifact: not required\s+gate: not applicable",
+                     out), out
+    assert "candidate: " + fp in out, out
+    assert "EXPERTISE" in out and \
+        "docs/agents/expertise/golang.md" in out.split("EXPERTISE", 1)[1], out
+    # Task semantics changed behind the artifact's back: the coder artifact
+    # records the old task fingerprint and must render stale at once (§7).
+    write_artifact(repo, "FJ-900", "coder", fp, fp, "f" * 64)
+    out = sh("./scripts/agent-context FJ-900", repo).stdout
+    assert re.search(r"Coder\s+artifact: stale", out), out
+
+
+@scenario("gauntlet_report_binding")
+def gauntlet_report_binding():
+    repo, _fp, _info = gauntlet_fixture("gauntlet-binding")
+    # Candidate content changed after the bound report: the digest excludes
+    # .agent/work and .agent/reports (writing artifacts/report did not move
+    # it), but README.md does — report bound to the old fingerprint is ignored
+    # in the GAUNTLET block and surfaces in EVIDENCE FRESHNESS instead (§10).
+    with (repo / "README.md").open("a", encoding="utf-8") as handle:
+        handle.write("\nprobe: candidate changed after the bound report\n")
+    out = sh("./scripts/agent-context FJ-900", repo).stdout
+    assert re.search(r"Specifier\s+artifact: fresh\s+gate: not run", out), out
+    assert re.search(r"Coder\s+artifact: stale\s+gate: not run", out), out
+    assert "bound to an older fingerprint" in out, out
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.

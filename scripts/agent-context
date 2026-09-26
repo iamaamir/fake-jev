@@ -71,9 +71,28 @@ fi
 export ORIENT_GIT ORIENT_REV ORIENT_STAGED ORIENT_UNSTAGED ORIENT_UNTRACKED
 export ORIENT_RECENT REPO_ROOT
 
+# Fingerprints for the §10 views. Shared implementation, computed from the
+# repository root; degrades to empty when the tooling is absent or the digest
+# is not a plausible 64-hex value (non-git checkouts, partial output) — the
+# packet must never crash.
+CAND_FP=""
+TASK_JSON=""
+if [ -x "$REPO_ROOT/scripts/candidate-fingerprint" ]; then
+  CAND_FP="$(cd "$REPO_ROOT" && ./scripts/candidate-fingerprint candidate 2>/dev/null || true)"
+  TASK_JSON="$(cd "$REPO_ROOT" && ./scripts/candidate-fingerprint task "$STATE_FILE" 2>/dev/null || true)"
+fi
+case "$CAND_FP" in
+  *[!0-9a-f]*|"") CAND_FP="" ;;   # keep only a plausible digest
+esac
+if [ "${#CAND_FP}" -lt 64 ]; then
+  CAND_FP=""
+fi
+export CAND_FP TASK_JSON
+
 python3 - "$TASK_ID" "$STATE_FILE" <<'PY'
 import json
 import os
+import re
 import sys
 
 task_id, state_file = sys.argv[1], sys.argv[2]
@@ -107,6 +126,32 @@ if errors:
         print(f"ERROR: {problem}", file=sys.stderr)
     sys.exit(3)
 
+REPO = os.environ.get("REPO_ROOT") or "."
+CAND_FP = os.environ.get("CAND_FP") or ""
+
+# Task context from candidate-fingerprint task mode (§6.2). Absent or unusable
+# renders the gauntlet views as unavailable instead of guessing (design §10).
+info = None
+raw_info = os.environ.get("TASK_JSON") or ""
+if raw_info:
+    try:
+        parsed = json.loads(raw_info)
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, dict) and isinstance(parsed.get("taskFingerprint"), str):
+        info = parsed
+
+explicit_stages = state.get("requiredStages")
+explicit_stages = explicit_stages if isinstance(explicit_stages, list) else []
+stages = list(info.get("requiredStages") or []) if info else explicit_stages
+REQUIRED_TEXT = ",".join(stages) if stages else "(none)"
+TASK_TEXT = info["taskFingerprint"] if info else "(unknown)"
+
+STAGE_NAMES = ["specifier", "coder", "cleaner", "hardener", "qa"]
+STAGE_GATES = {"specifier": "G-S", "coder": "G-C", "cleaner": "G-L",
+               "hardener": "G-H", "qa": "G-Q"}
+STAGE_DISPLAY = {"qa": "QA"}   # every other stage title-cases
+
 
 def block(title, items, empty="(none)"):
     print(title)
@@ -127,6 +172,238 @@ def line_or_none(value):
     if value is None or value == "":
         return "(none)"
     return str(value)
+
+
+# --- gauntlet view (design §7, §8.1, §10) ------------------------------------
+
+ARTIFACT_KEYS = {"stage", "task", "inputFingerprint", "outputFingerprint",
+                 "taskFingerprint", "gitHead", "generatedAt"}
+HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+TASK_ID_RE = re.compile(r"\AFJ-[A-Za-z0-9-]+\Z")
+
+
+def parse_artifact(path):
+    """Stage-artifact front matter (design §5) under the same rules the engine
+    applies: `key: value` lines only, exact seven-key set, stage/task/digest
+    validation. Returns (header, body); raises ValueError when invalid."""
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    if not text.startswith("---\n"):
+        raise ValueError("missing front matter")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        raise ValueError("unterminated front matter")
+    header = {}
+    for line in text[4:end].splitlines():
+        if line != line.lstrip() or ": " not in line:
+            raise ValueError("invalid front matter line: %r" % line)
+        key, value = line.split(": ", 1)
+        if key in header:
+            raise ValueError("duplicate front matter key: %s" % key)
+        header[key] = value
+    if set(header) != ARTIFACT_KEYS:
+        raise ValueError("front matter keys %s != %s"
+                         % (sorted(header), sorted(ARTIFACT_KEYS)))
+    if header["stage"] not in STAGE_NAMES:
+        raise ValueError("unknown stage %r" % header["stage"])
+    if not TASK_ID_RE.match(header["task"]):
+        raise ValueError("invalid task %r" % header["task"])
+    for key in ("inputFingerprint", "outputFingerprint", "taskFingerprint"):
+        if not HEX64.match(header[key]):
+            raise ValueError("%s is not a 64-hex digest" % key)
+    return header, text[end + 5:]
+
+
+def due_stages(status, current_stage, required):
+    """§8.1 due set for display — the same rules `scripts/candidate-fingerprint`
+    scheduling() applies (interpretation note 8): display never invents its own."""
+    if status in ("planned", "ready", "blocked"):
+        return []
+    if status in ("review", "complete"):
+        return list(required)
+    if current_stage in required:
+        stop = required.index(current_stage)
+        return required[:stop] if status == "implementing" else required[:stop + 1]
+    return list(required)  # no stage, or a stage outside requiredStages: fail-closed
+
+
+def covered_stage(status, current_stage, required):
+    """Terminal-freshness coverage (§7): verifying → the current stage when it
+    is required; review/complete → the last required stage; nothing otherwise."""
+    if status == "verifying":
+        return current_stage if current_stage in required else None
+    if status in ("review", "complete"):
+        return required[-1] if required else None
+    return None
+
+
+def artifact_state(stage, status, current_stage, required, tfp):
+    """§7/§8.1 freshness for one stage, recomputed from fingerprints:
+    not required | pending | missing | invalid | stale | fresh."""
+    if stage not in required:
+        return "not required"
+    if stage not in due_stages(status, current_stage, required):
+        return "pending"
+    path = os.path.join(REPO, ".agent", "work", task_id, "%s.md" % stage)
+    if not os.path.isfile(path):
+        return "missing"
+    try:
+        header, _body = parse_artifact(path)
+    except (ValueError, OSError):
+        return "invalid"
+    if header["stage"] != stage or header["task"] != task_id:
+        return "invalid"
+    if header["taskFingerprint"] != tfp:
+        return "stale"
+    position = required.index(stage)
+    if position > 0:
+        previous = os.path.join(REPO, ".agent", "work", task_id,
+                                "%s.md" % required[position - 1])
+        try:
+            prior, _prior_body = parse_artifact(previous)
+        except (ValueError, OSError):
+            pass  # the predecessor's own row reports it
+        else:
+            if prior["outputFingerprint"] != header["inputFingerprint"]:
+                return "stale"
+    if covered_stage(status, current_stage, required) == stage and CAND_FP \
+            and header["outputFingerprint"] != CAND_FP:
+        return "stale"
+    return "fresh"
+
+
+def reports_exist():
+    directory = os.path.join(REPO, ".agent", "reports", task_id)
+    if not os.path.isdir(directory):
+        return False
+    return any(name.startswith("report-") and name.endswith(".json")
+               for name in os.listdir(directory))
+
+
+def load_report():
+    """Newest report bound to BOTH current fingerprints (§10); a report bound
+    to either older fingerprint is ignored here — it surfaces in EVIDENCE
+    FRESHNESS instead. Lexical sort: report names are UTC timestamps."""
+    if info is None or not CAND_FP:
+        return None
+    directory = os.path.join(REPO, ".agent", "reports", task_id)
+    if not os.path.isdir(directory):
+        return None
+    names = sorted(name for name in os.listdir(directory)
+                   if name.startswith("report-") and name.endswith(".json"))
+    for name in reversed(names):
+        try:
+            with open(os.path.join(directory, name), encoding="utf-8") as handle:
+                report = json.load(handle)
+        except (ValueError, OSError):
+            continue
+        if not isinstance(report, dict):
+            continue
+        if report.get("candidateFingerprint") == CAND_FP \
+                and report.get("taskFingerprint") == info["taskFingerprint"]:
+            return report
+    return None
+
+
+def gate_display(stage, report, due, required):
+    """Collapse a stage's required gate rows from the bound report (§10):
+    fail > exempt > pass; not applicable/not run outside the due set."""
+    if stage not in required:
+        return "not applicable"
+    if stage not in due:
+        return "not run"
+    rows = []
+    if isinstance(report, dict):
+        rows = [c for c in report.get("checks") or []
+                if isinstance(c, dict) and c.get("gate") == STAGE_GATES[stage]]
+    if not rows:
+        return "not run"
+    if any(c.get("required") and (
+            c.get("result") == "fail"
+            or (c.get("result") == "skipped" and not c.get("exempted")))
+           for c in rows):
+        return "fail"
+    if any(c.get("required") and c.get("exempted") for c in rows):
+        return "exempt"
+    return "pass"
+
+
+def gauntlet_block():
+    """Design §10: one row per stage of the vocabulary — artifacts recomputed
+    from fingerprints, gates collapsed from the latest bound report."""
+    print("GAUNTLET")
+    if info is None:
+        print("  (unavailable — task fingerprint could not be computed)")
+        print()
+        return
+    status = state.get("status")
+    current = state.get("stage") if isinstance(state.get("stage"), str) else None
+    required = [s for s in (info.get("requiredStages") or []) if s in STAGE_NAMES]
+    due = set(due_stages(status, current, required))
+    report = load_report()
+    for stage in STAGE_NAMES:
+        print("  %-11s artifact: %-9s gate: %s"
+              % (STAGE_DISPLAY.get(stage, stage.capitalize()),
+                 artifact_state(stage, status, current, required,
+                                info["taskFingerprint"]),
+                 gate_display(stage, report, due, required)))
+    print("  candidate: %s  task: %s"
+          % (CAND_FP or "(unknown)", info["taskFingerprint"]))
+    print()
+
+
+def role_pack_expertise(stage):
+    """Front matter of docs/agents/roles/<stage>.md parsed without PyYAML —
+    agent-context stays stdlib-only. Tracks the two-space `required:` /
+    `optional:` keys, collects four-space `    - name` items, resets on any
+    other top-level key. Returns the two lists, or None when the pack is
+    missing/unparseable."""
+    path = os.path.join(REPO, "docs", "agents", "roles", "%s.md" % stage)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    match = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+    if not match:
+        return None
+    lists = {"required": [], "optional": []}
+    current = None
+    for line in match.group(1).splitlines():
+        if line.startswith("  required:") or line.startswith("  optional:"):
+            current = "required" if line.startswith("  required:") else "optional"
+        elif line.startswith("    - ") and current:
+            lists[current].append(line[6:].strip())
+        elif not line.startswith("    "):
+            current = None
+    return lists
+
+
+def expertise_block():
+    """Design §10: required packs as paths to read, optional as pointers."""
+    print("EXPERTISE")
+    stage = state.get("stage") if isinstance(state.get("stage"), str) else None
+    if not stage:
+        print("  (no active stage — start at docs/agents/README.md)")
+        print()
+        return
+    lists = role_pack_expertise(stage)
+    if lists is None:
+        print("  (role pack missing: docs/agents/roles/%s.md)" % stage)
+        print()
+        return
+    print("required (read these):")
+    if lists["required"]:
+        for name in lists["required"]:
+            print("  docs/agents/expertise/%s.md" % name)
+    else:
+        print("    (none)")
+    print("optional (pointers):")
+    if lists["optional"]:
+        for name in lists["optional"]:
+            print("  %s" % name)
+    else:
+        print("    (none)")
+    print()
 
 
 def orientation():
@@ -179,6 +456,8 @@ def evidence_freshness(git, rev, dirty):
             print(f"  fresh — passed at {rev}{suffix}")
         else:
             print(f"  latest run at {rev} is {status}")
+    if info is not None and reports_exist() and load_report() is None:
+        print("  latest report is bound to an older fingerprint — rerun verify-candidate")
     print()
 
 
@@ -194,6 +473,8 @@ print(f"phase: {line_or_none(state.get('phase'))}  |  "
 print(f"lease: {line_or_none(state.get('leaseOwner'))}  |  "
       f"base revision: {line_or_none(state.get('baseRevision'))}  |  "
       f"candidate revision: {line_or_none(state.get('candidateRevision'))}")
+print(f"stage: {line_or_none(state.get('stage'))}  |  requiredStages: {REQUIRED_TEXT}")
+print(f"candidate: {CAND_FP or '(unknown)'}  |  task: {TASK_TEXT}")
 print()
 
 print("OBJECTIVE")
@@ -203,6 +484,8 @@ print()
 print("STATUS")
 print(state.get("status", "(none)"))
 print()
+
+gauntlet_block()
 
 print("SPEC REFERENCES")
 print("  authoritative: spec/fake-jev-technical-spec-v2.md")
@@ -217,6 +500,8 @@ print()
 block("RELEVANT FILES", state.get("relevantFiles") or [])
 block("ALLOWED FILES", state.get("allowedFiles") or [],
       empty="(none — do not modify any files)")
+
+expertise_block()
 
 block("ACCEPTANCE", state.get("acceptance") or [])
 block("NON-GOALS", state.get("nonGoals") or [])
