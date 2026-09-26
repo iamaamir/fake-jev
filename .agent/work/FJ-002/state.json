@@ -2,18 +2,18 @@
   "id": "FJ-002",
   "title": "Phase 0: machine-readable contract artifacts",
   "phase": "phase-0",
-  "objective": "Author spec/config.schema.json from §38, spec/control-api.openapi.yaml from §41, and spec/compat/jev-v1/openapi.snapshot.json from the frozen §6/§39 surface, so protocol behavior is reviewable as artifacts before implementation begins.",
-  "status": "ready",
+  "objective": "Author spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, and spec/compat/jev-v1/openapi.snapshot.json from the frozen \u00a76/\u00a739 surface, so protocol behavior is reviewable as artifacts before implementation begins.",
+  "status": "implementing",
   "baseRevision": null,
   "candidateRevision": null,
-  "assignedRole": null,
+  "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
-    "§45 required repository contract artifacts",
-    "§38 normative configuration contract",
-    "§41 normative control API contract",
-    "§6 current Jev compatibility snapshot",
-    "§39 normative jev/v1 wire contract"
+    "\u00a745 required repository contract artifacts",
+    "\u00a738 normative configuration contract",
+    "\u00a741 normative control API contract",
+    "\u00a76 current Jev compatibility snapshot",
+    "\u00a739 normative jev/v1 wire contract"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -29,7 +29,7 @@
     "C-QUAL-006",
     "config schema encodes C-CFG-001 through C-CFG-011 as machine-checkable rules",
     "control OpenAPI encodes C-CTRL-001 through C-CTRL-011",
-    "jev snapshot records the frozen §6 surface without contacting the network"
+    "jev snapshot records the frozen \u00a76 surface without contacting the network"
   ],
   "nonGoals": [
     "no implementation code",
@@ -39,6 +39,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "write the three artifacts from the specification and review them against §38/§41/§39",
-  "notes": []
+  "nextAction": "write the three artifacts from the specification and review them against \u00a738/\u00a741/\u00a739",
+  "notes": [],
+  "stage": "qa",
+  "leaseOwner": "pm-orchestrator"
 }

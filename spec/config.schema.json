@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fake-jev.invalid/spec/config.schema.json",
+  "title": "fake-jev configuration",
+  "description": "Machine-readable form of the normative configuration contract in spec/fake-jev-technical-spec-v2.md §38, with built-in defaults and profile aliases from §12. This schema describes a single configuration document. It does not describe precedence between a CLI flag, a configuration file, and a built-in default: that is C-CFG-011 and is enforced by the loader, not here. It also does not describe YAML specifically, because a YAML input and a JSON input must deserialize to the same logical document (C-CFG-009); this schema applies to the resulting value either way.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {
+      "description": "REQUIRED. Must equal the integer 1. A document carrying any other value is a different schema version and is rejected; it is never migrated silently (C-CFG-001, §38.1, §26.2).",
+      "type": "integer",
+      "const": 1,
+      "default": 1
+    },
+    "server": {
+      "description": "Listener settings. Omitted sections take the §12.2 built-in defaults (C-CFG-007).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "description": "Bind address. Default 127.0.0.1. The default is loopback on purpose: fake-jev must not bind publicly by default (§19.1, §30.8, C-ARCH-006). A container user may set 0.0.0.0 explicitly.",
+          "type": "string",
+          "default": "127.0.0.1"
+        },
+        "port": {
+          "description": "TCP port, 0..65535. 0 requests an ephemeral OS-assigned port (§15.1). Default 8787.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 8787
+        }
+      }
+    },
+    "mode": {
+      "description": "Execution mode. 'strict' is the only mode in v1. Any other value MUST fail validation, including 'auto': auto-generated decisions are deferred (§14, §33, C-CFG-008).",
+      "type": "string",
+      "const": "strict",
+      "default": "strict"
+    },
+    "compatibility": {
+      "description": "Enabled compatibility profiles, in order. Default [\"jev/v1\"]. 'jev' is a convenience input alias that MUST be normalized to 'jev/v1' BEFORE duplicate detection, so a list containing both 'jev' and 'jev/v1' is a duplicate and is rejected (C-CFG-004, §38.1, §26.4). Uniqueness after normalization and membership in the built-in profile set are loader responsibilities: a JSON Schema cannot compare two array members after a value transformation, so C-CFG-004 is not mechanically enforced by this document. Prefer the explicit 'jev/v1' identifier in long-lived CI configuration, because the alias may move to a newer profile in a later major version (§26.4).",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/profileId"
+      },
+      "default": ["jev/v1"]
+    },
+    "limits": {
+      "description": "Operational limits. Every value has a §12.2 built-in default, and the host MUST enforce them (§19.4, C-HOST-008).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dataPlaneBodyBytes": {
+          "description": "Maximum data-plane request body, enforced before unbounded allocation. Exceeding it returns HTTP 413 (§19.4, §43.7).",
+          "type": "integer",
+          "minimum": 1024,
+          "default": 8388608
+        },
+        "controlPlaneBodyBytes": {
+          "description": "Maximum control-plane request body. A control-plane 413 is not an application interaction and does not affect verification (§19.4, C-HOST-006).",
+          "type": "integer",
+          "minimum": 1024,
+          "default": 2097152
+        },
+        "maxInteractions": {
+          "description": "Interaction journal capacity. When the journal is full the next data-plane request receives HTTP 507 fake_jev_journal_full, is assigned no sequence number, mutates no stub state, and sets a sticky verification failure. Older interactions are never silently evicted (§19.4, §43.5, §44.14).",
+          "type": "integer",
+          "minimum": 1,
+          "default": 10000
+        },
+        "logBodyBytes": {
+          "description": "Maximum request/state body preview written to normal logs. The full body remains available through interaction history subject to the limits above (§20).",
+          "type": "integer",
+          "minimum": 0,
+          "default": 4096
+        },
+        "gracefulShutdownSeconds": {
+          "description": "Upper bound on in-flight request drain time and on child-process shutdown in 'run' (§42.3).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 5
+        }
+      }
+    },
+    "models": {
+      "description": "The jev/v1 model list. Order is preserved and emitted verbatim by GET /v1/models (§39.1). Model metadata is test data; it is not a claim that a real model exists locally (§10.2).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/model"
+      },
+      "default": [
+        {
+          "name": "jev-latest",
+          "description": "Local deterministic fake model provided by fake-jev.",
+          "release_date": "1970-01-01"
+        }
+      ]
+    },
+    "stubs": {
+      "description": "Static stubs, registered in declaration order and assigned registrationIndex 1..N (§12.4). Every stub id MUST be non-empty and unique across all active stubs; a duplicate id fails configuration validation (C-CFG-005, §11.2). Uniqueness across array members is not expressible in JSON Schema and is a loader responsibility.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stub"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "profileId": {
+      "description": "A compatibility profile identifier, or the 'jev' input alias. In v1 the only built-in concrete profile is 'jev/v1' and 'jev' normalizes to it; an unknown profile fails validation (§38.1, C-CFG-004).",
+      "type": "string",
+      "minLength": 1,
+      "enum": ["jev/v1", "jev"]
+    },
+    "model": {
+      "description": "A model-list entry. Exactly these three keys; model names must be unique across the list and the list must contain at least one model after defaults are applied (C-CFG-010, §38.4). Both uniqueness and the non-empty-after-defaults rule are loader responsibilities.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "release_date"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "release_date": {
+          "description": "Calendar date, YYYY-MM-DD. The built-in model is dated 1970-01-01 so the default is visibly synthetic rather than plausibly current.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "stub": {
+      "description": "A deterministic matching rule. A stub MUST define id, profile, when, and then; priority defaults to 0 and expect is optional (§38.5).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile", "when", "then"],
+      "properties": {
+        "id": {
+          "description": "Non-empty, globally unique among active stubs (§11.2, §38.5).",
+          "type": "string",
+          "minLength": 1
+        },
+        "profile": {
+          "$ref": "#/$defs/profileId"
+        },
+        "priority": {
+          "description": "Selection priority; larger wins (§40.2). Signed 32-bit integer (§38.5). Equal priority is broken by smaller registrationIndex; there is no specificity scoring.",
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647,
+          "default": 0
+        },
+        "when": {
+          "$ref": "#/$defs/when"
+        },
+        "then": {
+          "$ref": "#/$defs/then"
+        },
+        "expect": {
+          "$ref": "#/$defs/expect"
+        }
+      }
+    },
+    "when": {
+      "description": "The jev/v1 matcher. Present fields combine with logical AND and an omitted field is a wildcard for that field (§40.1). This shape is jev/v1 specific; another profile compiles its own matcher into the same engine primitives (§9, §40.5).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "description": "Defaults to 'systemone', the only jev/v1 operation a stub can match (§38.6).",
+          "type": "string",
+          "const": "systemone",
+          "default": "systemone"
+        },
+        "model": {
+          "description": "Exact string equality against the request model. No aliases, no regex (§40.4).",
+          "type": "string"
+        },
+        "state": {
+          "description": "Exact JSON-value equality against the request state (§40.3). Intentionally an open container: arbitrary JSON is valid state and unknown keys are not rejected here (C-CFG-003, §38.8). JSON numbers compare by numeric value, so 1, 1.0, and 1e0 are equal, and equality MUST NOT be implemented by converting every number through binary floating point, which would lose integer precision.",
+          "type": ["string", "object", "array", "number", "boolean", "null"]
+        },
+        "questions": {
+          "description": "Exact question-name set and exact per-name type equality. A request with an extra question does not match, and a request missing one does not match either (§40.5). The exactness is deliberate: adding a decision to an application must not silently reuse an older fixture (§44.5).",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/questionType"
+          }
+        }
+      }
+    },
+    "questionType": {
+      "description": "A jev/v1 question type (§6, §39.2).",
+      "type": "string",
+      "enum": ["noul", "choice", "score"]
+    },
+    "then": {
+      "description": "The response action. EXACTLY ONE of answers, sequence, or raw MUST be present; two or more fail validation (C-CFG-006, §12.6, §38.7). Fixtures are data only: no templates, expressions, shell, JavaScript, or callbacks are executed (§12.8, §19.3, C-ARCH-005).",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 3,
+      "properties": {
+        "answers": {
+          "$ref": "#/$defs/answersResponse"
+        },
+        "sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sequenceElement"
+          }
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResponse"
+        },
+        "model": {
+          "description": "Emitted verbatim as the response model when present; otherwise the request model is echoed (§13.6, C-JEV-009). Only valid alongside answers.",
+          "type": "string"
+        },
+        "usage": {
+          "description": "Token usage. Only valid alongside answers. Defaults to exactly {input_tokens: 0, output_tokens: 0} (§13.6, §10.3, C-JEV-010).",
+          "$ref": "#/$defs/usage"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["answers"],
+          "not": {
+            "anyOf": [
+              { "required": ["sequence"] },
+              { "required": ["raw"] }
+            ]
+          }
+        },
+        {
+          "required": ["sequence"],
+          "not": {
+            "anyOf": [
+              { "required": ["answers"] },
+              { "required": ["raw"] }
+            ]
+          }
+        },
+        {
+          "required": ["raw"],
+          "not": {
+            "anyOf": [
+              { "required": ["answers"] },
+              { "required": ["sequence"] }
+            ]
+          }
+        }
+      ]
+    },
+    "sequenceElement": {
+      "description": "One element of a response sequence. Consumed once per selected invocation, in order, starting at element 0 (§40.7). An element MUST be an answers response or a raw response and MUST NOT contain another sequence. There is no implicit repeat-last behavior: after the final element the next invocation fails with HTTP 409 fake_jev_sequence_exhausted and verification fails.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "answers": {
+          "$ref": "#/$defs/answersResponse"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResponse"
+        },
+        "model": {
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["answers"],
+          "not": { "required": ["raw"] }
+        },
+        {
+          "required": ["raw"],
+          "not": { "required": ["answers"] }
+        }
+      ]
+    },
+    "answersResponse": {
+      "description": "A direct answer map. The map MUST cover exactly the request question-name set: an answer for every requested question and none for absent questions (§13.4). Partial coverage is prohibited in strict v1 and produces fake_jev_invalid_stub_response with HTTP 500, failing verification (§13.5, §43.4, C-JEV-008). There is no implicit answer generation in v1 strict mode (§14, §30.4).",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/answer"
+      }
+    },
+    "answer": {
+      "description": "One deterministic answer. The helper type MUST equal the request question type; a mismatch is a fake-server error and the type is never coerced (§13.1, §13.4, C-JEV-016).",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "noul": {
+          "description": "noul answer. A number in [0,1], or a boolean converted exactly: true -> 1.0, false -> 0.0 (§13.1, C-JEV-011).",
+          "type": ["number", "boolean"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "choice": {
+          "description": "Selected choice key. It MUST exist in the request question's criteria object (§13.2).",
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "description": "Defaults to 1.0 when omitted (§13.2, §13.3). With explicit probabilities, confidence defaults to the selected choice probability instead (§13.2, C-JEV-013).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "probabilities": {
+          "description": "Explicit probability map. For choice it MUST cover exactly the request criteria key set, lie in [0,1], sum to 1 within 1e-6, and the selected choice MUST have a maximum probability (ties allowed). For score it MUST use exactly the keys \"0\"..\"N-1\", sum to 1 within 1e-6, and have a probability-weighted expected value equal to score within 1e-6 (§13.2, §13.3, C-JEV-013, C-JEV-015). When omitted, a one-hot distribution is generated, and a fractional score interpolates linearly between floor and ceiling (§13.2, §13.3, C-JEV-012, C-JEV-014). Dependence on the request criteria means the criteria and score cross-checks are loader responsibilities.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "score": {
+          "description": "Requested score. For criteria of length N the value MUST lie within [0, N-1] (§13.3).",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "rawResponse": {
+      "description": "The raw escape hatch: intentional emulated-provider behavior, used when a provider protocol evolves before a first-class helper exists (§12.8). It is NOT validated against jev/v1 answer schemas, and a configured non-2xx status is a successful match that does not by itself fail verification (§21.1, §44.9, C-GOLD-009). It does not bypass host safety limits and does not send arbitrary bytes (§39.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "headers": {
+          "description": "String-to-string response headers. If a body is present and no case-insensitive Content-Type was configured, application/json is added (§39.7).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "body": {
+          "description": "Arbitrary JSON, serialized once. When absent the response body is empty. Intentionally an open container, exempt from unknown-key validation (C-CFG-003, §38.8)."
+        }
+      }
+    },
+    "usage": {
+      "description": "Token usage counters. Both MUST be non-negative integers; the default is exactly zero for both (§13.6, C-JEV-010).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_tokens", "output_tokens"],
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "expect": {
+      "description": "Invocation-count expectations. Absent means no assertion. Counts are checked at verification time against the current counters, so a full reset re-evaluates them: a static expect.exactly 1 makes verify fail until it is called once more (§44.8). A stub invocation counter increments whenever the stub is selected, including a selection whose response then fails, so extra calls stay observable (§12.7, §40.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "exactly": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "atLeast": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "atMost": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["exactly"],
+          "not": {
+            "anyOf": [
+              { "required": ["atLeast"] },
+              { "required": ["atMost"] }
+            ]
+          }
+        },
+        {
+          "required": ["atLeast"],
+          "not": { "required": ["exactly"] }
+        },
+        {
+          "required": ["atMost"],
+          "not": { "required": ["exactly"] }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": ["atLeast", "atMost"]
+          },
+          "then": {
+            "description": "atLeast MUST be less than or equal to atMost (§12.7). Numeric comparison between two instance values is not expressible in JSON Schema, so this is a loader check.",
+            "type": "object"
+          }
+        }
+      ]
+    }
+  }
+}

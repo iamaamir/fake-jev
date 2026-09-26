@@ -7,9 +7,9 @@ Follows specification §17 and §45:
 ```text
 spec/
     normative product behavior (prose, schemas, golden vectors)
-    config.schema.json                          (§45, reserved)
-    control-api.openapi.yaml                    (§45, reserved)
-    compat/jev-v1/openapi.snapshot.json         (§45, reserved)
+    config.schema.json                          (§38)
+    control-api.openapi.yaml                    (§41)
+    compat/jev-v1/openapi.snapshot.json         (§6, §39)
 
 testdata/contracts/
     golden vectors from §44 as executable inputs (§45, reserved)
@@ -25,7 +25,10 @@ test/
 |------|--------|
 | `spec/fake-jev-technical-spec-v2.md` | **Authoritative.** Normative v1 product specification, version 2.0. |
 | `spec/fake-jev-technical-spec.md` | Superseded v1 document, retained only for history. Do not implement from it. |
-| `spec/config.schema.json`, `spec/control-api.openapi.yaml`, `spec/compat/jev-v1/openapi.snapshot.json`, `testdata/contracts/` | Required by §45. Reserved and empty until the specification's phase 0 lands them. |
+| `spec/config.schema.json` | **Committed** (FJ-002). Machine-readable configuration contract from §38, with §12 defaults and the `jev` alias. |
+| `spec/control-api.openapi.yaml` | **Committed** (FJ-002). Control API from §41, namespace `/__fake/v1`. |
+| `spec/compat/jev-v1/openapi.snapshot.json` | **Committed** (FJ-002). The frozen `jev/v1` data-plane surface from §6 and §39. |
+| `testdata/contracts/` | Required by §45. Reserved and empty until the golden vectors land. |
 
 Both specification files were originally at the repository root and were moved here
 unchanged during repository setup.

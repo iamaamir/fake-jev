@@ -1,0 +1,517 @@
+{
+  "$comment": [
+    "PROVENANCE — READ THIS FIRST.",
+    "",
+    "This file is NOT a capture of https://api.typesafe.ai/openapi.json. It was not",
+    "fetched, and the build that produced it made no network request. It is a",
+    "reconstruction of the jev/v1 surface frozen by",
+    "spec/fake-jev-technical-spec-v2.md §6 and §39.",
+    "",
+    "§6 records what was observed upstream on the snapshot date. §6.2 makes the",
+    "distinction load-bearing: once jev/v1 is released, its observable behavior is",
+    "defined by the specification and its golden tests, not by whatever the live",
+    "TypeSafe service does later. A future reader who assumed this file was a",
+    "verbatim upstream capture would treat it as evidence about live behavior, and",
+    "would be wrong. The path name is fixed by §45 and cannot signal provenance;",
+    "this block does.",
+    "",
+    "Everything below is authoritative only insofar as §6 and §39 are. If this",
+    "file and the specification disagree, the specification wins and this file is",
+    "corrected (§0.2)."
+  ],
+  "x-fake-jev": {
+    "artifact": "jev/v1 compatibility snapshot",
+    "derivedFrom": [
+      "spec/fake-jev-technical-spec-v2.md §6",
+      "spec/fake-jev-technical-spec-v2.md §39",
+      "spec/fake-jev-technical-spec-v2.md §13",
+      "spec/fake-jev-technical-spec-v2.md §43"
+    ],
+    "provenance": "reconstructed-from-specification",
+    "networkFetch": false,
+    "upstreamSnapshotDate": "2026-09-25",
+    "upstreamSource": "https://api.typesafe.ai/openapi.json",
+    "upstreamApiDescriptionVersion": "0.2.0",
+    "upstreamOpenapiVersion": "3.1.0",
+    "profileId": "jev/v1",
+    "profileOwner": "fake-jev",
+    "profileNote": "jev/v1 is a fake-jev-owned identifier. It does not imply that TypeSafe has published an API version named jev/v1, and it is not a System One standard (§6.1, §25.4)."
+  },
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Jev compatibility profile (fake-jev reconstruction)",
+    "version": "1.0.0",
+    "description": "The jev/v1 data-plane surface as frozen for fake-jev. This is a protocol emulation target, not a System One standard. fake-jev emulates protocols; it does not define them (§1)."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787",
+      "description": "Loopback is the default bind. An application under test switches to this by changing its base URL and nothing else (§2, §19.1)."
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List the deterministic model entries exposed by the fake.",
+        "description": "Successful response is a data-plane interaction: journaled as profile jev/v1, operation models, outcome matched, matchedStubId null, requestBody null. It requires no stub, selects none, and does not fail verification (§39.1, C-JEV-002). Authentication headers are ignored.",
+        "responses": {
+          "200": {
+            "description": "The model list, in configured order.",
+            "headers": {
+              "Content-Type": {
+                "description": "A JSON content type, possibly with a charset parameter (§39.9).",
+                "required": true,
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ModelList" },
+                "example": {
+                  "models": [
+                    {
+                      "name": "jev-latest",
+                      "description": "Local deterministic fake model provided by fake-jev.",
+                      "release_date": "1970-01-01"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/systemone": {
+      "post": {
+        "operationId": "systemOne",
+        "summary": "Submit a state and questions for a deterministic decision.",
+        "description": "Strict mode only. An unconfigured request must not receive a plausible default: it returns HTTP 501 and fails verification (§4.6, §30.4).",
+        "security": [
+          { "bearerAuth": [] }
+        ],
+        "description_note": "Upstream declares bearer authentication. fake-jev MUST accept a request with no Authorization header and MUST accept any bearer token, and MUST NOT validate credentials or contact any provider in v1 (§6, §10.1, §39.5, C-JEV-017). The value MUST never be logged (§42.5).",
+        "requestBody": {
+          "required": true,
+          "description": "Parsed as JSON whether or not Content-Type is present or set to application/json. A non-JSON body fails with the 422 malformed-JSON envelope; v1 does not emulate strict media types (§39.6).",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SystemOneRequest" },
+              "examples": {
+                "noul": {
+                  "summary": "§44.2 golden vector",
+                  "value": {
+                    "state": "buy now",
+                    "model": "jev-latest",
+                    "questions": {
+                      "spam": { "type": "noul", "instructions": "Is this spam?" }
+                    }
+                  }
+                },
+                "choice": {
+                  "summary": "§44.3 golden vector",
+                  "value": {
+                    "state": { "cart": { "value": 42 } },
+                    "model": "jev-latest",
+                    "questions": {
+                      "route": {
+                        "type": "choice",
+                        "criteria": {
+                          "frontend": "UI",
+                          "backend": "API",
+                          "infra": "Infrastructure"
+                        }
+                      }
+                    }
+                  }
+                },
+                "score": {
+                  "summary": "§44.4 golden vector",
+                  "value": {
+                    "state": "incident",
+                    "model": "jev-latest",
+                    "questions": {
+                      "severity": {
+                        "type": "score",
+                        "criteria": [
+                          "Can wait",
+                          "Needs attention this week",
+                          "Needs attention today"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "missingState": {
+                  "summary": "§44.11 golden vector — 422",
+                  "value": {
+                    "model": "jev-latest",
+                    "questions": { "x": { "type": "noul" } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A matched, non-raw response. The answer map has exactly the request question-name set. JSON key order is not a protocol guarantee; golden comparisons are on parsed values (§39.4).",
+            "headers": {
+              "Content-Type": {
+                "required": true,
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SystemOneResponse" },
+                "examples": {
+                  "noul": {
+                    "value": {
+                      "model": "jev-latest",
+                      "answers": { "spam": { "type": "noul", "noul": 0.9 } },
+                      "usage": { "input_tokens": 0, "output_tokens": 0 }
+                    }
+                  },
+                  "choiceOneHot": {
+                    "value": {
+                      "model": "jev-latest",
+                      "answers": {
+                        "route": {
+                          "type": "choice",
+                          "choice": "backend",
+                          "confidence": 1.0,
+                          "probabilities": { "frontend": 0.0, "backend": 1.0, "infra": 0.0 }
+                        }
+                      },
+                      "usage": { "input_tokens": 0, "output_tokens": 0 }
+                    }
+                  },
+                  "scoreFractional": {
+                    "value": {
+                      "model": "jev-latest",
+                      "answers": {
+                        "severity": {
+                          "type": "score",
+                          "score": 1.5,
+                          "confidence": 1.0,
+                          "legend": {
+                            "0": "Can wait",
+                            "1": "Needs attention this week",
+                            "2": "Needs attention today"
+                          },
+                          "probabilities": { "0": 0.0, "1": 0.5, "2": 0.5 }
+                        }
+                      },
+                      "usage": { "input_tokens": 0, "output_tokens": 0 }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "$comment": "Sequence exhausted. The stub was still selected, so its invocation count incremented and stays incremented (§12.7, §40.6).",
+            "description": "The configured response sequence is exhausted. Verification fails.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SequenceExhaustedError" },
+                "example": {
+                  "error": "fake_jev_sequence_exhausted",
+                  "message": "Configured response sequence is exhausted.",
+                  "stubId": "retry-flow"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeded dataPlaneBodyBytes. Journaled as payload_too_large with requestBody null, mutates no stub state, and fails verification (§43.7, §44.15).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PayloadTooLargeError" },
+                "example": {
+                  "error": "fake_jev_payload_too_large",
+                  "message": "Request body exceeds the configured limit."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed. The profile returns the first discovered error only, which keeps behavior deterministic without cloning upstream framework prose (§39.2).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationError" },
+                "examples": {
+                  "malformedJson": {
+                    "summary": "§44.10",
+                    "value": { "detail": [{ "loc": ["body"], "msg": "Invalid JSON", "type": "json_invalid" }] }
+                  },
+                  "missingState": {
+                    "summary": "§44.11",
+                    "value": { "detail": [{ "loc": ["body", "state"], "msg": "Field required", "type": "missing" }] }
+                  },
+                  "unsupportedQuestionType": {
+                    "summary": "§39.3",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": ["body", "questions", "x", "type"],
+                          "msg": "Unsupported question type",
+                          "type": "literal_error"
+                        }
+                      ]
+                    }
+                  },
+                  "valueError": {
+                    "summary": "§39.3",
+                    "value": {
+                      "detail": [{ "loc": ["body", "questions", "route", "criteria"], "msg": "Invalid value", "type": "value_error" }]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The selected stub cannot legally answer the validated request — a missing answer, an unknown selected choice, or a helper whose type does not match the question. Detailed cause goes to stderr, not to the wire (§43.4). Verification fails. A second 500 body shape, fake_jev_internal_error, covers a fake-server internal failure (§43.6); it is listed in the same status because both are internal fake failures, and the two are distinguished by the error code.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InvalidStubResponseError" },
+                "example": {
+                  "error": "fake_jev_invalid_stub_response",
+                  "message": "Configured stub cannot produce a valid response for this request.",
+                  "stubId": "route-backend"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "No configured stub matched. In strict mode an unconfigured decision request must not silently receive a plausible default (§4.6, §30.4). Verification fails.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnmatchedRequestError" },
+                "example": {
+                  "error": "fake_jev_unmatched_request",
+                  "message": "No configured stub matched this request.",
+                  "profile": "jev/v1",
+                  "operation": "systemone"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "The journal is at maxInteractions. The request is never admitted: no sequence is assigned, no stub runs, no state mutates, and a sticky verification failure is set with requestSequence null. Older interactions are never silently evicted (§43.5, §44.14).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JournalFullError" },
+                "example": {
+                  "error": "fake_jev_journal_full",
+                  "message": "Interaction journal limit reached. Reset or increase maxInteractions."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Declared by upstream and emulated as a no-op: the header is optional, any value is accepted, nothing is validated, and the value is never logged (§6, §10.1, §39.5, §42.5)."
+      }
+    },
+    "schemas": {
+      "ModelList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["models"],
+        "properties": {
+          "models": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "description", "release_date"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "description": { "type": "string" },
+                "release_date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+              }
+            }
+          }
+        }
+      },
+      "SystemOneRequest": {
+        "type": "object",
+        "description": "Unknown fields are accepted and preserved in raw interaction data. Validation is deliberately limited to the frozen public schema; upstream validation prose is not emulated (§10.5, §39.2).",
+        "required": ["state", "model", "questions"],
+        "properties": {
+          "state": {
+            "description": "Required. JSON string, object, or array. Never semantically interpreted by the core.",
+            "type": ["string", "object", "array"]
+          },
+          "model": {
+            "description": "Required JSON string. v1 does not require it to appear in /v1/models; an arbitrary model string is allowed and is echoed by default (§39.2, §13.6).",
+            "type": "string"
+          },
+          "questions": {
+            "description": "Required object with at least one property. Question entries are validated in lexicographic question-name order, after state, model, and questions themselves (§39.2, C-JEV-003).",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": { "$ref": "#/components/schemas/Question" }
+          }
+        }
+      },
+      "Question": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["noul", "choice", "score"] },
+          "instructions": {
+            "description": "Never participates in matching (§40.5). May be string, object, array, or null.",
+            "type": ["string", "object", "array", "null"]
+          },
+          "criteria": {
+            "description": "Shape is determined by type: required non-empty object for choice, required non-empty array for score, optional for noul. Contents never participate in matching.",
+            "type": ["object", "array", "null"]
+          }
+        }
+      },
+      "SystemOneResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["model", "answers", "usage"],
+        "properties": {
+          "model": { "type": "string" },
+          "answers": {
+            "description": "Exactly the request question-name set — no missing answer, no extra answer (§13.4, §13.5).",
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/Answer" }
+          },
+          "usage": {
+            "description": "Exactly {input_tokens: 0, output_tokens: 0} unless the stub configured other non-negative integers (§13.6).",
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "Answer": {
+        "description": "The type field must match the corresponding request question's type; types are never coerced, and a mismatch is a fake-server error (§13.1, §13.4, C-JEV-016).",
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["noul", "choice", "score"] },
+          "noul": { "type": "number", "minimum": 0, "maximum": 1 },
+          "choice": { "type": "string", "minLength": 1 },
+          "score": { "type": "number", "minimum": 0 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 },
+          "legend": {
+            "description": "Score answers only. Always derived from the request criteria; a fixture MUST NOT supply one (§13.3).",
+            "type": "object",
+            "additionalProperties": { "type": ["string", "object", "array"] }
+          },
+          "probabilities": {
+            "description": "Generated one-hot when omitted, linearly interpolated for a fractional score, and validated against the request criteria when explicit (§13.2, §13.3).",
+            "type": "object",
+            "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["input_tokens", "output_tokens"],
+        "properties": {
+          "input_tokens": { "type": "integer", "minimum": 0 },
+          "output_tokens": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ValidationError": {
+        "description": "The deterministic 422 envelope. It is the fake contract, not a clone of upstream framework wording (§39.3). Note what is deliberately absent: the body carries no fake_jev_* code. The failure code fake_jev_validation_error exists as a journal and verification classification (§21.2, §41.7, §41.9), but the wire body for a validation failure is this Jev-compatible detail envelope so that a real client's own error handling keeps working. A 422 is therefore journaled with error fake_jev_validation_error while the response body stays Jev-shaped.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["detail"],
+        "properties": {
+          "detail": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["loc", "msg", "type"],
+              "properties": {
+                "loc": { "type": "array", "items": { "type": ["string", "integer"] } },
+                "msg": { "type": "string" },
+                "type": {
+                  "type": "string",
+                  "enum": ["json_invalid", "missing", "value_error", "literal_error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "UnmatchedRequestError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message", "profile", "operation"],
+        "properties": {
+          "error": { "type": "string", "const": "fake_jev_unmatched_request" },
+          "message": { "type": "string" },
+          "profile": { "type": "string" },
+          "operation": { "type": "string" }
+        }
+      },
+      "SequenceExhaustedError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message", "stubId"],
+        "properties": {
+          "error": { "type": "string", "const": "fake_jev_sequence_exhausted" },
+          "message": { "type": "string" },
+          "stubId": { "type": "string" }
+        }
+      },
+      "InvalidStubResponseError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message", "stubId"],
+        "properties": {
+          "error": { "type": "string", "const": "fake_jev_invalid_stub_response" },
+          "message": { "type": "string" },
+          "stubId": { "type": "string" }
+        }
+      },
+      "PayloadTooLargeError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "const": "fake_jev_payload_too_large" },
+          "message": { "type": "string" }
+        }
+      },
+      "JournalFullError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "const": "fake_jev_journal_full" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "x-fake-jev-routing": {
+    "$comment": "Routing is exact-path. This block records the rules that are easy to lose, because each one produces a journaled unknown_route failure rather than a redirect (§39.8, §44.16).",
+    "exactRoutes": ["GET /v1/models", "POST /v1/systemone"],
+    "queryStringIgnored": true,
+    "trailingSlashIsAlias": false,
+    "wrongMethodIsAlias": false,
+    "note": "GET /v1/models?x=1 is handled as /v1/models. GET /v1/models/, POST /v1/models, and GET /v1/systemone are all unknown data-plane routes returning 404 fake_jev_unknown_route, are journaled, and fail verification. fake-jev MUST NOT rely on an HTTP router's automatic slash redirect behavior."
+  }
+}

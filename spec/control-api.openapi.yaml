@@ -1,0 +1,940 @@
+openapi: 3.1.0
+
+info:
+  title: fake-jev control API
+  version: "1.0.0"
+  summary: Project-owned automation surface for the fake-jev deterministic test server.
+  description: |
+    Normative form of specification §41. This API is owned by `fake-jev`. It is
+    not an emulated provider surface: the Jev compatibility profile is served
+    from `/v1/*`, and nothing in this document describes provider behavior.
+
+    Three facts shape everything below.
+
+    **Namespace and versioning.** Every endpoint lives under `/__fake/v1`. The
+    version is in the URL, so a breaking change requires a new namespace such as
+    `/__fake/v2` and must never be made silently within v1 (§11.5, §25.2).
+
+    **Journal separation.** Requests whose path begins with `/__fake/` are
+    control-plane requests. They never enter the application interaction journal
+    and never affect verification state (§11, §41.1, C-HOST-006). Unsupported
+    control paths and methods return an ordinary control-plane 404 or 405 and are
+    likewise not data-plane interactions.
+
+    **Three distinct error vocabularies.** The specification maintains three
+    separate enumerations and this document keeps them separate on purpose:
+
+    | Vocabulary | Where it appears | Namespace |
+    |---|---|---|
+    | Control errors | this API | `fake_jev_bad_control_request`, `fake_jev_duplicate_stub_id` |
+    | Interaction outcomes | journaled `outcome` field | `matched`, `unmatched`, `unknown_route`, … |
+    | Fake failure codes | `/verify` failure `code` field | `unmatched_request`, `unknown_route`, … |
+
+    The two failure vocabularies describe the same conditions with different
+    names: a wire code `fake_jev_unmatched_request` is a verification code
+    `unmatched_request` (§21.2, §41.7, §41.9). They are not interchangeable, and
+    collapsing them into one shared list would erase a distinction the
+    specification maintains. Note also that `journal_full` is a verification
+    failure that has no matching interaction outcome, because the request that
+    discovers exhaustion is never journaled (§41.7, §43.5) — that asymmetry is
+    deliberate.
+
+    All JSON control responses use `Content-Type: application/json` unless the
+    status is `204 No Content`, which carries no body and therefore no content
+    type (§11, C-CTRL-011).
+
+servers:
+  - url: http://127.0.0.1:8787
+    description: |
+      Loopback is the default bind address and the server must not bind publicly
+      by default (§19.1, §30.8). A container user may bind 0.0.0.0 explicitly;
+      the control API has no authentication in v1 and MUST NOT be exposed to an
+      untrusted network (§19.5, §33).
+
+tags:
+  - name: health
+    description: Liveness and capability discovery.
+  - name: stubs
+    description: Dynamic stub registration and inspection.
+  - name: requests
+    description: Interaction journal access.
+  - name: verification
+    description: Verification result and full reset.
+
+paths:
+  /__fake/v1/health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Liveness probe.
+      responses:
+        "200":
+          description: The server is running and its control API is ready.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /__fake/v1/meta:
+    get:
+      tags: [health]
+      operationId: getMeta
+      summary: Capability and compatibility discovery.
+      description: |
+        Wrappers use this endpoint for compatibility checks instead of assuming
+        behavior from the binary version alone (§25.5). `activeProfiles` MUST
+        preserve configured profile order.
+      responses:
+        "200":
+          description: Current server capabilities and effective configuration.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meta"
+
+  /__fake/v1/stubs:
+    post:
+      tags: [stubs]
+      operationId: createStub
+      summary: Register a dynamic stub.
+      description: |
+        The body is one stub object using the same schema as a `stubs[]`
+        configuration entry (§41.4). On success the stub receives the next
+        registration index.
+
+        An equal-priority dynamic stub does **not** displace an earlier-registered
+        static stub. Overriding a static stub requires a strictly greater
+        `priority`; there is no implicit override and no source-based precedence
+        (§40.9, §44.12, C-MATCH-003).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Stub"
+      responses:
+        "201":
+          description: Stub registered.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StubCreated"
+        "400":
+          $ref: "#/components/responses/BadControlRequest"
+        "409":
+          description: A stub with this id is already active.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicateStubError"
+              examples:
+                duplicate:
+                  value:
+                    error: fake_jev_duplicate_stub_id
+                    message: "A stub with id 'urgent-test' already exists."
+                    stubId: urgent-test
+    get:
+      tags: [stubs]
+      operationId: listStubs
+      summary: List active stubs.
+      description: List order MUST be registration index ascending (§41.5).
+      responses:
+        "200":
+          description: Active static and dynamic stubs.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StubList"
+    delete:
+      tags: [stubs]
+      operationId: clearDynamicStubs
+      summary: Remove all dynamic stubs.
+      description: |
+        Only dynamic stubs are removed. Static stubs remain active, and their
+        invocation counters and sequence positions are unchanged (§41.6,
+        §11.2). Static stubs stay active until process restart.
+      responses:
+        "204":
+          description: Dynamic stubs removed. No body, and therefore no content type.
+
+  /__fake/v1/requests:
+    get:
+      tags: [requests]
+      operationId: listRequests
+      summary: Read the interaction journal.
+      description: |
+        List order MUST be sequence ascending, starting at 1 (§11.3, §41.7).
+
+        `requestBody` carries the parsed JSON value for a valid JSON body; the
+        UTF-8 decoded raw body string for a malformed body; and `null` when the
+        request had no body, or when the body was intentionally not retained
+        because it exceeded the data-plane limit (§41.7, §43.7).
+
+        `timestamp` is diagnostic only. It MUST NOT affect matching, response
+        generation, or golden semantic comparisons (§8.6, §41.7).
+      responses:
+        "200":
+          description: Recorded data-plane interactions, oldest first.
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestList"
+    delete:
+      tags: [requests]
+      operationId: clearRequests
+      summary: Clear the interaction journal.
+      description: |
+        Clears history and interaction-derived verification failures, and resets
+        the interaction sequence to 1. It does **not** reset stub invocation
+        counts or response sequence positions — use the full reset for that
+        (§41.8, §11.3).
+      responses:
+        "204":
+          description: History cleared. No body, and therefore no content type.
+
+  /__fake/v1/reset:
+    post:
+      tags: [verification]
+      operationId: reset
+      summary: Full atomic reset.
+      description: |
+        As one atomic control operation (§41.10), this MUST:
+
+        1. delete all dynamic stubs;
+        2. set all static invocation counters to zero;
+        3. reset all static response sequences to element zero;
+        4. clear all interaction history and interaction-derived failures;
+        5. reset the interaction sequence to 1;
+        6. reset the next dynamic registration index to N+1, where N is the
+           number of static stubs.
+
+        The operation is atomic with respect to in-flight data-plane requests: a
+        reset racing a request has only two legal outcomes — the request
+        transition completes and then the reset applies, or the reset applies and
+        then the request observes reset state. Partially reset state is prohibited
+        (§17.4, C-HOST-003).
+
+        Expectations are re-evaluated against the new zero counters, so a static
+        `expect.exactly: 1` makes verification fail until the stub is called once
+        more (§44.8).
+      responses:
+        "204":
+          description: Reset applied. No body, and therefore no content type.
+
+  /__fake/v1/verify:
+    get:
+      tags: [verification]
+      operationId: verify
+      summary: Calculate the verification result.
+      description: |
+        Verification is a first-class v1 feature, not a wrapper-specific
+        interpretation (§11.4). The `verify` CLI command calls this endpoint and
+        duplicates none of this logic (§15.3, C-CLI-008).
+
+        This endpoint always returns HTTP 200 when the result can be calculated.
+        The result is in the body, never in the status code. `fake-jev verify`
+        maps `passed: false` to process exit 3 (§42.1, C-CLI-001).
+
+        Verification fails when, since the last reset or history clear, any of
+        these occurred: an unmatched data-plane request, an unknown data-plane
+        route, a profile validation failure, response sequence exhaustion,
+        interaction journal overflow, an internal fake-server failure, or an
+        unsatisfied stub invocation expectation (§11.4).
+
+        An intentionally configured raw provider error such as HTTP 429 does
+        **not** fail verification by itself: it is a successful match with a
+        non-2xx status (§21.1, §44.9).
+      responses:
+        "200":
+          description: |
+            The calculated result. `failures` is empty when `passed` is true.
+            Failure ordering MUST be interaction-derived failures in request
+            sequence ascending, then expectation failures in stub registration
+            index ascending (§41.9).
+          headers:
+            Content-Type:
+              $ref: "#/components/headers/JsonContentType"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResult"
+              examples:
+                passed:
+                  summary: No failures since the last boundary.
+                  value:
+                    passed: true
+                    failures: []
+                unmatched:
+                  summary: One unmatched request.
+                  value:
+                    passed: false
+                    failures:
+                      - code: unmatched_request
+                        message: "Request #2 did not match any configured stub."
+                        requestSequence: 2
+                        stubId: null
+
+components:
+  headers:
+    JsonContentType:
+      description: |
+        Present on every JSON control response. A charset parameter may be
+        appended (§11, C-CTRL-011). Absent on 204 responses, which have no body.
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadControlRequest:
+      description: |
+        Invalid JSON in a control body, or a profile/configuration validation
+        failure submitted through the control API. Both cases use HTTP 400 with
+        the same top-level error code and a human-readable message; the specific
+        reason is not carried in the wire body (§41.1, C-CTRL-010).
+      headers:
+        Content-Type:
+          $ref: "#/components/headers/JsonContentType"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BadControlRequestError"
+          examples:
+            invalidJson:
+              value:
+                error: fake_jev_bad_control_request
+                message: Invalid control request.
+            validationFailure:
+              value:
+                error: fake_jev_bad_control_request
+                message: "Stub 'route' defines both 'answers' and 'raw'."
+
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, serverVersion, controlApiVersion]
+      properties:
+        status:
+          type: string
+          const: ok
+        serverVersion:
+          $ref: "#/components/schemas/Semver"
+        controlApiVersion:
+          $ref: "#/components/schemas/ControlApiVersion"
+
+    Meta:
+      type: object
+      additionalProperties: false
+      required:
+        - serverVersion
+        - controlApiVersion
+        - configSchemaVersion
+        - mode
+        - activeProfiles
+        - limits
+      properties:
+        serverVersion:
+          $ref: "#/components/schemas/Semver"
+        controlApiVersion:
+          $ref: "#/components/schemas/ControlApiVersion"
+        configSchemaVersion:
+          description: Configuration schema version, carried in the file as `schemaVersion` (§25.3).
+          type: integer
+          const: 1
+        mode:
+          description: Execution mode. Strict is the only mode in v1 (§12.2, §14).
+          type: string
+          const: strict
+        activeProfiles:
+          description: Enabled compatibility profiles, in configured order (§41.3).
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ProfileId"
+        limits:
+          $ref: "#/components/schemas/Limits"
+
+    Limits:
+      description: |
+        Effective operational limits, after defaults are applied. The defaults
+        are normative (§12.2) and the host MUST enforce them (§19.4,
+        C-HOST-008).
+      type: object
+      additionalProperties: false
+      required:
+        - dataPlaneBodyBytes
+        - controlPlaneBodyBytes
+        - maxInteractions
+        - logBodyBytes
+        - gracefulShutdownSeconds
+      properties:
+        dataPlaneBodyBytes:
+          type: integer
+          minimum: 1024
+          default: 8388608
+        controlPlaneBodyBytes:
+          type: integer
+          minimum: 1024
+          default: 2097152
+        maxInteractions:
+          type: integer
+          minimum: 1
+          default: 10000
+        logBodyBytes:
+          type: integer
+          minimum: 0
+          default: 4096
+        gracefulShutdownSeconds:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 5
+
+    StubCreated:
+      type: object
+      additionalProperties: false
+      required: [id, registrationIndex]
+      properties:
+        id:
+          $ref: "#/components/schemas/StubId"
+        registrationIndex:
+          description: Assigned registration index; dynamic stubs start at N+1 (§12.4).
+          type: integer
+          minimum: 1
+
+    StubList:
+      type: object
+      additionalProperties: false
+      required: [stubs]
+      properties:
+        stubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/StubSummary"
+
+    StubSummary:
+      type: object
+      additionalProperties: false
+      required: [id, profile, priority, source, registrationIndex, invocations]
+      properties:
+        id:
+          $ref: "#/components/schemas/StubId"
+        profile:
+          $ref: "#/components/schemas/ProfileId"
+        priority:
+          type: integer
+          minimum: -2147483648
+          maximum: 2147483647
+        source:
+          description: |
+            `static` stubs come from configuration and are registered at startup
+            in declaration order. `dynamic` stubs come from `POST /stubs` in
+            successful POST order (§11.2, §12.4).
+          type: string
+          enum: [static, dynamic]
+        registrationIndex:
+          type: integer
+          minimum: 1
+        invocations:
+          description: |
+            Times this stub has been selected. The counter increments exactly
+            once per selection, including a selection whose response generation
+            then fails, so extra calls remain observable (§12.7, §40.6).
+          type: integer
+          minimum: 0
+
+    RequestList:
+      type: object
+      additionalProperties: false
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/InteractionRecord"
+
+    InteractionRecord:
+      type: object
+      additionalProperties: false
+      required:
+        - sequence
+        - timestamp
+        - method
+        - path
+        - profile
+        - operation
+        - outcome
+        - matchedStubId
+        - status
+        - error
+        - requestBody
+      properties:
+        sequence:
+          description: |
+            Monotonically increasing interaction number beginning at 1. It is
+            assigned atomically before route decode, validation, or stub
+            selection, so an unknown route and a malformed body both consume a
+            number (§11.3, §17.4, C-HOST-001). The one exception is the request
+            that discovers journal exhaustion: it is never admitted, receives no
+            sequence, and mutates no stub state (§43.5, C-HOST-005).
+          type: integer
+          minimum: 1
+        timestamp:
+          description: |
+            UTC RFC 3339 with whatever fractional precision the implementation
+            naturally records. Diagnostic only; it never participates in matching
+            or response generation (§8.6).
+          type: string
+          format: date-time
+        method:
+          type: string
+        path:
+          type: string
+        profile:
+          description: Identified compatibility profile, or `null` when routing failed before one was known.
+          oneOf:
+            - $ref: "#/components/schemas/ProfileId"
+            - type: "null"
+        operation:
+          description: Identified operation, or `null` when routing failed before one was known.
+          oneOf:
+            - type: string
+            - type: "null"
+        outcome:
+          $ref: "#/components/schemas/InteractionOutcome"
+        matchedStubId:
+          description: Selected stub id, or `null` when no stub was selected.
+          oneOf:
+            - $ref: "#/components/schemas/StubId"
+            - type: "null"
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        error:
+          description: |
+            Fake failure code, or `null` for a matched request. It is `null` for
+            a match even when an intentionally configured raw response carried a
+            non-2xx status (§21.1, §41.7).
+          oneOf:
+            - $ref: "#/components/schemas/FakeFailureCode"
+            - type: "null"
+        requestBody:
+          description: |
+            The parsed JSON value for a valid JSON body; the UTF-8 decoded raw
+            body string, with invalid UTF-8 replaced, for a malformed body; and
+            `null` for a request with no body and for an oversized body that was
+            intentionally not retained (§41.7, §43.7).
+
+    VerificationResult:
+      type: object
+      additionalProperties: false
+      required: [passed, failures]
+      properties:
+        passed:
+          type: boolean
+        failures:
+          type: array
+          description: |
+            Ordered: interaction-derived failures in request sequence ascending,
+            then expectation failures in stub registration index ascending
+            (§41.9). Sticky failures that no retained interaction can represent
+            — `journal_full` above all — use `requestSequence: null` and are
+            cleared by clearing request history or by a full reset.
+          items:
+            $ref: "#/components/schemas/VerificationFailure"
+
+    VerificationFailure:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestSequence, stubId]
+      properties:
+        code:
+          $ref: "#/components/schemas/VerificationFailureCode"
+        message:
+          type: string
+        requestSequence:
+          description: The interaction that caused the failure, or `null` when none was assigned.
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+        stubId:
+          description: The stub concerned, or `null` for a failure not attributable to one.
+          oneOf:
+            - $ref: "#/components/schemas/StubId"
+            - type: "null"
+
+    BadControlRequestError:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          const: fake_jev_bad_control_request
+        message:
+          type: string
+
+    DuplicateStubError:
+      type: object
+      additionalProperties: false
+      required: [error, message, stubId]
+      properties:
+        error:
+          type: string
+          const: fake_jev_duplicate_stub_id
+        message:
+          type: string
+        stubId:
+          $ref: "#/components/schemas/StubId"
+
+    Stub:
+      description: |
+        A stub object, using the same schema as a `stubs[]` entry in the
+        configuration file. The normative machine-readable form is
+        `spec/config.schema.json`, which this endpoint shares — the two MUST NOT
+        drift (§38, §41.4).
+      type: object
+      additionalProperties: false
+      required: [id, profile, when, then]
+      properties:
+        id:
+          $ref: "#/components/schemas/StubId"
+        profile:
+          $ref: "#/components/schemas/ProfileId"
+        priority:
+          type: integer
+          minimum: -2147483648
+          maximum: 2147483647
+          default: 0
+        when:
+          $ref: "#/components/schemas/StubWhen"
+        then:
+          $ref: "#/components/schemas/StubThen"
+        expect:
+          $ref: "#/components/schemas/StubExpect"
+
+    StubWhen:
+      description: |
+        The jev/v1 matcher. Present fields combine with logical AND; an omitted
+        field is a wildcard for that field (§40.1). `questions` requires exact
+        question-name set equality and exact per-name type equality, so a
+        request that adds or drops a question stops matching (§40.5).
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          const: systemone
+          default: systemone
+        model:
+          description: Exact string equality against the request model. No aliases, no regex (§40.4).
+          type: string
+        state:
+          description: |
+            Exact JSON-value equality against the request state (§40.3). JSON
+            numbers compare by numeric value, so 1, 1.0, and 1e0 are equal;
+            implementation MUST avoid routing all numbers through binary
+            floating point, which would lose integer precision. Intentionally an
+            open container (§38.8).
+          type: [string, object, array, number, boolean, "null"]
+        questions:
+          type: object
+          minProperties: 1
+          propertyNames:
+            minLength: 1
+          additionalProperties:
+            $ref: "#/components/schemas/QuestionType"
+
+    StubThen:
+      description: |
+        Exactly one of `answers`, `sequence`, or `raw` MUST be present (§38.7).
+        `model` and `usage` are valid only alongside `answers`. Fixtures are data
+        only and execute nothing (§12.8, §19.3, C-ARCH-005).
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 3
+      properties:
+        answers:
+          $ref: "#/components/schemas/AnswersResponse"
+        sequence:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SequenceElement"
+        raw:
+          $ref: "#/components/schemas/RawResponse"
+        model:
+          type: string
+        usage:
+          $ref: "#/components/schemas/Usage"
+
+    SequenceElement:
+      description: |
+        Consumed once per selected invocation, in order, from element 0 (§40.7).
+        An element MUST be an answers response or a raw response and MUST NOT
+        contain another sequence. There is no implicit repeat-last behavior: past
+        the final element the next invocation returns HTTP 409
+        `fake_jev_sequence_exhausted` and verification fails.
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        answers:
+          $ref: "#/components/schemas/AnswersResponse"
+        raw:
+          $ref: "#/components/schemas/RawResponse"
+        model:
+          type: string
+        usage:
+          $ref: "#/components/schemas/Usage"
+      oneOf:
+        - required: [answers]
+          not:
+            required: [raw]
+        - required: [raw]
+          not:
+            required: [answers]
+
+    AnswersResponse:
+      description: |
+        The answer map MUST cover exactly the request question-name set: an
+        answer for every requested question and none for absent questions
+        (§13.4). Partial coverage is prohibited in strict v1 and produces
+        `fake_jev_invalid_stub_response` with HTTP 500, failing verification
+        (§13.5, §43.4).
+      type: object
+      minProperties: 1
+      propertyNames:
+        minLength: 1
+      additionalProperties:
+        $ref: "#/components/schemas/Answer"
+
+    Answer:
+      description: |
+        The helper type MUST equal the request question type. A mismatch is a
+        fake-server error; types are never coerced (§13.1, §13.4, C-JEV-016).
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        noul:
+          description: A number in [0,1], or a boolean converted exactly, true to 1.0 and false to 0.0 (§13.1).
+          type: [number, boolean]
+          minimum: 0
+          maximum: 1
+        choice:
+          description: Selected choice key; MUST exist in the request question's criteria (§13.2).
+          type: string
+          minLength: 1
+        confidence:
+          description: Defaults to 1.0 when omitted; with explicit probabilities, to the selected choice probability (§13.2, §13.3).
+          type: number
+          minimum: 0
+          maximum: 1
+        probabilities:
+          description: |
+            Explicit probability map. For choice it covers exactly the request
+            criteria key set, lies in [0,1], sums to 1 within 1e-6, and the
+            selected choice is a maximum. For score it uses exactly the keys
+            "0".."N-1", sums to 1 within 1e-6, and has a weighted expected value
+            equal to `score` within 1e-6 (§13.2, §13.3). When omitted, one-hot
+            is generated and a fractional score interpolates linearly between
+            floor and ceiling. Criteria-dependent checks are loader-side.
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        score:
+          description: Requested score; for criteria of length N it must lie within [0, N-1] (§13.3).
+          type: number
+          minimum: 0
+
+    RawResponse:
+      description: |
+        The raw escape hatch: intentional emulated-provider behavior, for when a
+        protocol evolves before a first-class helper exists (§12.8). It is not
+        validated against jev/v1 answer schemas, does not bypass host safety
+        limits, and does not send arbitrary bytes (§39.7). A configured non-2xx
+        status is a successful match that does not by itself fail verification
+        (§21.1, §44.9).
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        headers:
+          description: |
+            String-to-string response headers. If a body is present and no
+            case-insensitive Content-Type was configured, `application/json` is
+            added (§39.7).
+          type: object
+          additionalProperties:
+            type: string
+          default: {}
+        body:
+          description: |
+            Arbitrary JSON, serialized once; absent means an empty body.
+            Intentionally an open container, exempt from unknown-key validation
+            (§38.8).
+
+    Usage:
+      description: Token usage; both values MUST be non-negative integers. Default is exactly zero for both (§13.6, C-JEV-010).
+      type: object
+      additionalProperties: false
+      required: [input_tokens, output_tokens]
+      properties:
+        input_tokens:
+          type: integer
+          minimum: 0
+          default: 0
+        output_tokens:
+          type: integer
+          minimum: 0
+          default: 0
+
+    StubExpect:
+      description: |
+        Invocation-count expectations, absent by default. Evaluated at
+        verification time against current counters, so a full reset re-evaluates
+        them and a static `expect.exactly: 1` fails verification until the stub is
+        called once more (§44.8).
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        exactly:
+          type: integer
+          minimum: 0
+        atLeast:
+          type: integer
+          minimum: 0
+        atMost:
+          type: integer
+          minimum: 0
+      oneOf:
+        - required: [exactly]
+          not:
+            anyOf:
+              - required: [atLeast]
+              - required: [atMost]
+        - required: [atLeast]
+          not:
+            required: [exactly]
+        - required: [atMost]
+          not:
+            required: [exactly]
+
+    QuestionType:
+      description: A jev/v1 question type (§6, §39.2).
+      type: string
+      enum: [noul, choice, score]
+
+    ProfileId:
+      description: |
+        A compatibility profile identifier, or the `jev` input alias which
+        normalizes to `jev/v1` (§6.1, §38.1). This endpoint accepts the same
+        spellings the configuration file accepts.
+      type: string
+      minLength: 1
+      enum: [jev/v1, jev]
+
+    StubId:
+      description: A stub id; non-empty and unique among all active stubs (§11.2, §38.5).
+      type: string
+      minLength: 1
+
+    Semver:
+      description: Product version, semantic versioning (§25.1).
+      type: string
+      pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+"
+
+    ControlApiVersion:
+      description: Control API version, versioned in the URL namespace (§25.2).
+      type: string
+      const: v1
+
+    InteractionOutcome:
+      description: |
+        The journaled outcome of a data-plane interaction (§41.7).
+
+        `journal_full` is deliberately absent. It is a verification failure
+        state, but the request that discovers it is never journaled: it receives
+        no sequence number, executes no stub, and mutates no stub state, because
+        the journal has no capacity to record it (§43.5, C-HOST-005).
+      type: string
+      enum:
+        - matched
+        - unmatched
+        - unknown_route
+        - validation_error
+        - payload_too_large
+        - sequence_exhausted
+        - invalid_stub_response
+        - internal_error
+
+    FakeFailureCode:
+      description: |
+        A fake-server failure code, as recorded in the journaled `error` field
+        and returned in data-plane failure bodies (§21.2). These are distinct
+        from the verification codes: the wire code for an unmatched request is
+        `fake_jev_unmatched_request` while the verification code is
+        `unmatched_request`.
+      type: string
+      enum:
+        - fake_jev_unmatched_request
+        - fake_jev_unknown_route
+        - fake_jev_validation_error
+        - fake_jev_payload_too_large
+        - fake_jev_sequence_exhausted
+        - fake_jev_invalid_stub_response
+        - fake_jev_journal_full
+        - fake_jev_internal_error
+
+    VerificationFailureCode:
+      description: |
+        A verification failure code (§41.9).
+
+        The first eight are interaction-derived, one per journaled outcome. The
+        last three are stub invocation expectation failures, reported in stub
+        registration index ascending after the interaction-derived ones.
+
+        `journal_full` has no interaction outcome to pair with, which is why the
+        list is deliberately one entry longer than `InteractionOutcome`.
+      type: string
+      enum:
+        - unmatched_request
+        - unknown_route
+        - validation_error
+        - payload_too_large
+        - sequence_exhausted
+        - invalid_stub_response
+        - journal_full
+        - internal_error
+        - expect_exactly
+        - expect_at_least
+        - expect_at_most
