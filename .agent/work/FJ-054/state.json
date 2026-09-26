@@ -1,0 +1,47 @@
+{
+  "id": "FJ-054",
+  "title": "Harden: pin the offline module posture in the verifier, and constrain module-graph directives",
+  "phase": "phase-0",
+  "objective": "Make the offline, standard-library-only module posture fail closed in ./scripts/verify-candidate and locally, not only inside the CI workflow, and record a repository policy that module-graph directives (replace, exclude, retract) are not used without review.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§17.2 dependency policy",
+    "§15.6 CLI parser dependency policy",
+    "§22 testing strategy",
+    "§23 CI requirements"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "scripts/verify-candidate",
+    "docs/development/acceptance-catalog.md",
+    ".agent/work/FJ-053/hardener.md"
+  ],
+  "allowedFiles": [
+    "scripts/verify-candidate",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "acceptance": [
+    "C-QUAL-005",
+    "verify-candidate runs product Go checks with the module environment pinned so an ambient GOFLAGS or warm module cache cannot turn a missing declaration into a silent pass",
+    "verify-candidate detects a parent-directory go.work or a committed vendor/ directory that would change module resolution for the repository",
+    "a repository policy statement records that replace, exclude and retract directives are not introduced without explicit review"
+  ],
+  "nonGoals": [
+    "do not add or remove any dependency",
+    "do not change the CI workflow",
+    "do not relax any existing check"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "specifier: turn hardener findings F3, F5 and S1 from .agent/work/FJ-053/hardener.md into observable criteria; the spec is silent on go.work and vendor, so confirm whether this is a spec-gap or fully constrained by §17.2",
+  "notes": [
+    "PM 2026-09-26: opened from the FJ-053 hardener stage. Verified there: an undeclared import fails closed even with a warm cache and the proxy on, but four conditions bypass it — GOFLAGS=-mod=mod with a warm cache and GOPROXY=off, -mod=mod with a reachable proxy and GONOSUMDB, a parent-directory go.work, and a committed vendor/. Today the only offline enforcement is GOPROXY=off inside .github/workflows/ci.yml; scripts/verify-candidate contains no GOPROXY, GOFLAGS, go.sum or go mod reference at all."
+  ],
+  "stage": null,
+  "leaseOwner": null
+}
