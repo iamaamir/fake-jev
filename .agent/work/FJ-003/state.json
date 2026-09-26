@@ -3,9 +3,9 @@
   "title": "Phase 0: golden contract vector corpus",
   "phase": "phase-0",
   "objective": "Materialize every \u00a744 golden vector as committed data under the testdata/contracts/ concern directories required by \u00a745, with each vector recording stub/config preconditions, request, expected status, and expected body.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": null,
-  "candidateRevision": null,
+  "candidateRevision": "aaa9309",
   "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
@@ -52,10 +52,22 @@
     "no behavior invented beyond \u00a744"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "revision": "7dbf861",
+    "status": "passed",
+    "report": ".agent/reports/FJ-003/report-20260926T102346Z.json",
+    "summary": "32 passed, 0 failed, 2 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-26T10:23:46Z"
+  },
   "blockers": [],
-  "nextAction": "transcribe \u00a744 into the concern directories and add an index the harness can load",
-  "notes": [],
+  "nextAction": "Start FJ-004 (CI: tests, race, vet, build matrix, offline).",
+  "notes": [
+    "Class is product (testdata/**), so all five stages were required and go test/vet/build ran. No Go code was added; those checks confirm the corpus did not break the build.",
+    "23 vector files: all 16 C-GOLD-001..016 plus 7 derived vectors in a separate VEC-* namespace. Derived vectors are traceable to normative MUSTs outside \u00a744 (\u00a713.4, \u00a713.5, \u00a740.3, \u00a739.2, \u00a739.3, \u00a743.4, \u00a722.3) because \u00a745 requires a mixed/ directory that \u00a744 has no vector for. Rejecting them is a scope decision, not a correctness fix.",
+    "No vector was executed. This item delivers data only; FJ-046 owns the runner. Everything verified here is structural, plus cross-artifact agreement against the FJ-002 schema and OpenAPI enumerations.",
+    "The corpus deliberately does not assert journal timestamps (\u00a78.6, \u00a741.7) and does not assert /verify failure message text, which \u00a741.9 does not freeze. Data-plane failure bodies ARE asserted exactly because \u00a743.1-43.7 fix those strings. A runner must treat the literal string <not asserted> as a skip, declared in the conventions block of every file."
+  ],
   "stage": "qa",
-  "leaseOwner": "pm-orchestrator"
+  "leaseOwner": null,
+  "reviewedBy": "product-manager"
 }
