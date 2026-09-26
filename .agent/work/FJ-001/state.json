@@ -7,7 +7,7 @@
   "stage": "qa",
   "leaseOwner": null,
   "baseRevision": null,
-  "candidateRevision": "9b90ba5",
+  "candidateRevision": "1460b64",
   "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
@@ -41,11 +41,11 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "revision": "9b90ba5",
+    "revision": "1460b64",
     "status": "passed",
-    "report": ".agent/reports/FJ-001/report-20260926T070512Z.json",
+    "report": ".agent/reports/FJ-001/report-20260926T071440Z.json",
     "summary": "37 passed, 0 failed, 3 skipped, 0 not_applicable",
-    "finishedAt": "2026-09-26T07:05:12Z"
+    "finishedAt": "2026-09-26T07:14:40Z"
   },
   "blockers": [],
   "nextAction": "Start FJ-002 (spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, spec/compat/jev-v1/openapi.snapshot.json). Known defect: a second consecutive verify-candidate run fails on stage.evidence_stale until FJ-048 lands.",
