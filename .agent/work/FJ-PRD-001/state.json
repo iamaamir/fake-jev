@@ -3,8 +3,9 @@
   "title": "PRD: fake-jev v1 — deterministic local test server for System One-style decision APIs",
   "phase": "foundation",
   "objective": "Decompose the published v1 PRD (PRD.md in this work item) into bounded, independently verifiable work items covering specification phases 0-4, and drive them through verify-candidate.",
-  "status": "review",
+  "status": "complete",
   "stage": "qa",
+  "reviewedBy": "product-manager",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -41,19 +42,22 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "revision": "b1b435b",
+    "revision": "13172c0",
     "status": "passed",
-    "report": ".agent/reports/FJ-PRD-001/report-20260925T115746Z.json",
-    "summary": "7 passed, 0 failed, 3 skipped",
-    "finishedAt": "2026-09-25T11:57:46Z"
+    "report": ".agent/reports/FJ-PRD-001/report-20260926T065506Z.json",
+    "summary": "30 passed, 0 failed, 2 skipped, 4 not_applicable",
+    "finishedAt": "2026-09-26T06:55:06Z"
   },
   "blockers": [],
-  "nextAction": "Orchestrator reviews the 21 phase work items (FJ-001..FJ-042) against specification §31, then starts FJ-001..FJ-004 (already status ready).",
+  "nextAction": "Start FJ-001 (Go module + CLI version), then FJ-002, FJ-003, FJ-004 in phase-0 order. PM review of the 21 child items passed: 108/108 catalog ids and 16/16 C-GOLD vectors are assigned, phases 0-4 are mapped, phases 5-6 and every §33 deferred decision are excluded by nonGoals.",
   "notes": [
     "Triage label ready-for-agent maps to status \"ready\" in this tracker (see docs/agents/triage-labels.md).",
     "PRD was authored from the user's confirmed module breakdown: all seven modules in scope for tests.",
     "Decomposition: 21 work items across specification phases 0-4; acceptance IDs are defined in docs/development/acceptance-catalog.md.",
     "Item statuses: FJ-001..FJ-004 ready (phase 0 needs no predecessor); everything else planned until its predecessor lands.",
-    "Go product checks are skipped in this checkout: go.mod and cmd/ are absent (concurrent FJ-001 work lives elsewhere). They re-enable automatically once a Go module exists."
+    "Go product checks are skipped in this checkout: go.mod and cmd/ are absent (concurrent FJ-001 work lives elsewhere). They re-enable automatically once a Go module exists.",
+    "PM review 2026-09-26: all six PRD acceptance criteria hold. Phase mapping FJ-001..004 = §31 phase 0, FJ-010..018 = phase 1, FJ-020..021 = phase 2, FJ-030..032 = phase 3, FJ-040..042 = phase 4.",
+    "Advisory only: §31 phase 0 names a README with explicit product boundaries, but FJ-001 does not list README.md in allowedFiles; ownership sits with FJ-002 and FJ-042. Repository already satisfies §45 with README.md. Not a blocker.",
+    "Out-of-PRD scope: FJ-043..FJ-047 trace acceptance to docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md rather than the product specification. They carry no public product behavior, so the frozen authority hierarchy is not engaged; revisit if any of them changes the HTTP+JSON surface."
   ]
 }

@@ -1,0 +1,205 @@
+{
+  "taskId": "FJ-031",
+  "candidateFingerprint": "260f6f151ace53875ecf51a4f702ed8e4f9e93643e25fec7fca37e13a3013feb",
+  "taskFingerprint": "d2760d9d0d1b545371a0ac0e90ddd1434df5abd49b05ac3cb2225da89f18cb6d",
+  "policy": {
+    "class": "product",
+    "requiredStages": [
+      "specifier",
+      "coder",
+      "cleaner",
+      "hardener",
+      "qa"
+    ],
+    "source": "derived"
+  },
+  "revision": "eb2241c",
+  "treeState": {
+    "gitAvailable": true,
+    "clean": false,
+    "staged": 0,
+    "unstaged": 0,
+    "untracked": 26
+  },
+  "startedAt": "2026-09-26T04:38:00Z",
+  "finishedAt": "2026-09-26T04:38:08Z",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "check_candidate_fingerprint",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "verify.check_failed",
+      "exempted": false,
+      "command": "candidate fingerprint computed",
+      "reason": null
+    },
+    {
+      "name": "check_required_files",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "repo.required_files_missing",
+      "exempted": false,
+      "command": "required repository files exist",
+      "reason": null
+    },
+    {
+      "name": "check_scripts_executable",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "repo.scripts_not_executable",
+      "exempted": false,
+      "command": "scripts are executable",
+      "reason": null
+    },
+    {
+      "name": "check_shell_syntax",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "shell.syntax_error",
+      "exempted": false,
+      "command": "shell syntax: bash -n scripts/*",
+      "reason": null
+    },
+    {
+      "name": "check_toolchain_python3",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "toolchain.python3_missing",
+      "exempted": false,
+      "command": "toolchain: python3 available",
+      "reason": null
+    },
+    {
+      "name": "check_spec_present",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "spec.missing",
+      "exempted": false,
+      "command": "authoritative spec present and intact",
+      "reason": null
+    },
+    {
+      "name": "check_json_files",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.json_malformed",
+      "exempted": false,
+      "command": "all .agent JSON files parse",
+      "reason": null
+    },
+    {
+      "name": "check_work_item_schema",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.work_item_schema",
+      "exempted": false,
+      "command": "work items match the state.json schema",
+      "reason": null
+    },
+    {
+      "name": "check_role_packs",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.role_pack_invalid",
+      "exempted": false,
+      "command": "role packs match the role-pack contract",
+      "reason": null
+    },
+    {
+      "name": "policy.exemptions.unknown",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.exemption_unknown",
+      "exempted": false,
+      "command": "trackedBy references resolve to existing work items",
+      "reason": "4 exemption(s) checked"
+    },
+    {
+      "name": "policy.exemptions.stale",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.exemption_stale",
+      "exempted": false,
+      "command": "trackedBy items are not complete",
+      "reason": null
+    },
+    {
+      "name": "policy.classification",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.unknown_scope",
+      "exempted": false,
+      "command": "allowedFiles classify to product or metadata",
+      "reason": "class=product"
+    },
+    {
+      "name": "policy.required_stages",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.invalid_stages",
+      "exempted": false,
+      "command": "requiredStages is a valid additive-only ordered set",
+      "reason": "source=derived stages=specifier,coder,cleaner,hardener,qa"
+    },
+    {
+      "name": "check_go_test",
+      "gate": "G-C",
+      "required": false,
+      "result": "skipped",
+      "exitCode": null,
+      "code": "go.test_failed",
+      "exempted": false,
+      "command": "go test (repository packages)",
+      "reason": "no go.mod yet (foundation phase)"
+    },
+    {
+      "name": "check_go_vet",
+      "gate": "G-C",
+      "required": false,
+      "result": "skipped",
+      "exitCode": null,
+      "code": "go.vet_failed",
+      "exempted": false,
+      "command": "go vet (repository packages)",
+      "reason": "no go.mod yet (foundation phase)"
+    },
+    {
+      "name": "check_go_build",
+      "gate": "G-C",
+      "required": false,
+      "result": "skipped",
+      "exitCode": null,
+      "code": "go.build_failed",
+      "exempted": false,
+      "command": "go build ./cmd/fake-jev",
+      "reason": "no go.mod yet (foundation phase)"
+    }
+  ]
+}

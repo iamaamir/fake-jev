@@ -2,17 +2,19 @@
   "id": "FJ-001",
   "title": "Phase 0: Go module, package skeleton, and version command",
   "phase": "phase-0",
-  "objective": "Create the Go module at minimum Go 1.26, the cmd/fake-jev entry point, the internal package boundaries defined by specification §17, and a working `version` command.",
-  "status": "ready",
+  "objective": "Create the Go module at minimum Go 1.26, the cmd/fake-jev entry point, the internal package boundaries defined by specification \u00a717, and a working `version` command.",
+  "status": "verifying",
+  "stage": "qa",
+  "leaseOwner": "pm-orchestrator",
   "baseRevision": null,
   "candidateRevision": null,
-  "assignedRole": null,
+  "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
-    "§17 Go implementation architecture",
-    "§17.1 toolchain baseline",
-    "§17.2 dependency policy",
-    "§15.5 version command"
+    "\u00a717 Go implementation architecture",
+    "\u00a717.1 toolchain baseline",
+    "\u00a717.2 dependency policy",
+    "\u00a715.5 version command"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -30,7 +32,7 @@
     "C-QUAL-001",
     "C-QUAL-003",
     "go.mod declares minimum Go 1.26 and no Go 1.27-only language feature is used",
-    "standard library preferred; at most one mature YAML dependency (C-ARCH-002 context, §17.2)"
+    "standard library preferred; at most one mature YAML dependency (C-ARCH-002 context, \u00a717.2)"
   ],
   "nonGoals": [
     "no HTTP server, matching, or fixtures",
