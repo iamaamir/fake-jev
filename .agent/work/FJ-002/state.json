@@ -3,9 +3,9 @@
   "title": "Phase 0: machine-readable contract artifacts",
   "phase": "phase-0",
   "objective": "Author spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, and spec/compat/jev-v1/openapi.snapshot.json from the frozen \u00a76/\u00a739 surface, so protocol behavior is reviewable as artifacts before implementation begins.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": null,
-  "candidateRevision": null,
+  "candidateRevision": "246b8f1",
   "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
@@ -37,10 +37,22 @@
     "no golden test harness yet"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "revision": "246b8f1",
+    "status": "passed",
+    "report": ".agent/reports/FJ-002/report-20260926T075318Z.json",
+    "summary": "25 passed, 0 failed, 1 skipped, 4 not_applicable",
+    "finishedAt": "2026-09-26T07:53:18Z"
+  },
   "blockers": [],
-  "nextAction": "write the three artifacts from the specification and review them against \u00a738/\u00a741/\u00a739",
-  "notes": [],
+  "nextAction": "Start FJ-003 (materialize the \u00a744 golden vectors under testdata/contracts/).",
+  "notes": [
+    "No JSON Schema instance validation was performed: no jsonschema implementation is available in this environment. The artifacts were checked structurally (parse, $ref resolution, required/properties agreement, cross-artifact agreement). Executing the schemas against instances is FJ-010's acceptance and FJ-046's harness.",
+    "spec/compat/jev-v1/openapi.snapshot.json is a reconstruction of the \u00a76/\u00a739 surface, not a capture of the upstream document. The file declares this itself (x-fake-jev.provenance = reconstructed-from-specification, networkFetch = false, plus a leading $comment). The \u00a745 path name implies a capture, so the correction lives in the contents.",
+    "Five acceptance criteria are not expressible in JSON Schema and are named in the artifacts at the fields they govern, each with the reason: C-CFG-004 (alias normalization), C-CFG-005 (duplicate ids), C-CFG-009 (YAML/JSON equivalence), C-CFG-011 (precedence), and the criteria-dependent numeric cross-checks in C-JEV-013/C-JEV-015.",
+    "2026-09-26 incident: an initial FJ-002 commit swept in an unrelated modification to scripts/selftest because `git add -A` was used. The file is not this item's allowedFiles and the change is not mine and is not pure reformatting (import reordering, a removed \"commit\" string, dropped backslash continuations). The commit was rewritten to exclude it; the working-tree modification is preserved uncommitted pending a decision from the orchestrator. Future commits here use explicit paths, never `git add -A`."
+  ],
   "stage": "qa",
-  "leaseOwner": "pm-orchestrator"
+  "leaseOwner": null,
+  "reviewedBy": "product-manager"
 }
