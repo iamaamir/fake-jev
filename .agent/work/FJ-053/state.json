@@ -1,0 +1,49 @@
+{
+  "id": "FJ-053",
+  "title": "Phase 0: drop the unused third-party requires from go.mod",
+  "phase": "phase-0",
+  "objective": "Remove the four third-party modules that no product source imports (cobra, viper, fatih/color, fsnotify) from go.mod, leaving the standard-library-only dependency posture that §15.6 and §17.2 require, so the first real dependency can be introduced deliberately with a committed go.sum.",
+  "status": "ready",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§17.2 dependency policy",
+    "§15.6 CLI parser dependency policy",
+    "§31 build and module layout"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md",
+    "go.mod"
+  ],
+  "allowedFiles": [
+    "go.mod",
+    "go.sum"
+  ],
+  "acceptance": [
+    "C-QUAL-001",
+    "C-QUAL-003",
+    "go.mod declares no module that no product source imports",
+    "go test ./... and go vet ./... still pass after the change",
+    "go build ./cmd/fake-jev still succeeds with GOPROXY=off",
+    "the resulting go.mod contains no cobra, viper, fatih/color, or fsnotify entry"
+  ],
+  "nonGoals": [
+    "do not introduce any new dependency, including the YAML library FJ-010 will need",
+    "do not add go.sum entries for modules that are not imported",
+    "do not change the CI workflow",
+    "do not change any product source file"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "specifier: restate §17.2/§15.6 as observable criteria, then coder trims go.mod",
+  "notes": [
+    "PM 2026-09-26: opened from the FJ-004 close-out. The golang-cli skill recommends Cobra+Viper as the default stack; spec §15.6 and §17.2 forbid that, so the spec wins (authority level 1 over level 5). The CLI will use the standard library flag package.",
+    "PM 2026-09-26: no go.sum exists in the tree today. FJ-004 CI runs GOPROXY=off, so the first real import would fail closed on a missing go.sum entry. This ticket removes that trap rather than arming it."
+  ],
+  "stage": null,
+  "leaseOwner": null
+}
