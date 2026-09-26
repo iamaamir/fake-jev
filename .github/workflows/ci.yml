@@ -1,0 +1,64 @@
+name: CI
+
+# Specification §23: normal PR CI requires no model, no provider API key and
+# no paid external service. The only network use here is fetching the Go
+# toolchain named in go.mod.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # §23 required baseline checks: go test ./..., go test -race ./... and
+  # go vet ./... . The job-level GOPROXY=off refuses module downloads, so the
+  # packages resolve from the local module store only. That is a module-proxy
+  # switch, not a sandbox: it does not close outbound sockets. The
+  # runtime-path offline guarantee belongs to the §22.3 and §22.4 test
+  # suites when they land.
+  test:
+    name: test and vet
+    runs-on: ubuntu-latest
+    env:
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go test ./...
+        run: go test ./...
+      - name: go test -race ./...
+        run: go test -race ./...
+      - name: go vet ./...
+        run: go vet ./...
+
+  # §23.1 initial release targets, cross-compiled from one runner. The
+  # binaries are a compile proof only; §23.2 release publishing is out of scope.
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    env:
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go build ./cmd/fake-jev
+        run: go build -o dist/fake-jev-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/fake-jev
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
