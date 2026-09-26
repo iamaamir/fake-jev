@@ -3,7 +3,8 @@
   "title": "Gauntlet: stage packs, expertise packs, fingerprint-bound evidence",
   "phase": "foundation",
   "objective": "Implement the frozen gauntlet design (docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md): shared fingerprint tooling, role/expertise packs with schemas, four-valued verification with gate-policy exemptions, evidence-chain enforcement, agent-context gauntlet view, and the full §12 self-test battery.",
-  "status": "ready",
+  "status": "review",
+  "stage": "qa",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -40,7 +41,7 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "Execute docs/superpowers/plans/2026-09-25-gauntlet.md task by task.",
+  "nextAction": "Review the gauntlet evidence: ./scripts/verify-candidate FJ-043 must pass, then hand off.",
   "notes": [
     "Umbrella item for the gauntlet rollout; its stage artifacts are recorded retroactively at the end of the plan (see plan task 11, design interpretation note 13).",
     "Lifecycle condensed to ready -> review because the stages were executed as this plan's documentation and tooling work; there is no workflow engine enforcing transitions."
