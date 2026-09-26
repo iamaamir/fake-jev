@@ -1,0 +1,153 @@
+{
+  "id": "C-GOLD-016",
+  "title": "data-plane routes are exact paths; query string ignored, slash and method are not",
+  "kind": "data-plane",
+  "traces": [
+    "§44.16",
+    "§39.8",
+    "§43.2"
+  ],
+  "note": "Routing uses the URL path and ignores the query string, so /v1/models?x=1 is handled. A trailing slash is not an alias, a wrong method on a known path is not an alias, and both are unknown data-plane routes. fake-jev MUST NOT rely on an HTTP router's automatic slash redirect behavior (§39.8). The three 404s are journaled and each fails verification.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/models?x=1"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "models": [
+            {
+              "name": "jev-latest",
+              "description": "Local deterministic fake model provided by fake-jev.",
+              "release_date": "1970-01-01"
+            }
+          ]
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "GET",
+          "path": "/v1/models",
+          "profile": "jev/v1",
+          "operation": "models",
+          "outcome": "matched",
+          "matchedStubId": null,
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/models/"
+      },
+      "expect": {
+        "status": 404,
+        "body": {
+          "error": "fake_jev_unknown_route",
+          "message": "No active compatibility profile handles this route."
+        },
+        "journal": {
+          "sequence": 2,
+          "method": "GET",
+          "path": "/v1/models/",
+          "profile": "jev/v1",
+          "operation": null,
+          "outcome": "unknown_route",
+          "matchedStubId": null,
+          "status": 404,
+          "error": "fake_jev_unknown_route",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/models"
+      },
+      "expect": {
+        "status": 404,
+        "body": {
+          "error": "fake_jev_unknown_route",
+          "message": "No active compatibility profile handles this route."
+        },
+        "journal": {
+          "sequence": 3,
+          "method": "POST",
+          "path": "/v1/models",
+          "profile": "jev/v1",
+          "operation": null,
+          "outcome": "unknown_route",
+          "matchedStubId": null,
+          "status": 404,
+          "error": "fake_jev_unknown_route",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/systemone"
+      },
+      "expect": {
+        "status": 404,
+        "body": {
+          "error": "fake_jev_unknown_route",
+          "message": "No active compatibility profile handles this route."
+        },
+        "journal": {
+          "sequence": 4,
+          "method": "GET",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": null,
+          "outcome": "unknown_route",
+          "matchedStubId": null,
+          "status": 404,
+          "error": "fake_jev_unknown_route",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "unknown_route",
+        "requestSequence": 2,
+        "stubId": null
+      },
+      {
+        "code": "unknown_route",
+        "requestSequence": 3,
+        "stubId": null
+      },
+      {
+        "code": "unknown_route",
+        "requestSequence": 4,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

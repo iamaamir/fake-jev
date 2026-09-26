@@ -1,0 +1,76 @@
+{
+  "id": "C-GOLD-011",
+  "title": "a missing required field returns the 422 missing envelope with its loc",
+  "kind": "data-plane",
+  "traces": [
+    "§44.11",
+    "§39.2",
+    "§39.3"
+  ],
+  "note": "Validation order is state, then model, then questions, then question entries in lexicographic name order, and only the first discovered error is returned (§39.2). This request omits state, so it is the first failure. journal.requestBody is null in this vector because the expectation records shape only; the real record carries the parsed request.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "model": "jev-latest",
+          "questions": {
+            "x": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 422,
+        "body": {
+          "detail": [
+            {
+              "loc": [
+                "body",
+                "state"
+              ],
+              "msg": "Field required",
+              "type": "missing"
+            }
+          ]
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "validation_error",
+          "matchedStubId": null,
+          "status": 422,
+          "error": "fake_jev_validation_error",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "validation_error",
+        "requestSequence": 1,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

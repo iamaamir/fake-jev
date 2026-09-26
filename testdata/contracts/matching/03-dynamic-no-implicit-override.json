@@ -1,0 +1,120 @@
+{
+  "id": "C-GOLD-012",
+  "title": "an equal-priority dynamic stub does not displace a static stub",
+  "kind": "control-plane",
+  "traces": [
+    "§44.12",
+    "§40.9",
+    "§12.4",
+    "§41.4"
+  ],
+  "note": "The dynamic stub registers at index 2 with equal priority and still does not win: equal priority is broken by smaller registrationIndex, and the static stub registered first (§40.9). An override must use a strictly greater priority; there is no implicit override and no source-based precedence.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "base",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.1
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/__fake/v1/stubs",
+        "body": {
+          "id": "override",
+          "profile": "jev/v1",
+          "priority": 0,
+          "when": {
+            "questions": {
+              "q": "noul"
+            }
+          },
+          "then": {
+            "answers": {
+              "q": {
+                "noul": 0.9
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 201,
+        "body": {
+          "id": "override",
+          "registrationIndex": 2
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "q": {
+              "type": "noul",
+              "noul": 0.1
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "base",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

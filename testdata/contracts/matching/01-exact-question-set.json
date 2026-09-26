@@ -1,0 +1,94 @@
+{
+  "id": "C-GOLD-005",
+  "title": "an extra request question prevents the stub from matching",
+  "kind": "data-plane",
+  "traces": [
+    "§44.5",
+    "§40.5"
+  ],
+  "note": "The configured matcher names one question; the request names two. Question-name set equality is exact in both directions, so an extra request question does not match (§40.5). The exactness is deliberate: adding a decision to an application must not silently reuse an older fixture.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "route",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "route": "choice"
+          }
+        },
+        "then": {
+          "answers": {
+            "route": {
+              "choice": "backend"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "criteria": {
+                "backend": "API"
+              }
+            },
+            "urgent": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 501,
+        "body": {
+          "error": "fake_jev_unmatched_request",
+          "message": "No configured stub matched this request.",
+          "profile": "jev/v1",
+          "operation": "systemone"
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "unmatched",
+          "matchedStubId": null,
+          "status": 501,
+          "error": "fake_jev_unmatched_request",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "unmatched_request",
+        "requestSequence": 1,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

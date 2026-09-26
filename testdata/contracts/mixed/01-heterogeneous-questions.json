@@ -1,0 +1,112 @@
+{
+  "id": "VEC-MIXED-001",
+  "title": "one request, heterogeneous question types, full answer coverage",
+  "kind": "data-plane",
+  "traces": [
+    "§13.4",
+    "§13.1",
+    "§13.2",
+    "§22.3",
+    "§13.5"
+  ],
+  "note": "Derived from §13.4, not from §44: §44 defines no mixed-questions vector, but §13.4 requires that a matched answers response cover the exact question-name set with a matching helper type per question, and §22.3 lists mixed questions among the golden fixtures the project must maintain. Each helper must match its request question type; types are never coerced (§13.1, §13.4). Explicit probabilities sum to 1 and the selected choice is the maximum (§13.2).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "route-backend",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "route": "choice",
+            "urgent": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "route": {
+              "choice": "backend",
+              "confidence": 0.91,
+              "probabilities": {
+                "frontend": 0.09,
+                "backend": 0.91
+              }
+            },
+            "urgent": {
+              "noul": 0.94
+            }
+          }
+        },
+        "expect": {
+          "exactly": 1
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": {
+            "cart": {
+              "value": 42,
+              "urgent": true
+            }
+          },
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "criteria": {
+                "frontend": "UI",
+                "backend": "API"
+              }
+            },
+            "urgent": {
+              "type": "noul",
+              "instructions": "Is this urgent?"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "route": {
+              "type": "choice",
+              "choice": "backend",
+              "confidence": 1.0,
+              "probabilities": {
+                "frontend": 0.0,
+                "backend": 1.0
+              }
+            },
+            "urgent": {
+              "type": "noul",
+              "noul": 0.94
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

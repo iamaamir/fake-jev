@@ -1,0 +1,337 @@
+{
+  "taskId": "FJ-003",
+  "candidateFingerprint": "5fe4ba9be1430d49a566a75e1ca5e78d9b638b45cba746e9acfd54bd68bed9fc",
+  "taskFingerprint": "f91008767970d165f99603537a03289a1e7a20598d44d203cf1151bb5781b8c2",
+  "policy": {
+    "class": "product",
+    "requiredStages": [
+      "specifier",
+      "coder",
+      "cleaner",
+      "hardener",
+      "qa"
+    ],
+    "source": "derived"
+  },
+  "revision": "7dbf861",
+  "treeState": {
+    "gitAvailable": true,
+    "clean": false,
+    "staged": 0,
+    "unstaged": 1,
+    "untracked": 6
+  },
+  "startedAt": "2026-09-26T10:21:21Z",
+  "finishedAt": "2026-09-26T10:21:42Z",
+  "status": "failed",
+  "checks": [
+    {
+      "name": "check_candidate_fingerprint",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "verify.check_failed",
+      "exempted": false,
+      "command": "candidate fingerprint computed",
+      "reason": null
+    },
+    {
+      "name": "check_required_files",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "repo.required_files_missing",
+      "exempted": false,
+      "command": "required repository files exist",
+      "reason": null
+    },
+    {
+      "name": "check_scripts_executable",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "repo.scripts_not_executable",
+      "exempted": false,
+      "command": "scripts are executable",
+      "reason": null
+    },
+    {
+      "name": "check_shell_syntax",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "shell.syntax_error",
+      "exempted": false,
+      "command": "shell syntax: bash -n scripts/*",
+      "reason": null
+    },
+    {
+      "name": "check_toolchain_python3",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "toolchain.python3_missing",
+      "exempted": false,
+      "command": "toolchain: python3 available",
+      "reason": null
+    },
+    {
+      "name": "check_spec_present",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "spec.missing",
+      "exempted": false,
+      "command": "authoritative spec present and intact",
+      "reason": null
+    },
+    {
+      "name": "check_json_files",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.json_malformed",
+      "exempted": false,
+      "command": "all .agent JSON files parse",
+      "reason": null
+    },
+    {
+      "name": "check_work_item_schema",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.work_item_schema",
+      "exempted": false,
+      "command": "work items match the state.json schema",
+      "reason": null
+    },
+    {
+      "name": "check_role_packs",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "agent.role_pack_invalid",
+      "exempted": false,
+      "command": "role packs match the role-pack contract",
+      "reason": null
+    },
+    {
+      "name": "policy.exemptions.unknown",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.exemption_unknown",
+      "exempted": false,
+      "command": "trackedBy references resolve to existing work items",
+      "reason": "4 exemption(s) checked"
+    },
+    {
+      "name": "policy.exemptions.stale",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.exemption_stale",
+      "exempted": false,
+      "command": "trackedBy items are not complete",
+      "reason": null
+    },
+    {
+      "name": "policy.classification",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.unknown_scope",
+      "exempted": false,
+      "command": "allowedFiles classify to product or metadata",
+      "reason": "class=product"
+    },
+    {
+      "name": "policy.required_stages",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "policy.invalid_stages",
+      "exempted": false,
+      "command": "requiredStages is a valid additive-only ordered set",
+      "reason": "source=derived stages=specifier,coder,cleaner,hardener,qa"
+    },
+    {
+      "name": "stage.specifier.artifact",
+      "gate": "G-S",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.artifact_missing",
+      "exempted": false,
+      "command": "stage specifier artifact",
+      "reason": null
+    },
+    {
+      "name": "stage.specifier.header",
+      "gate": "G-S",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.evidence_invalid",
+      "exempted": false,
+      "command": "stage specifier header",
+      "reason": null
+    },
+    {
+      "name": "stage.specifier.task_fingerprint",
+      "gate": "G-S",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.evidence_stale",
+      "exempted": false,
+      "command": "stage specifier task fingerprint",
+      "reason": null
+    },
+    {
+      "name": "stage.coder.artifact",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.artifact_missing",
+      "exempted": false,
+      "command": "stage coder artifact",
+      "reason": null
+    },
+    {
+      "name": "stage.coder.header",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.evidence_invalid",
+      "exempted": false,
+      "command": "stage coder header",
+      "reason": null
+    },
+    {
+      "name": "stage.coder.task_fingerprint",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.evidence_stale",
+      "exempted": false,
+      "command": "stage coder task fingerprint",
+      "reason": null
+    },
+    {
+      "name": "stage.cleaner.artifact",
+      "gate": "G-L",
+      "required": true,
+      "result": "fail",
+      "exitCode": 1,
+      "code": "stage.artifact_missing",
+      "exempted": false,
+      "command": "stage cleaner artifact",
+      "reason": "missing artifact .agent/work/FJ-003/cleaner.md"
+    },
+    {
+      "name": "stage.hardener.artifact",
+      "gate": "G-H",
+      "required": true,
+      "result": "fail",
+      "exitCode": 1,
+      "code": "stage.artifact_missing",
+      "exempted": false,
+      "command": "stage hardener artifact",
+      "reason": "missing artifact .agent/work/FJ-003/hardener.md"
+    },
+    {
+      "name": "stage.coder.chain",
+      "gate": "G-C",
+      "required": true,
+      "result": "fail",
+      "exitCode": 1,
+      "code": "stage.evidence_stale",
+      "exempted": false,
+      "command": "stage coder chain link",
+      "reason": "stage coder inputFingerprint 0afc05eb6de7cae7b203f94c226cd89bfa301b59f7162399001cf1a5cbf04556 does not match specifier outputFingerprint e1fe08909f2476a93dcde226ef3d41fcaa37bcf0e4b586ba8940974bc8c946f6"
+    },
+    {
+      "name": "stage.specifier.traces",
+      "gate": "G-S",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "stage.trace_unknown",
+      "exempted": false,
+      "command": "stage specifier traces",
+      "reason": null
+    },
+    {
+      "name": "stage.cleaner.tooling",
+      "gate": "G-L",
+      "required": true,
+      "result": "skipped",
+      "exitCode": null,
+      "code": "stage.tooling_bootstrap_exempt",
+      "exempted": true,
+      "command": "stage cleaner tooling",
+      "reason": "complexity/CRAP analyzer not implemented yet"
+    },
+    {
+      "name": "stage.hardener.tooling",
+      "gate": "G-H",
+      "required": true,
+      "result": "skipped",
+      "exitCode": null,
+      "code": "stage.tooling_bootstrap_exempt",
+      "exempted": true,
+      "command": "stage hardener tooling",
+      "reason": "mutation/hardening tooling not implemented yet"
+    },
+    {
+      "name": "check_go_test",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "go.test_failed",
+      "exempted": false,
+      "command": "go test (repository packages)",
+      "reason": null
+    },
+    {
+      "name": "check_go_vet",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "go.vet_failed",
+      "exempted": false,
+      "command": "go vet (repository packages)",
+      "reason": null
+    },
+    {
+      "name": "check_go_build",
+      "gate": "G-C",
+      "required": true,
+      "result": "pass",
+      "exitCode": 0,
+      "code": "go.build_failed",
+      "exempted": false,
+      "command": "go build ./cmd/fake-jev",
+      "reason": null
+    }
+  ]
+}

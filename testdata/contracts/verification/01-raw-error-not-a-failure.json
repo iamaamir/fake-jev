@@ -1,0 +1,97 @@
+{
+  "id": "C-GOLD-009",
+  "title": "a configured raw provider error is a successful match, not a fake failure",
+  "kind": "data-plane",
+  "traces": [
+    "§44.9",
+    "§21.1",
+    "§39.7",
+    "§43.3"
+  ],
+  "note": "The inverse of every instinct about error handling. A configured non-2xx raw response is a successful match: outcome matched, error null, invocation count incremented, and verification passes (§21.1, §44.9). The distinction that matters is intentional-provider-error versus fake-server failure, and the specification keeps the two categories distinguishable (§21).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "rate-limited",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "raw": {
+            "status": 429,
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "detail": "rate limited"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 429,
+        "body": {
+          "detail": "rate limited"
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "rate-limited",
+          "status": 429,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/verify"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "passed": true,
+          "failures": []
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

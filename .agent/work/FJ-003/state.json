@@ -2,15 +2,15 @@
   "id": "FJ-003",
   "title": "Phase 0: golden contract vector corpus",
   "phase": "phase-0",
-  "objective": "Materialize every §44 golden vector as committed data under the testdata/contracts/ concern directories required by §45, with each vector recording stub/config preconditions, request, expected status, and expected body.",
-  "status": "ready",
+  "objective": "Materialize every \u00a744 golden vector as committed data under the testdata/contracts/ concern directories required by \u00a745, with each vector recording stub/config preconditions, request, expected status, and expected body.",
+  "status": "implementing",
   "baseRevision": null,
   "candidateRevision": null,
-  "assignedRole": null,
+  "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
-    "§44 golden contract vectors",
-    "§45 required repository contract artifacts"
+    "\u00a744 golden contract vectors",
+    "\u00a745 required repository contract artifacts"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -49,11 +49,13 @@
   ],
   "nonGoals": [
     "no executable assertions yet, only vector data",
-    "no behavior invented beyond §44"
+    "no behavior invented beyond \u00a744"
   ],
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "transcribe §44 into the concern directories and add an index the harness can load",
-  "notes": []
+  "nextAction": "transcribe \u00a744 into the concern directories and add an index the harness can load",
+  "notes": [],
+  "stage": "qa",
+  "leaseOwner": "pm-orchestrator"
 }

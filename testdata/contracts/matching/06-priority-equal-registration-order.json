@@ -1,0 +1,106 @@
+{
+  "id": "VEC-MATCH-006B",
+  "title": "with the equal-priority earlier sibling absent, the remaining high-priority stub wins",
+  "kind": "data-plane",
+  "traces": [
+    "§44.6",
+    "§40.2",
+    "§12.4"
+  ],
+  "note": "Second assertion of §44.6. B is absent, so C is the only stub at priority 10 and wins over A. Ties at equal priority are resolved purely by registration index ascending, with no specificity scoring and no source-based precedence (§40.2, §40.9).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "A",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.1
+            }
+          }
+        }
+      },
+      {
+        "id": "C",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.3
+            }
+          }
+        },
+        "priority": 10
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "q": {
+              "type": "noul",
+              "noul": 0.3
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "C",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

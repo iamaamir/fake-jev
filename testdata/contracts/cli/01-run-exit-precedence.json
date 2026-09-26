@@ -1,0 +1,83 @@
+{
+  "id": "C-GOLD-013",
+  "title": "run exit precedence across child exit, verification, and startup failure",
+  "kind": "cli",
+  "traces": [
+    "§44.13",
+    "§42.1",
+    "§42.2",
+    "§15.4"
+  ],
+  "note": "A child exit code of 7 is preserved even when verification also fails; both failures are reported on stderr, but the child's code wins (§42.2). Verification failure alone maps to 3 (§42.1). A startup failure — fake-jev cannot start the server or run the child at all — is 2 and takes precedence over both. Each case is a separate execution of this file; the conditions are the input, not a sequence of steps.",
+  "steps": [
+    {
+      "request": {
+        "method": "run",
+        "path": {
+          "childExitCode": 0,
+          "verifyPassed": true
+        }
+      },
+      "expect": {
+        "status": 0
+      }
+    },
+    {
+      "request": {
+        "method": "run",
+        "path": {
+          "childExitCode": 0,
+          "verifyPassed": false
+        }
+      },
+      "expect": {
+        "status": 3
+      }
+    },
+    {
+      "request": {
+        "method": "run",
+        "path": {
+          "childExitCode": 7,
+          "verifyPassed": true
+        }
+      },
+      "expect": {
+        "status": 7
+      }
+    },
+    {
+      "request": {
+        "method": "run",
+        "path": {
+          "childExitCode": 7,
+          "verifyPassed": false
+        }
+      },
+      "expect": {
+        "stderrContains": [
+          "verification"
+        ],
+        "status": 7
+      }
+    },
+    {
+      "request": {
+        "method": "run",
+        "path": {
+          "startupFailure": true
+        }
+      },
+      "expect": {
+        "status": 2
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

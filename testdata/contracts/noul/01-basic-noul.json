@@ -1,0 +1,76 @@
+{
+  "id": "C-GOLD-002",
+  "title": "noul answer generated from a scalar fixture",
+  "kind": "data-plane",
+  "traces": [
+    "§44.2",
+    "§13.1",
+    "§39.4"
+  ],
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "spam",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "spam": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "spam": {
+              "noul": 0.9
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "buy now",
+          "model": "jev-latest",
+          "questions": {
+            "spam": {
+              "type": "noul",
+              "instructions": "Is this spam?"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "spam": {
+              "type": "noul",
+              "noul": 0.9
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

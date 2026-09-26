@@ -1,0 +1,68 @@
+{
+  "id": "C-GOLD-010",
+  "title": "malformed JSON returns the deterministic 422 json_invalid envelope",
+  "kind": "data-plane",
+  "traces": [
+    "§44.10",
+    "§39.3",
+    "§39.6"
+  ],
+  "note": "The envelope is Jev-compatible so a real client's error handling keeps working, which is why the body carries no fake_jev_* code. The journal still records the classification fake_jev_validation_error (§21.2, §41.7). The body is parsed as JSON regardless of the Content-Type header (§39.6). requestBody in the journal is the raw decoded string, not a parsed value, because the JSON was malformed (§41.7).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "rawBody": "{"
+      },
+      "expect": {
+        "status": 422,
+        "body": {
+          "detail": [
+            {
+              "loc": [
+                "body"
+              ],
+              "msg": "Invalid JSON",
+              "type": "json_invalid"
+            }
+          ]
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "validation_error",
+          "matchedStubId": null,
+          "status": 422,
+          "error": "fake_jev_validation_error",
+          "requestBody": "{",
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "validation_error",
+        "requestSequence": 1,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

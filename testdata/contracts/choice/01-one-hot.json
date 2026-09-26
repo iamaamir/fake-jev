@@ -1,0 +1,90 @@
+{
+  "id": "C-GOLD-003",
+  "title": "choice probabilities generated one-hot over all request criteria",
+  "kind": "data-plane",
+  "traces": [
+    "§44.3",
+    "§13.2"
+  ],
+  "note": "Probabilities are omitted from the fixture, so a one-hot distribution is generated over ALL request criteria keys and confidence defaults to 1.0 (§13.2).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "route",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "route": "choice"
+          }
+        },
+        "then": {
+          "answers": {
+            "route": {
+              "choice": "backend"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": {
+            "cart": {
+              "value": 42
+            }
+          },
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "criteria": {
+                "frontend": "UI",
+                "backend": "API",
+                "infra": "Infrastructure"
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "route": {
+              "type": "choice",
+              "choice": "backend",
+              "confidence": 1.0,
+              "probabilities": {
+                "frontend": 0.0,
+                "backend": 1.0,
+                "infra": 0.0
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

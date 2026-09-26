@@ -1,0 +1,92 @@
+{
+  "id": "VEC-MATCH-004",
+  "title": "JSON state equality compares numbers by value, not by spelling",
+  "kind": "data-plane",
+  "traces": [
+    "§40.3",
+    "§22.3",
+    "§38.6"
+  ],
+  "note": "Derived from §40.3, not from §44. The request sends count 1 and the fixture configures 1.0; these are equal because JSON numbers compare by numeric value. Object key order is irrelevant and array order is significant, which this vector also pins. Implementation MUST avoid routing all numbers through binary floating point, which would lose integer precision for large integers.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "state-stub",
+        "profile": "jev/v1",
+        "when": {
+          "state": {
+            "count": 1.0,
+            "nested": {
+              "tags": [
+                "a",
+                "b"
+              ],
+              "flag": true
+            }
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.5
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": {
+            "count": 1,
+            "nested": {
+              "tags": [
+                "a",
+                "b"
+              ],
+              "flag": true
+            }
+          },
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "q": {
+              "type": "noul",
+              "noul": 0.5
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

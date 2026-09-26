@@ -1,0 +1,91 @@
+{
+  "id": "C-GOLD-004",
+  "title": "fractional score interpolates linearly and derives its legend",
+  "kind": "data-plane",
+  "traces": [
+    "§44.4",
+    "§13.3"
+  ],
+  "note": "The legend is derived from the request criteria; a fixture must not supply one (§13.3). For non-integer s: p(floor s) = ceil s - s, p(ceil s) = s - floor s, all others 0.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "severity",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "severity": "score"
+          }
+        },
+        "then": {
+          "answers": {
+            "severity": {
+              "score": 1.5
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "incident",
+          "model": "jev-latest",
+          "questions": {
+            "severity": {
+              "type": "score",
+              "criteria": [
+                "Can wait",
+                "Needs attention this week",
+                "Needs attention today"
+              ]
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "severity": {
+              "type": "score",
+              "score": 1.5,
+              "confidence": 1.0,
+              "legend": {
+                "0": "Can wait",
+                "1": "Needs attention this week",
+                "2": "Needs attention today"
+              },
+              "probabilities": {
+                "0": 0.0,
+                "1": 0.5,
+                "2": 0.5
+              }
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "id": "VEC-VALID-004",
+  "title": "a choice question with empty criteria is invalid in fake-jev v1",
+  "kind": "data-plane",
+  "traces": [
+    "§39.2",
+    "§13.2",
+    "§22.3"
+  ],
+  "note": "Derived from §39.2, not from §44. The observed upstream schema does not declare minProperties, but fake-jev rejects empty criteria deliberately: a choice with no legal answer cannot be deterministically served, and a one-hot distribution over an empty key set is not defined (§13.2). This is a documented divergence from upstream, not an accident.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "criteria": {}
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 422,
+        "body": {
+          "detail": [
+            {
+              "loc": [
+                "body",
+                "questions",
+                "route",
+                "criteria"
+              ],
+              "msg": "Invalid value",
+              "type": "value_error"
+            }
+          ]
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "validation_error",
+          "matchedStubId": null,
+          "status": 422,
+          "error": "fake_jev_validation_error",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "validation_error",
+        "requestSequence": 1,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

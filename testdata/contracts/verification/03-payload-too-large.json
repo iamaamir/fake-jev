@@ -1,0 +1,132 @@
+{
+  "id": "C-GOLD-015",
+  "title": "an oversized body is journaled and fails verification without touching stub state",
+  "kind": "data-plane",
+  "traces": [
+    "§44.15",
+    "§43.7",
+    "§19.4"
+  ],
+  "note": "Contrast with journal_full: this request WAS admitted and journal capacity remained, so it receives a normal sequence number 1 and is journaled with requestBody null because the body was intentionally not retained. It routes no stub, matches nothing, and mutates no stub state — the listing still shows 0 invocations (§43.7, §44.15).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "q-stub",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.1
+            }
+          }
+        }
+      }
+    ],
+    "limits": {
+      "dataPlaneBodyBytes": 1024
+    }
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            },
+            "padding": "PADDING"
+          }
+        }
+      },
+      "expect": {
+        "status": 413,
+        "body": {
+          "error": "fake_jev_payload_too_large",
+          "message": "Request body exceeds the configured limit."
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "payload_too_large",
+          "matchedStubId": null,
+          "status": 413,
+          "error": "fake_jev_payload_too_large",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/stubs"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "stubs": [
+            {
+              "id": "q-stub",
+              "profile": "jev/v1",
+              "priority": 0,
+              "source": "static",
+              "registrationIndex": 1,
+              "invocations": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/verify"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "passed": false,
+          "failures": [
+            {
+              "code": "payload_too_large",
+              "requestSequence": 1,
+              "stubId": null,
+              "message": "<not asserted>"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "payload_too_large",
+        "requestSequence": 1,
+        "stubId": null
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

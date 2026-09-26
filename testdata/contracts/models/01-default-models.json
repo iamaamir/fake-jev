@@ -1,0 +1,58 @@
+{
+  "id": "C-GOLD-001",
+  "title": "GET /v1/models returns the single deterministic default entry",
+  "kind": "data-plane",
+  "traces": [
+    "§44.1",
+    "§39.1",
+    "§12.2"
+  ],
+  "note": "A successful models request is a data-plane interaction. It is journaled as matched with matchedStubId null and requestBody null, it requires no stub and selects none, and it does not fail verification (§39.1, C-JEV-002).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/models"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "models": [
+            {
+              "name": "jev-latest",
+              "description": "Local deterministic fake model provided by fake-jev.",
+              "release_date": "1970-01-01"
+            }
+          ]
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "GET",
+          "path": "/v1/models",
+          "profile": "jev/v1",
+          "operation": "models",
+          "outcome": "matched",
+          "matchedStubId": null,
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

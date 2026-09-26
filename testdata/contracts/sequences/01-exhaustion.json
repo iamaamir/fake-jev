@@ -1,0 +1,209 @@
+{
+  "id": "C-GOLD-007",
+  "title": "a response sequence is consumed in order and then fails closed",
+  "kind": "data-plane",
+  "traces": [
+    "§44.7",
+    "§40.7",
+    "§43.3",
+    "§12.7"
+  ],
+  "note": "Element 0 is consumed by the first selected invocation, element 1 by the second. There is no implicit repeat-last behavior: the third invocation fails with 409. The invocation counter is 3, not 2, because the counter increments on selection and a selection whose response then fails stays counted (§12.7, §40.6). That is what makes an extra call observable.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "retry-flow",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "retry": "noul"
+          }
+        },
+        "then": {
+          "sequence": [
+            {
+              "answers": {
+                "retry": {
+                  "noul": 1.0
+                }
+              }
+            },
+            {
+              "answers": {
+                "retry": {
+                  "noul": 0.0
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "retry": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "retry": {
+              "type": "noul",
+              "noul": 1.0
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "retry-flow",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "retry": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "retry": {
+              "type": "noul",
+              "noul": 0.0
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        },
+        "journal": {
+          "sequence": 2,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "retry-flow",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "retry": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 409,
+        "body": {
+          "error": "fake_jev_sequence_exhausted",
+          "message": "Configured response sequence is exhausted.",
+          "stubId": "retry-flow"
+        },
+        "journal": {
+          "sequence": 3,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "sequence_exhausted",
+          "matchedStubId": "retry-flow",
+          "status": 409,
+          "error": "fake_jev_sequence_exhausted",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/stubs"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "stubs": [
+            {
+              "id": "retry-flow",
+              "profile": "jev/v1",
+              "priority": 0,
+              "source": "static",
+              "registrationIndex": 1,
+              "invocations": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "sequence_exhausted",
+        "requestSequence": 3,
+        "stubId": "retry-flow"
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

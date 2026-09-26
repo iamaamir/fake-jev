@@ -1,0 +1,91 @@
+{
+  "id": "VEC-VERIF-004",
+  "title": "a fixture naming a choice the request cannot serve is an invalid stub response",
+  "kind": "data-plane",
+  "traces": [
+    "§43.4",
+    "§13.2",
+    "§22.3"
+  ],
+  "note": "Derived from §13.2 and §43.4, not from §44. The selected choice MUST exist as a key in the request question's criteria object. It does not, so response generation fails after the stub was selected — the invocation still counts. The detailed cause goes to stderr and is deliberately not in the wire body (§43.4).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "wrong-choice",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "route": "choice"
+          }
+        },
+        "then": {
+          "answers": {
+            "route": {
+              "choice": "frontend"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "route": {
+              "type": "choice",
+              "criteria": {
+                "backend": "API"
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 500,
+        "body": {
+          "error": "fake_jev_invalid_stub_response",
+          "message": "Configured stub cannot produce a valid response for this request.",
+          "stubId": "wrong-choice"
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "invalid_stub_response",
+          "matchedStubId": "wrong-choice",
+          "status": 500,
+          "error": "fake_jev_invalid_stub_response",
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "invalid_stub_response",
+        "requestSequence": 1,
+        "stubId": "wrong-choice"
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

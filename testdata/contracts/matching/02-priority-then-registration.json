@@ -1,0 +1,160 @@
+{
+  "id": "C-GOLD-006",
+  "title": "larger priority wins; equal priority is broken by registration order",
+  "kind": "control-plane",
+  "traces": [
+    "§44.6",
+    "§40.2",
+    "§12.4"
+  ],
+  "note": "First assertion of §44.6. All three match. B and C share priority 10; B registered first, so B wins over C and over A at priority 0. There is no specificity scoring in v1 (§40.2). The second assertion — with B absent, C wins — is the separate self-contained vector matching/06-priority-equal-registration-order.json. Splitting them keeps each file executable without a runner having to invent a mutation.",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "A",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.1
+            }
+          }
+        }
+      },
+      {
+        "id": "B",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.2
+            }
+          }
+        },
+        "priority": 10
+      },
+      {
+        "id": "C",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.3
+            }
+          }
+        },
+        "priority": 10
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/stubs"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "stubs": [
+            {
+              "id": "A",
+              "profile": "jev/v1",
+              "priority": 0,
+              "source": "static",
+              "registrationIndex": 1,
+              "invocations": 0
+            },
+            {
+              "id": "B",
+              "profile": "jev/v1",
+              "priority": 10,
+              "source": "static",
+              "registrationIndex": 2,
+              "invocations": 0
+            },
+            {
+              "id": "C",
+              "profile": "jev/v1",
+              "priority": 10,
+              "source": "static",
+              "registrationIndex": 3,
+              "invocations": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "q": {
+              "type": "noul",
+              "noul": 0.1
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        },
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "B",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": true
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}

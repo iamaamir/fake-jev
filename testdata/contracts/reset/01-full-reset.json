@@ -1,0 +1,262 @@
+{
+  "id": "C-GOLD-008",
+  "title": "full reset restores counters, sequence positions, and the next dynamic index",
+  "kind": "control-plane",
+  "traces": [
+    "§44.8",
+    "§41.10",
+    "§12.4",
+    "§11.3"
+  ],
+  "note": "After reset: the dynamic stub is gone, static invocation counts are 0, static sequence positions are 0, history is empty, the next request sequence is 1, and the next dynamic registrationIndex is N+1 = 3 for two static stubs. The trailing failure is the deliberate consequence §44.8 calls out: expectations are re-evaluated against the new zero counters, so a static expect.exactly 2 makes verify fail after a single call. Clearing history alone would NOT do this — DELETE /requests leaves counters and sequence positions alone (§41.8).",
+  "config": {
+    "schemaVersion": 1,
+    "mode": "strict",
+    "compatibility": [
+      "jev/v1"
+    ],
+    "stubs": [
+      {
+        "id": "static-a",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "q": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "q": {
+              "noul": 0.1
+            }
+          }
+        },
+        "expect": {
+          "exactly": 2
+        }
+      },
+      {
+        "id": "static-b",
+        "profile": "jev/v1",
+        "when": {
+          "questions": {
+            "other": "noul"
+          }
+        },
+        "then": {
+          "answers": {
+            "other": {
+              "noul": 0.2
+            }
+          }
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "model": "jev-latest",
+          "answers": {
+            "q": {
+              "type": "noul",
+              "noul": 0.1
+            }
+          },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/__fake/v1/stubs",
+        "body": {
+          "id": "temp",
+          "profile": "jev/v1",
+          "when": {
+            "questions": {
+              "q": "noul"
+            }
+          },
+          "then": {
+            "answers": {
+              "q": {
+                "noul": 0.9
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 201,
+        "body": {
+          "id": "temp",
+          "registrationIndex": 3
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/__fake/v1/reset"
+      },
+      "expect": {
+        "status": 204
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/stubs"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "stubs": [
+            {
+              "id": "static-a",
+              "profile": "jev/v1",
+              "priority": 0,
+              "source": "static",
+              "registrationIndex": 1,
+              "invocations": 0
+            },
+            {
+              "id": "static-b",
+              "profile": "jev/v1",
+              "priority": 0,
+              "source": "static",
+              "registrationIndex": 2,
+              "invocations": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/requests"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "requests": []
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/systemone",
+        "body": {
+          "state": "x",
+          "model": "jev-latest",
+          "questions": {
+            "q": {
+              "type": "noul"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 200,
+        "journal": {
+          "sequence": 1,
+          "method": "POST",
+          "path": "/v1/systemone",
+          "profile": "jev/v1",
+          "operation": "systemone",
+          "outcome": "matched",
+          "matchedStubId": "static-a",
+          "status": 200,
+          "error": null,
+          "requestBody": null,
+          "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/__fake/v1/stubs",
+        "body": {
+          "id": "temp-again",
+          "profile": "jev/v1",
+          "when": {
+            "questions": {
+              "q": "noul"
+            }
+          },
+          "then": {
+            "answers": {
+              "q": {
+                "noul": 0.9
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": 201,
+        "body": {
+          "id": "temp-again",
+          "registrationIndex": 3
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/__fake/v1/verify"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "passed": false,
+          "failures": [
+            {
+              "code": "expect_exactly",
+              "requestSequence": null,
+              "stubId": "static-a",
+              "message": "<not asserted>"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "verify": {
+    "expectPassed": false,
+    "expectFailures": [
+      {
+        "code": "expect_exactly",
+        "requestSequence": null,
+        "stubId": "static-a"
+      }
+    ]
+  },
+  "conventions": {
+    "comparison": "parsed JSON values; object key order and insignificant number spelling 1 versus 1.0 are not significant (§44 preamble, §39.4)",
+    "messageSentinel": "the literal string <not asserted> marks a field whose value the specification does not freeze; a runner MUST skip it"
+  }
+}
