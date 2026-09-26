@@ -3,7 +3,7 @@
   "title": "Phase 0: Go module, package skeleton, and version command",
   "phase": "phase-0",
   "objective": "Create the Go module at minimum Go 1.26, the cmd/fake-jev entry point, the internal package boundaries defined by specification \u00a717, and a working `version` command.",
-  "status": "review",
+  "status": "complete",
   "stage": "qa",
   "leaseOwner": null,
   "baseRevision": null,
@@ -47,19 +47,15 @@
     "summary": "37 passed, 0 failed, 3 skipped, 0 not_applicable",
     "finishedAt": "2026-09-26T07:05:12Z"
   },
-  "blockers": [
-    {
-      "type": "needs-info",
-      "description": "scripts/verify-candidate runs `go build ./cmd/fake-jev` with no -o, so every verification writes an untracked ./fake-jev binary into the workspace. .gitignore covers /bin/ and /dist/ but not the repository-root binary, so the stray file is counted by the candidate fingerprint and stales every stage artifact on the next run. Both scripts/verify-candidate and .gitignore are outside this item's allowedFiles. Decision needed: add `/fake-jev` to .gitignore, or make check_go_build write to a temporary path."
-    }
-  ],
-  "nextAction": "PM review against specification \u00a715.5, \u00a717.1, \u00a717.2 and \u00a742.1; then mark complete and start FJ-002.",
+  "blockers": [],
+  "nextAction": "Start FJ-002 (spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, spec/compat/jev-v1/openapi.snapshot.json). The stray root build output seen during FJ-001 verification is tracked as FJ-048.",
   "notes": [
     "All five stage artifacts recorded and chained (S,C,L,H,Q); class is product so all five are required.",
     "verify-candidate FJ-001: 37 passed, 0 failed, 3 skipped (cleaner/hardener/qa tooling under recorded bootstrap exemptions), 0 not_applicable.",
     "Module path is the placeholder `fake-jev`: the specification fixes the go.mod minimum Go version but not a module path, and the repository has no remote. Needs an orchestrator decision before phase 0 closes; changing it is one line in go.mod plus the two import lines.",
     "check_go_build writes ./fake-jev in the repository root, which is not covered by .gitignore (`/bin/`, `/dist/` only). The binary was removed from the candidate; adding `/fake-jev` to .gitignore is a one-line change in a file outside this item's allowedFiles and is left for the orchestrator or FJ-004.",
     "The bare `go test ./...` in the \u00a731 phase-0 acceptance block also walks the gitignored tool-install dirs `agent/` and `.agents/`, which hold an unrelated Go example that cannot resolve its imports. scripts/verify-candidate excludes them via NON_REPO_DIRS, so the recorded acceptance is green; a human running the block verbatim sees the contamination.",
-    "2026-09-26 review: verification was re-run against a clean tree at 9b90ba5 and passed. The root ./fake-jev binary is removed from the workspace; see the blocker for the recurrence risk."
+    "2026-09-26 review: verification was re-run against a clean tree at 9b90ba5 and passed. The root ./fake-jev binary is removed from the workspace; see the blocker for the recurrence risk.",
+    "2026-09-26: the stray ./fake-jev binary encountered during verification was removed here and handed off as FJ-048, because both .gitignore and scripts/verify-candidate are outside FJ-001's allowedFiles. It does not affect this item's acceptance, which passed on a clean tree at 9b90ba5."
   ]
 }

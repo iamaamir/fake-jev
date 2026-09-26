@@ -1,0 +1,39 @@
+{
+  "id": "FJ-048",
+  "title": "Phase 0: keep the verification build output out of the workspace",
+  "phase": "phase-0",
+  "objective": "Stop scripts/verify-candidate's `go build ./cmd/fake-jev` from leaving an untracked ./fake-jev binary in the workspace, which is counted by the candidate fingerprint and stales every stage artifact of a product work item.",
+  "status": "ready",
+  "stage": null,
+  "leaseOwner": null,
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "design \u00a76.1 candidate fingerprint (untracked and not gitignored files are hashed)"
+  ],
+  "relevantFiles": [
+    "scripts/verify-candidate",
+    ".gitignore"
+  ],
+  "allowedFiles": [
+    ".gitignore"
+  ],
+  "acceptance": [
+    "git check-ignore -q fake-jev exits 0, so the binary that check_go_build writes at the repository root is excluded from the candidate fingerprint",
+    "scripts/verify-candidate is unchanged: the fix is ignore coverage, not a change to the acceptance check itself",
+    "./scripts/verify-candidate FJ-001 exits 0 twice in a row, with the second run reporting a clean tree"
+  ],
+  "nonGoals": [
+    "no change to the Go acceptance commands in scripts/verify-candidate",
+    "no relocation of build output into the repository's committed artifacts"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "add /fake-jev to .gitignore, then verify FJ-001 twice to prove the evidence chain survives a repeated verification run",
+  "notes": [
+    "Observed during FJ-001 (2026-09-26): `go build ./cmd/fake-jev` writes ./fake-jev at the repository root; .gitignore lists /bin/ and /dist/ only, so the file is hashed by the candidate fingerprint and stage evidence reports stage.evidence_stale on the following run."
+  ]
+}
