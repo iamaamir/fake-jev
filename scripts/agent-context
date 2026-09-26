@@ -118,9 +118,13 @@ for field in ("objective", "status"):
     if not isinstance(state.get(field), str) or not state.get(field, "").strip():
         errors.append(f"missing or empty required field: {field}")
 for field in ("specReferences", "relevantFiles", "allowedFiles", "acceptance",
-              "nonGoals", "verificationCommands", "blockers", "notes"):
+              "nonGoals", "verificationCommands", "blockers", "notes",
+              "requiredStages"):
     if field in state and not isinstance(state[field], list):
         errors.append(f"{field} must be a list")
+if isinstance(state.get("requiredStages"), list) and any(
+        not isinstance(stage, str) for stage in state["requiredStages"]):
+    errors.append("requiredStages must be a list of strings")
 if errors:
     for problem in errors:
         print(f"ERROR: {problem}", file=sys.stderr)
@@ -314,8 +318,10 @@ def gate_display(stage, report, due, required):
         return "not run"
     rows = []
     if isinstance(report, dict):
-        rows = [c for c in report.get("checks") or []
-                if isinstance(c, dict) and c.get("gate") == STAGE_GATES[stage]]
+        checks = report.get("checks")
+        if isinstance(checks, list):
+            rows = [c for c in checks
+                    if isinstance(c, dict) and c.get("gate") == STAGE_GATES[stage]]
     if not rows:
         return "not run"
     if any(c.get("required") and (
@@ -372,7 +378,9 @@ def role_pack_expertise(stage):
         if line.startswith("  required:") or line.startswith("  optional:"):
             current = "required" if line.startswith("  required:") else "optional"
         elif line.startswith("    - ") and current:
-            lists[current].append(line[6:].strip())
+            item = line[6:].strip()
+            if item:          # never render an empty reference like .../.md
+                lists[current].append(item)
         elif not line.startswith("    "):
             current = None
     return lists
