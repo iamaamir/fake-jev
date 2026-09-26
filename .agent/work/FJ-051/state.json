@@ -1,0 +1,40 @@
+{
+  "id": "FJ-051",
+  "title": "Phase 4: LICENSE repository artifact",
+  "phase": "phase-4",
+  "objective": "Complete the §17 v1 repository layout entry for LICENSE so the repository carries an explicit license before a public release. The §17 layout tree is SHOULD-level and the specification names no SPDX identifier, so the license identity is an owner decision that must be recorded before the file lands.",
+  "status": "planned",
+  "specReferences": [
+    "§17 Go implementation architecture (v1 repository layout)"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md"
+  ],
+  "allowedFiles": [
+    "LICENSE"
+  ],
+  "acceptance": [
+    "LICENSE exists at the repository root matching the §17 layout entry",
+    "the chosen license identity is an owner decision recorded in this item's notes before the file lands",
+    "candidate-fingerprint classifies LICENSE as metadata (entry added when this item was opened)",
+    "a selftest scenario asserting LICENSE classifies as metadata lands once the in-flight selftest reformat is merged",
+    "./scripts/verify-candidate exits 0"
+  ],
+  "nonGoals": [
+    "no license headers added to source files",
+    "no README changes"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [
+    {
+      "type": "needs-human",
+      "description": "license choice (SPDX id) is not specified anywhere in spec/fake-jev-technical-spec-v2.md; the owner must decide before implementation"
+    }
+  ],
+  "nextAction": "owner chooses the SPDX identifier, then implement in phase 4",
+  "notes": [
+    "Opened with a one-line candidate-fingerprint extension (METADATA_FILES gains \"LICENSE\") because classification fails closed on unknown paths by design.",
+    "Normative strength recorded honestly: §17 says the v1 layout SHOULD start as given; the LICENSE gap is layout completion plus release hygiene, not a MUST."
+  ]
+}

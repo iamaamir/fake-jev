@@ -1,0 +1,37 @@
+{
+  "id": "FJ-049",
+  "title": "Phase 4: §22.6 system-one-core smoke test (release-gating)",
+  "phase": "phase-4",
+  "objective": "Add the acceptance-catalog criterion for spec §22.6 and maintain the cross-repository smoke test that points system-one-core's HTTP provider to a running fake-jev instance. §22.6 already requires this test to pass before a public v1 release, so the item is release-gating by specification, not by invention.",
+  "status": "planned",
+  "specReferences": [
+    "§22.6 system-one-core integration"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "test/integration/",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "acceptance": [
+    "C-QUAL-007 added to docs/development/acceptance-catalog.md tracing §22.6",
+    "a maintained smoke test points system-one-core's HTTP provider at a running fake-jev instance per §22.6",
+    "release gating recorded per §22.6: not required in every pull request, must pass before a public v1 release",
+    "verification stays deterministic: no model call and no external provider network access",
+    "./scripts/verify-candidate and ./scripts/selftest exit 0"
+  ],
+  "nonGoals": [
+    "no changes to the system-one-core repository itself",
+    "no unconditional per-PR gating (§22.6: not required in every PR)"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "pick up in phase 4: pin the criterion wording, then define the smoke-test mechanics",
+  "notes": [
+    "This item is the sole holder of docs/development/acceptance-catalog.md in allowedFiles; no other work item may edit the catalog.",
+    "If release wiring is needed, it rides FJ-042's release workflow — coordinate an allowedFiles amendment at pickup rather than editing .github/workflows here."
+  ]
+}

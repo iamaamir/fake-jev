@@ -33,7 +33,8 @@ EXCLUDED_PREFIXES = (".agent/work/", ".agent/reports/", ".agent/logs/", ".scratc
 PRODUCT_PREFIXES = ("cmd/", "internal/", "test/", "testdata/", "spec/contracts/")
 PRODUCT_FILES = ("go.mod", "go.sum")
 METADATA_PREFIXES = ("docs/", ".agent/", "scripts/", ".github/", "spec/", "examples/")
-METADATA_FILES = ("Dockerfile", "README.md", "AGENTS.md", "CONTEXT.md", ".gitignore")
+METADATA_FILES = ("Dockerfile", "README.md", "AGENTS.md", "CONTEXT.md", ".gitignore",
+                  "LICENSE")
 # Frozen include-set (§6.2). Everything else in state.json is non-semantic.
 SEMANTIC_FIELDS = ("id", "objective", "nonGoals", "acceptance", "specReferences",
                    "allowedFiles", "verificationCommands")
