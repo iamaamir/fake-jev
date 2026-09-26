@@ -787,6 +787,48 @@ def exemption_stale_trackedby():
            result="fail", required=True)
 
 
+# --------------------------------------------------------------------------
+# Fix round scenarios: fail-closed malformed state (Critical #1) and the
+# product go-bootstrap skip (Important #2)
+# --------------------------------------------------------------------------
+
+def with_go_mod_only(repo):
+    (repo / "go.mod").write_text("module fixture.example\n\ngo 1.21\n",
+                                 encoding="utf-8")
+
+
+@scenario("policy_malformed_state")
+def policy_malformed_state():
+    # requiredStages must be a list; a string makes `candidate-fingerprint task`
+    # exit 2 while check_work_item_schema does not validate the shape, so the
+    # engine must fail closed instead of emitting no policy rows.
+    item = base_item(requiredStages="coder")
+    repo = fixture("pol-malformed", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert proc.returncode == 1, (proc.returncode, proc.stdout)
+    assert report["status"] == "failed", report["status"]
+    expect(report, "policy.classification", code="agent.work_item_schema",
+           result="fail", required=True)
+
+
+@scenario("go_product_zero_packages_skip")
+def go_product_zero_packages_skip():
+    # Product item with go.mod but no packages on disk: note-1b non-required
+    # skip (the stale `go list` warning must not be parsed as a package).
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("go-zero-pkgs", items={"FJ-900": item},
+                   mutate=with_go_mod_only)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    expect(report, "check_go_test", result="skipped", required=False,
+           code="go.test_failed")
+    expect(report, "check_go_build", result="skipped", required=False,
+           code="go.build_failed")
+    reason = rows(report, "check_go_test")["reason"]
+    assert "no repository Go packages yet" in reason, reason
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.

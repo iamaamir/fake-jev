@@ -696,7 +696,12 @@ def required_stages_problems(info, state):
 
 def task_policy_rows():
     if TASK_RC == "2":
-        return  # malformed state: the work-item schema check already fails
+        # malformed state: the schema check may not catch every shape error —
+        # fail closed here instead of emitting no policy rows.
+        emit("policy.classification", "G-C", True, "fail", 1, "agent.work_item_schema",
+             "allowedFiles classify to product or metadata",
+             "state.json is malformed (candidate-fingerprint task mode exit 2)")
+        return
     if TASK_RC == "3":
         emit("policy.classification", "G-C", True, "fail", 1, "policy.unknown_scope",
              "allowedFiles classify to product or metadata",
@@ -789,7 +794,7 @@ repo_packages() {
       esac
     done
     printf '%s\n' "$import_path"
-  done < <(go list -e -f '{{.ImportPath}} {{.Dir}}' ./... 2>&1)
+  done < <(go list -e -f '{{.ImportPath}} {{.Dir}}' ./...)
   if [ "$excluded" -gt 0 ]; then
     echo "verify-candidate: excluded $excluded package(s) under gitignored tool dirs ($NON_REPO_DIRS)" >&2
   fi
