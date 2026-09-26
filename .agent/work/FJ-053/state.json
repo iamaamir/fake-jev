@@ -2,16 +2,16 @@
   "id": "FJ-053",
   "title": "Phase 0: drop the unused third-party requires from go.mod",
   "phase": "phase-0",
-  "objective": "Remove the four third-party modules that no product source imports (cobra, viper, fatih/color, fsnotify) from go.mod, leaving the standard-library-only dependency posture that §15.6 and §17.2 require, so the first real dependency can be introduced deliberately with a committed go.sum.",
-  "status": "ready",
+  "objective": "Remove the four third-party modules that no product source imports (cobra, viper, fatih/color, fsnotify) from go.mod, leaving the standard-library-only dependency posture that \u00a715.6 and \u00a717.2 require, so the first real dependency can be introduced deliberately with a committed go.sum.",
+  "status": "implementing",
   "baseRevision": null,
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "qa",
+  "attempts": 1,
   "specReferences": [
-    "§17.2 dependency policy",
-    "§15.6 CLI parser dependency policy",
-    "§31 build and module layout"
+    "\u00a717.2 dependency policy",
+    "\u00a715.6 CLI parser dependency policy",
+    "\u00a731 build and module layout"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -39,11 +39,11 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "specifier: restate §17.2/§15.6 as observable criteria, then coder trims go.mod",
+  "nextAction": "specifier: restate \u00a717.2/\u00a715.6 as observable criteria, then coder trims go.mod",
   "notes": [
-    "PM 2026-09-26: opened from the FJ-004 close-out. The golang-cli skill recommends Cobra+Viper as the default stack; spec §15.6 and §17.2 forbid that, so the spec wins (authority level 1 over level 5). The CLI will use the standard library flag package.",
+    "PM 2026-09-26: opened from the FJ-004 close-out. The golang-cli skill recommends Cobra+Viper as the default stack; spec \u00a715.6 and \u00a717.2 forbid that, so the spec wins (authority level 1 over level 5). The CLI will use the standard library flag package.",
     "PM 2026-09-26: no go.sum exists in the tree today. FJ-004 CI runs GOPROXY=off, so the first real import would fail closed on a missing go.sum entry. This ticket removes that trap rather than arming it."
   ],
-  "stage": null,
-  "leaseOwner": null
+  "stage": "qa",
+  "leaseOwner": "pi-pm-fj053"
 }
