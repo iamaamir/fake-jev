@@ -36,7 +36,8 @@
     "hardening minors triaged: T7/T8/agent-context named minors addressed or explicitly rejected in notes; T4-T6 minors whose details were lost to session compaction are re-reviewed or dropped by decision",
     "scripts/__pycache__/ ignored per repository hygiene",
     "./scripts/verify-candidate and ./scripts/selftest still exit 0 after each change",
-    "validator field lists reconciled: explicit null requiredStages passed verify-candidate (check_work_item_schema's LISTS omits it) while agent-context rejected it and the JSON schema disallows it — discovered when opening this item; add a regression scenario"
+    "validator field lists reconciled: explicit null requiredStages passed verify-candidate (check_work_item_schema's LISTS omits it) while agent-context rejected it and the JSON schema disallows it — discovered when opening this item; add a regression scenario",
+    "lastVerification ordering rule documented or enforced: FJ-002's recorded run (report-20260926T075318Z) preceded the implementing->complete flip, so it emitted no stage.qa rows (in-progress stages emit none); only the unrecorded final run covered them — record from a post-flip run, or make verify enforce it"
   ],
   "nonGoals": [
     "no product-phase implementation work",
