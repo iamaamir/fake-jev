@@ -569,8 +569,9 @@ def report_v2_shape():
     assert report["status"] == "passed", report["status"]
     assert re.fullmatch(r"[0-9a-f]{64}", report.get("candidateFingerprint") or ""), \
         report.get("candidateFingerprint")
-    assert report.get("taskFingerprint") is None    # task engine lands in Task 5
-    assert report.get("policy") is None
+    assert re.fullmatch(r"[0-9a-f]{64}", report.get("taskFingerprint") or ""), \
+        report.get("taskFingerprint")     # task engine lands in Task 5
+    assert report.get("policy", {}).get("class") == "metadata", report.get("policy")
     for check in report["checks"]:
         missing = {"name", "gate", "required", "result", "exitCode", "code",
                    "exempted", "command"} - set(check)
@@ -617,7 +618,8 @@ def required_skipped_failure():
 
 @scenario("optional_skipped_success")
 def optional_skipped_success():
-    repo = fixture("opt-skip", items={"FJ-900": base_item()})
+    repo = fixture("opt-skip",
+                   items={"FJ-900": base_item(allowedFiles=["testdata/golden.json"])})
     proc, report = run_verify(repo, task="FJ-900")
     assert_exit(proc, True)          # row 9: optional + skipped never blocks
     expect(report, "check_go_test", result="skipped", required=False)
@@ -650,6 +652,139 @@ def invalid_row_fail_closed():
            code="gate.invalid_result")
     # Only the sabotaged row is rewritten; unrelated rows round-trip.
     expect(report, "check_shell_syntax", result="pass")
+
+
+# --------------------------------------------------------------------------
+# Task 5 scenarios: classification, policy, exemptions, Go requiredness
+# (design §8.2, §9.2, §9.3)
+# --------------------------------------------------------------------------
+
+def with_go_module(repo):
+    (repo / "go.mod").write_text("module fixture.example\n\ngo 1.21\n",
+                                 encoding="utf-8")
+    main = repo / "cmd" / "fake-jev"
+    main.mkdir(parents=True)
+    (main / "main.go").write_text("package main\n\nfunc main() {}\n",
+                                  encoding="utf-8")
+    pkg = repo / "internal" / "sample"
+    pkg.mkdir(parents=True)
+    (pkg / "sample.go").write_text(
+        "package sample\n\nfunc Value() int { return 1 }\n", encoding="utf-8")
+
+
+@scenario("policy_unknown_scope")
+def policy_unknown_scope():
+    item = base_item(allowedFiles=["weird/thing.bin"])
+    repo = fixture("pol-unknown", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.classification", code="policy.unknown_scope",
+           result="fail", required=True, gate="G-C")
+    assert not any(c["name"].startswith("stage.") for c in report["checks"]), \
+        "stage rows must not be emitted after a classification failure"
+
+
+@scenario("policy_invalid_stages_order")
+def policy_invalid_stages_order():
+    item = base_item(allowedFiles=["docs/x.md"],
+                     requiredStages=["coder", "specifier"])
+    repo = fixture("pol-order", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.required_stages", code="policy.invalid_stages",
+           result="fail", required=True)
+
+
+@scenario("policy_stage_reduction")
+def policy_stage_reduction():
+    item = base_item(allowedFiles=["docs/x.md"],
+                     requiredStages=["specifier", "coder"])
+    repo = fixture("pol-reduce", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.required_stages", code="policy.stage_reduction_forbidden",
+           result="fail", required=True)
+
+
+@scenario("policy_additive_with_justification")
+def policy_additive_with_justification():
+    item = base_item(
+        allowedFiles=["docs/x.md"],
+        requiredStages=["specifier", "coder", "cleaner", "hardener", "qa"],
+        requiredStagesJustification="hardener opted in for executable scripts")
+    repo = fixture("pol-add-ok", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["policy"]["class"] == "metadata", report["policy"]
+    assert report["policy"]["source"] == "explicit", report["policy"]
+    assert report["policy"]["requiredStages"] == \
+        ["specifier", "coder", "cleaner", "hardener", "qa"]
+    assert re.fullmatch(r"[0-9a-f]{64}", report["taskFingerprint"] or "")
+    expect(report, "policy.required_stages", result="pass", required=True)
+
+
+@scenario("policy_additive_without_justification")
+def policy_additive_without_justification():
+    item = base_item(
+        allowedFiles=["docs/x.md"],
+        requiredStages=["specifier", "coder", "cleaner", "hardener", "qa"])
+    repo = fixture("pol-add-bad", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.required_stages", code="policy.justification_required",
+           result="fail", required=True)
+
+
+@scenario("go_required_for_product")
+def go_required_for_product():
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("go-product", items={"FJ-900": item}, mutate=with_go_module)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["policy"]["class"] == "product", report["policy"]
+    expect(report, "check_go_test", required=True, result="pass", gate="G-C")
+    expect(report, "check_go_build", required=True, result="pass", gate="G-C")
+
+
+@scenario("metadata_go_not_required")
+def metadata_go_not_required():
+    item = base_item(allowedFiles=["docs/example.md"])
+    repo = fixture("go-metadata", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    expect(report, "check_go_test", result="not_applicable", required=False,
+           code="stage.not_required")
+
+
+@scenario("exemption_unknown_trackedby")
+def exemption_unknown_trackedby():
+    def bad_policy(repo):
+        (repo / ".agent" / "gate-policy.json").write_text(json.dumps({
+            "exemptions": [{
+                "gate": "G-L", "blocks": ["stage.tooling_absent"],
+                "scope": ["product"], "code": "stage.tooling_bootstrap_exempt",
+                "reason": "fixture", "trackedBy": "FJ-404"}]}) + "\n",
+            encoding="utf-8")
+    repo = fixture("ex-unknown", items={"FJ-900": base_item()}, mutate=bad_policy)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.exemptions.unknown", code="policy.exemption_unknown",
+           result="fail", required=True)
+
+
+@scenario("exemption_stale_trackedby")
+def exemption_stale_trackedby():
+    def complete_tracker(repo):
+        path = repo / ".agent" / "work" / "FJ-044" / "state.json"
+        state = json.loads(path.read_text(encoding="utf-8"))
+        state["status"] = "complete"
+        path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8")
+    repo = fixture("ex-stale", items={"FJ-900": base_item()}, mutate=complete_tracker)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.exemptions.stale", code="policy.exemption_stale",
+           result="fail", required=True)
 
 
 # --- runner ---

@@ -96,8 +96,8 @@ One JSON file per verification run, written by `./scripts/verify-candidate <task
 {
   "taskId": "FJ-001",
   "candidateFingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
-  "taskFingerprint": null,
-  "policy": null,
+  "taskFingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+  "policy": { "class": "product", "requiredStages": ["specifier", "coder", "cleaner", "hardener", "qa"], "source": "derived" },
   "revision": "abc123",
   "treeState": { "gitAvailable": true, "clean": true, "staged": 0, "unstaged": 0, "untracked": 0 },
   "startedAt": "2026-09-25T10:00:00Z",

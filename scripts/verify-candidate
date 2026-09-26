@@ -166,6 +166,13 @@ skip_check() {
   record_row "$fn" "$display" "$gate" "$required" "skipped" "-1" "$code" "$reason"
 }
 
+# na_check <display> <function> <code> <reason> [required=0] [gate=G-C]
+na_check() {
+  local display="$1" fn="$2" code="$3" reason="$4" required="${5:-0}" gate="${6:-G-C}"
+  printf '==> %s\n    NOT APPLICABLE: %s\n\n' "$display" "$reason"
+  record_row "$fn" "$display" "$gate" "$required" "not_applicable" "-1" "$code" "$reason"
+}
+
 echo "verify-candidate: repository=$REPO_ROOT revision=$REVISION"
 if [ "$TREE_KNOWN" -eq 1 ]; then
   if [ "$TREE_CLEAN" = "true" ]; then
@@ -206,6 +213,22 @@ else
     "G-C" 1 "fail" "$FP_RC" "verify.check_failed" "$FP_REASON"
 fi
 rm -f "$FP_ERR"
+
+# --- task context (classification, scheduling, task fingerprint; design §6.2) --
+
+TASK_JSON=""
+TASK_RC=0
+if [ -n "$TASK_ID" ]; then
+  set +e
+  TASK_JSON="$(./scripts/candidate-fingerprint task ".agent/work/$TASK_ID/state.json" 2>/dev/null)"
+  TASK_RC=$?
+  set -e
+fi
+CLASS=""
+if [ "$TASK_RC" -eq 0 ]; then
+  CLASS="$(printf '%s' "$TASK_JSON" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin).get("class") or "")' 2>/dev/null || true)"
+fi
 
 # --- foundation checks -------------------------------------------------------
 
@@ -510,6 +533,237 @@ else
     "PyYAML not importable (design §4 conditional)" "toolchain.pyyaml_missing"
 fi
 
+# --- gauntlet engine: policy rows (evidence rows arrive in Task 6) ------------
+# Rows are TSV: name, gate, required, result, exitCode, code, display, reason.
+# The engine exits non-zero only on internal errors; check outcomes travel as
+# rows (failures are data, not a crashed run).
+ENGINE_ROWS="$(mktemp)"
+ENGINE_ERR="$(mktemp)"
+set +e
+python3 - "$TASK_ID" "$CAND_FP" "$TASK_JSON" "$TASK_RC" "$ENGINE_ROWS" \
+  <<'PY' 2>"$ENGINE_ERR"
+import json
+import os
+import sys
+
+TASK_ID, CAND_FP, TASK_JSON, TASK_RC, OUT_PATH = sys.argv[1:6]
+
+CANONICAL = ["specifier", "coder", "cleaner", "hardener", "qa"]
+STAGE_GATES = {"specifier": "G-S", "coder": "G-C", "cleaner": "G-L",
+               "hardener": "G-H", "qa": "G-Q"}
+GATE_IDS = set(STAGE_GATES.values())
+
+out = open(OUT_PATH, "w", encoding="utf-8")
+
+
+def clean(value):
+    return str(value).replace("\t", " ").replace("\n", " ").replace("\r", " ")
+
+
+def emit(name, gate, required, result, exit_code, code, display, reason=""):
+    out.write("\t".join([
+        name, gate, "1" if required else "0", result, str(exit_code),
+        code, clean(display), clean(reason),
+    ]) + "\n")
+
+
+def load_json(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def exemption_rows():
+    """§9.2: every exemption needs an existing, non-complete trackedBy item."""
+    path = ".agent/gate-policy.json"
+    if not os.path.isfile(path):
+        return  # absence already fails repo.required_files_missing
+    unknown, stale = [], []
+    exemptions = None
+    try:
+        data = load_json(path)
+    except ValueError:
+        unknown.append("gate-policy.json is not valid JSON")
+        data = None
+    if isinstance(data, dict):
+        exemptions = data.get("exemptions")
+    if not isinstance(exemptions, list):
+        unknown.append("exemptions must be a list")
+        exemptions = []
+    for index, exemption in enumerate(exemptions):
+        label = f"exemptions[{index}]"
+        if not isinstance(exemption, dict):
+            unknown.append(f"{label} must be an object")
+            continue
+        shape_ok = True
+        for key in ("gate", "blocks", "scope", "code", "reason", "trackedBy"):
+            if key not in exemption:
+                unknown.append(f"{label} missing {key}")
+                shape_ok = False
+        if shape_ok:
+            if exemption["gate"] not in GATE_IDS:
+                unknown.append(f"{label}.gate {exemption['gate']!r} is not a known gate")
+                shape_ok = False
+            for key in ("blocks", "scope"):
+                value = exemption[key]
+                if (not isinstance(value, list) or not value
+                        or not all(isinstance(item, str) for item in value)):
+                    unknown.append(f"{label}.{key} must be a non-empty list of strings")
+                    shape_ok = False
+            if not isinstance(exemption.get("code"), str) or not exemption["code"]:
+                unknown.append(f"{label}.code must be a non-empty string")
+                shape_ok = False
+            if not isinstance(exemption.get("reason"), str) or not exemption["reason"].strip():
+                unknown.append(f"{label}.reason must be a non-empty string")
+                shape_ok = False
+        if not shape_ok:
+            continue
+        tracked = exemption["trackedBy"]
+        if not isinstance(tracked, str) or not tracked.strip():
+            unknown.append(f"{label}.trackedBy must be a non-empty string")
+            continue
+        state_path = f".agent/work/{tracked}/state.json"
+        if not os.path.isfile(state_path):
+            unknown.append(f"{label}.trackedBy {tracked}: no such work item")
+            continue
+        try:
+            state = load_json(state_path)
+        except ValueError:
+            unknown.append(f"{label}.trackedBy {tracked}: unreadable state.json")
+            continue
+        if state.get("status") == "complete":
+            stale.append(f"{label}.trackedBy {tracked} reached complete "
+                         "— remove the exemption or ship the tooling")
+    if unknown:
+        emit("policy.exemptions.unknown", "G-C", True, "fail", 1,
+             "policy.exemption_unknown",
+             "trackedBy references resolve to existing work items",
+             "; ".join(unknown))
+    else:
+        emit("policy.exemptions.unknown", "G-C", True, "pass", 0,
+             "policy.exemption_unknown",
+             "trackedBy references resolve to existing work items",
+             f"{len(exemptions)} exemption(s) checked")
+    if stale:
+        emit("policy.exemptions.stale", "G-C", True, "fail", 1,
+             "policy.exemption_stale", "trackedBy items are not complete",
+             "; ".join(stale))
+    else:
+        emit("policy.exemptions.stale", "G-C", True, "pass", 0,
+             "policy.exemption_stale", "trackedBy items are not complete", "")
+
+
+def required_stages_problems(info, state):
+    """First violation of §8's additive-only rules, or (None, None)."""
+    effective = info.get("requiredStages") or []
+    derived = info.get("derivedRequiredStages")
+    source = info.get("source")
+    justification = state.get("requiredStagesJustification")
+    if source == "explicit":
+        if (any(stage not in CANONICAL for stage in effective)
+                or len(effective) != len(set(effective))):
+            return ("policy.invalid_stages",
+                    "requiredStages must contain unique vocabulary stages")
+        order = [CANONICAL.index(stage) for stage in effective]
+        if order != sorted(order):
+            return ("policy.invalid_stages",
+                    "requiredStages must be an ordered subsequence of the stage vocabulary")
+        if derived:
+            if any(stage not in effective for stage in derived):
+                missing = ", ".join(stage for stage in derived if stage not in effective)
+                return ("policy.stage_reduction_forbidden",
+                        f"explicit requiredStages omits derived stage(s): {missing}")
+            relative = [stage for stage in effective if stage in derived]
+            if relative != derived:
+                return ("policy.stage_reduction_forbidden",
+                        "explicit requiredStages reorders derived stages")
+            if effective == derived:
+                if justification is not None:
+                    return ("policy.justification_required",
+                            "requiredStagesJustification must be absent when the "
+                            "explicit list equals the derived value")
+            elif not isinstance(justification, str) or not justification.strip():
+                return ("policy.justification_required",
+                        "requiredStagesJustification (non-empty) required when the "
+                        "explicit list adds stages")
+        # class unknown with an explicit list: derivation impossible, and the
+        # classification row already failed — nothing further to check here.
+    elif source == "derived":
+        if justification is not None:
+            return ("policy.justification_required",
+                    "requiredStagesJustification must be absent when the list is derived")
+    return (None, None)
+
+
+def task_policy_rows():
+    if TASK_RC == "2":
+        return  # malformed state: the work-item schema check already fails
+    if TASK_RC == "3":
+        emit("policy.classification", "G-C", True, "fail", 1, "policy.unknown_scope",
+             "allowedFiles classify to product or metadata",
+             "cannot classify allowedFiles (unknown scope)")
+        return
+    if TASK_RC != "0" or not TASK_JSON:
+        emit("policy.classification", "G-C", True, "fail", 1, "verify.check_failed",
+             "allowedFiles classify to product or metadata",
+             "candidate-fingerprint task mode failed unexpectedly")
+        return
+    info = json.loads(TASK_JSON)
+    try:
+        state = load_json(f".agent/work/{TASK_ID}/state.json")
+    except ValueError as exc:
+        emit("policy.classification", "G-C", True, "fail", 1,
+             "agent.work_item_schema", "allowedFiles classify to product or metadata",
+             f"state.json unreadable: {exc}")
+        return
+    cls = info.get("class")
+    if cls == "unknown":
+        emit("policy.classification", "G-C", True, "fail", 1, "policy.unknown_scope",
+             "allowedFiles classify to product or metadata",
+             "path outside the product/metadata classes")
+    else:
+        emit("policy.classification", "G-C", True, "pass", 0, "policy.unknown_scope",
+             "allowedFiles classify to product or metadata", f"class={cls}")
+    code, reason = required_stages_problems(info, state)
+    if code:
+        emit("policy.required_stages", "G-C", True, "fail", 1, code,
+             "requiredStages is a valid additive-only ordered set", reason)
+    else:
+        emit("policy.required_stages", "G-C", True, "pass", 0, "policy.invalid_stages",
+             "requiredStages is a valid additive-only ordered set",
+             "source=%s stages=%s" % (info.get("source"),
+                                      ",".join(info.get("requiredStages") or [])))
+
+
+exemption_rows()
+if TASK_ID:
+    task_policy_rows()
+out.close()
+PY
+ENGINE_RC=$?
+set -e
+if [ "$ENGINE_RC" -ne 0 ]; then
+  ENGINE_REASON="$(tr '\n' ' ' < "$ENGINE_ERR")"
+  printf '==> gauntlet engine\n    FAIL (code verify.check_failed)\n\n'
+  record_row "check_engine" "gauntlet engine" "G-C" 1 "fail" "$ENGINE_RC" \
+    "verify.check_failed" "$ENGINE_REASON"
+else
+  while IFS=$'\t' read -r e_name e_gate e_required e_result e_exit e_code \
+      e_display e_reason; do
+    [ -n "$e_name" ] || continue
+    case "$e_result" in
+      pass)           printf '==> %s\n    PASS\n\n' "$e_display" ;;
+      fail)           printf '==> %s\n    FAIL (exit %s, code %s)\n\n' \
+                        "$e_display" "$e_exit" "$e_code" ;;
+      skipped)        printf '==> %s\n    SKIPPED: %s\n\n' "$e_display" "$e_reason" ;;
+      not_applicable) printf '==> %s\n    NOT APPLICABLE: %s\n\n' \
+                        "$e_display" "$e_reason" ;;
+    esac
+    record_row "$e_name" "$e_display" "$e_gate" "$e_required" "$e_result" \
+      "$e_exit" "$e_code" "$e_reason"
+  done < "$ENGINE_ROWS"
+fi
+rm -f "$ENGINE_ROWS" "$ENGINE_ERR"
+
 # --- product checks (activated as phases land) -------------------------------
 
 # Repository-owned packages only. Tool-managed skill installs live inside the
@@ -563,26 +817,67 @@ check_go_vet() {
 
 check_go_build() { go build ./cmd/fake-jev; }
 
-# Go checks are required iff class == product (design §8.3). Until the task
-# engine computes the class (Task 5), they run non-required so a foundation
-# checkout stays green (interpretation note 1).
-if [ -f go.mod ]; then
-  run_check "go test (repository packages)" check_go_test 0
-  run_check "go vet (repository packages)" check_go_vet 0
-  if [ -d cmd/fake-jev ]; then
-    run_check "go build ./cmd/fake-jev" check_go_build 0
-  else
-    skip_check "go build ./cmd/fake-jev" check_go_build \
-      "cmd/fake-jev does not exist yet" "" 0
-  fi
-else
-  skip_check "go test (repository packages)" check_go_test \
-    "no go.mod yet (foundation phase)" "" 0
-  skip_check "go vet (repository packages)" check_go_vet \
-    "no go.mod yet (foundation phase)" "" 0
-  skip_check "go build ./cmd/fake-jev" check_go_build \
-    "no go.mod yet (foundation phase)" "" 0
-fi
+# Go checks are required iff class == product (design §8.3). metadata items get
+# not_applicable/stage.not_required (§9.3); an unknown class or a missing module
+# runs them non-required so foundation work is never deadlocked (interpretation
+# note 1). A product item with go.mod but no packages yet skips non-required
+# until something exists to test (interpretation note 1b).
+ALL_PKGS="$(repo_packages 2>/dev/null || true)"
+case "$CLASS" in
+  metadata)
+    na_check "go test (repository packages)" check_go_test "stage.not_required" \
+      "class metadata (design §9.3)"
+    na_check "go vet (repository packages)" check_go_vet "stage.not_required" \
+      "class metadata (design §9.3)"
+    na_check "go build ./cmd/fake-jev" check_go_build "stage.not_required" \
+      "class metadata (design §9.3)"
+    ;;
+  product)
+    if [ -f go.mod ]; then
+      if [ -z "${ALL_PKGS//[$'\n\t ']/}" ]; then
+        skip_check "go test (repository packages)" check_go_test \
+          "no repository Go packages yet" "" 0
+        skip_check "go vet (repository packages)" check_go_vet \
+          "no repository Go packages yet" "" 0
+      else
+        run_check "go test (repository packages)" check_go_test 1
+        run_check "go vet (repository packages)" check_go_vet 1
+      fi
+      if [ -d cmd/fake-jev ]; then
+        run_check "go build ./cmd/fake-jev" check_go_build 1
+      else
+        skip_check "go build ./cmd/fake-jev" check_go_build \
+          "cmd/fake-jev does not exist yet" "" 0
+      fi
+    else
+      skip_check "go test (repository packages)" check_go_test \
+        "no go.mod yet (foundation phase)" "" 0
+      skip_check "go vet (repository packages)" check_go_vet \
+        "no go.mod yet (foundation phase)" "" 0
+      skip_check "go build ./cmd/fake-jev" check_go_build \
+        "no go.mod yet (foundation phase)" "" 0
+    fi
+    ;;
+  *)
+    if [ -f go.mod ]; then
+      run_check "go test (repository packages)" check_go_test 0
+      run_check "go vet (repository packages)" check_go_vet 0
+      if [ -d cmd/fake-jev ]; then
+        run_check "go build ./cmd/fake-jev" check_go_build 0
+      else
+        skip_check "go build ./cmd/fake-jev" check_go_build \
+          "cmd/fake-jev does not exist yet" "" 0
+      fi
+    else
+      skip_check "go test (repository packages)" check_go_test \
+        "no go.mod yet (foundation phase)" "" 0
+      skip_check "go vet (repository packages)" check_go_vet \
+        "no go.mod yet (foundation phase)" "" 0
+      skip_check "go build ./cmd/fake-jev" check_go_build \
+        "no go.mod yet (foundation phase)" "" 0
+    fi
+    ;;
+esac
 
 # --- aggregate: status + report ----------------------------------------------
 
@@ -606,6 +901,7 @@ fi
 FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 export ROWS_TSV STATUS_FILE REPORT_PATH TASK_ID STARTED_AT FINISHED_AT REVISION
+export TASK_JSON TASK_RC
 export CAND_FP="${CAND_FP:-}"
 export GIT_JSON TREE_CLEAN TREE_STAGED TREE_UNSTAGED TREE_UNTRACKED
 
@@ -712,11 +1008,22 @@ if report_path:
         "unstaged": int(os.environ.get("TREE_UNSTAGED") or 0),
         "untracked": int(os.environ.get("TREE_UNTRACKED") or 0),
     }
+    info = None
+    task_json = os.environ.get("TASK_JSON") or ""
+    if task_json and os.environ.get("TASK_RC") == "0":
+        try:
+            info = json.loads(task_json)
+        except ValueError:
+            info = None
     report = {
         "taskId": os.environ.get("TASK_ID") or None,
         "candidateFingerprint": os.environ.get("CAND_FP") or None,
-        "taskFingerprint": None,   # populated by the task engine (Task 5)
-        "policy": None,            # populated by the task engine (Task 5)
+        "taskFingerprint": (info or {}).get("taskFingerprint"),
+        "policy": (
+            {"class": info.get("class"),
+             "requiredStages": info.get("requiredStages"),
+             "source": info.get("source")}
+            if info else None),
         "revision": os.environ.get("REVISION") or "unknown",
         "treeState": tree,
         "startedAt": os.environ.get("STARTED_AT"),
