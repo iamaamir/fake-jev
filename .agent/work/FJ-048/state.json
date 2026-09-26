@@ -3,11 +3,11 @@
   "title": "Phase 0: keep the verification build output out of the workspace",
   "phase": "phase-0",
   "objective": "Stop scripts/verify-candidate's `go build ./cmd/fake-jev` from leaving an untracked ./fake-jev binary in the workspace, which is counted by the candidate fingerprint and stales every stage artifact of a product work item.",
-  "status": "implementing",
-  "stage": "cleaner",
-  "leaseOwner": "pm-orchestrator",
+  "status": "complete",
+  "stage": "qa",
+  "leaseOwner": null,
   "baseRevision": null,
-  "candidateRevision": null,
+  "candidateRevision": "1460b64",
   "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
@@ -30,11 +30,20 @@
     "no relocation of build output into the repository's committed artifacts"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "revision": "1460b64",
+    "status": "passed",
+    "report": ".agent/reports/FJ-048/report-20260926T071633Z.json",
+    "summary": "25 passed, 0 failed, 1 skipped, 4 not_applicable",
+    "finishedAt": "2026-09-26T07:16:33Z"
+  },
   "blockers": [],
-  "nextAction": "add /fake-jev to .gitignore, then verify FJ-001 twice to prove the evidence chain survives a repeated verification run",
+  "nextAction": "Start FJ-002 (spec/config.schema.json from \u00a738, spec/control-api.openapi.yaml from \u00a741, spec/compat/jev-v1/openapi.snapshot.json).",
   "notes": [
     "Observed during FJ-001 (2026-09-26): `go build ./cmd/fake-jev` writes ./fake-jev at the repository root; .gitignore lists /bin/ and /dist/ only, so the file is hashed by the candidate fingerprint and stage evidence reports stage.evidence_stale on the following run.",
-    "2026-09-26 reproduction: on FJ-001, `verify-candidate` run 1 = PASS (37 passed), run 2 = FAIL (36 passed, 1 failed) with the failing check on the last stage's chain link, solely because run 1's `go build ./cmd/fake-jev` left ./fake-jev untracked and unignored."
-  ]
+    "2026-09-26 reproduction: on FJ-001, `verify-candidate` run 1 = PASS (37 passed), run 2 = FAIL (36 passed, 1 failed) with the failing check on the last stage's chain link, solely because run 1's `go build ./cmd/fake-jev` left ./fake-jev untracked and unignored.",
+    "2026-09-26: the fix staled FJ-001's recorded evidence by design, since .gitignore is workspace content. FJ-001 was re-evidenced against the new fingerprint and re-verified twice, both runs PASS.",
+    "Residual, recorded rather than fixed: no automated regression test guards repeated verification. `scripts/selftest` already builds fixture repositories and is the right home for one, but it is outside this item's allowedFiles."
+  ],
+  "reviewedBy": "product-manager"
 }
