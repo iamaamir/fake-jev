@@ -3,12 +3,12 @@
   "title": "Phase 0: keep the verification build output out of the workspace",
   "phase": "phase-0",
   "objective": "Stop scripts/verify-candidate's `go build ./cmd/fake-jev` from leaving an untracked ./fake-jev binary in the workspace, which is counted by the candidate fingerprint and stales every stage artifact of a product work item.",
-  "status": "ready",
-  "stage": null,
-  "leaseOwner": null,
+  "status": "implementing",
+  "stage": "cleaner",
+  "leaseOwner": "pm-orchestrator",
   "baseRevision": null,
   "candidateRevision": null,
-  "assignedRole": null,
+  "assignedRole": "coder",
   "attempts": 0,
   "specReferences": [
     "design \u00a76.1 candidate fingerprint (untracked and not gitignored files are hashed)"

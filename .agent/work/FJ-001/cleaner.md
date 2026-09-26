@@ -1,11 +1,11 @@
 ---
 stage: cleaner
 task: FJ-001
-inputFingerprint: 4d87f2d06abe8969121119a69c0bc8f7c292249e97ece321d6dd43524da17524
-outputFingerprint: 4d87f2d06abe8969121119a69c0bc8f7c292249e97ece321d6dd43524da17524
+inputFingerprint: 7a30b543583fc4e4849e2b615c5256f499e0d4b92d555bc81dd0166e02860745
+outputFingerprint: 7a30b543583fc4e4849e2b615c5256f499e0d4b92d555bc81dd0166e02860745
 taskFingerprint: cc94ff6af6bccd0fa2ce59f0742e09743b6bf854d5c48af4097e7194f000ee93
 gitHead: 13172c0
-generatedAt: 2026-09-26T07:02:48Z
+generatedAt: 2026-09-26T07:13:55Z
 ---
 
 # Cleaner — FJ-001
@@ -43,3 +43,11 @@ Read the four new files against specification §17.2 (dependency policy), §17.3
 
 Nothing for this item. FJ-030/031/032 add the remaining subcommands into
 `internal/cli` under the same split.
+
+## Re-evidenced 2026-09-26T07:13:55Z
+
+FJ-048 added `/fake-jev` to `.gitignore`, which changes the workspace candidate
+fingerprint and therefore invalidates this item's earlier evidence. The stage was
+re-run: the four Go files are byte-identical to the original pass, so the findings
+above stand unchanged, and `go test`, `go vet`, and `go build ./cmd/fake-jev` were
+re-executed against them. Only the recorded fingerprints differ.

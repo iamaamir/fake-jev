@@ -20,5 +20,6 @@ Thumbs.db
 # Build output (added when the Go implementation lands)
 /bin/
 /dist/
+/fake-jev
 *.test
 *.out

@@ -1,11 +1,11 @@
 ---
 stage: specifier
 task: FJ-001
-inputFingerprint: 260f6f151ace53875ecf51a4f702ed8e4f9e93643e25fec7fca37e13a3013feb
-outputFingerprint: 260f6f151ace53875ecf51a4f702ed8e4f9e93643e25fec7fca37e13a3013feb
+inputFingerprint: 7a30b543583fc4e4849e2b615c5256f499e0d4b92d555bc81dd0166e02860745
+outputFingerprint: 7a30b543583fc4e4849e2b615c5256f499e0d4b92d555bc81dd0166e02860745
 taskFingerprint: cc94ff6af6bccd0fa2ce59f0742e09743b6bf854d5c48af4097e7194f000ee93
 gitHead: 13172c0
-generatedAt: 2026-09-26T07:01:06Z
+generatedAt: 2026-09-26T07:13:55Z
 ---
 
 # Specifier — FJ-001
@@ -65,3 +65,11 @@ dependency policy is satisfied by adding nothing at all.
 The coder implements the four allowed files. Package boundaries beyond
 `internal/cli` are deliberately not scaffolded: an empty package has no
 observable behavior and would only be deleted and rewritten by FJ-010+.
+
+## Re-evidenced 2026-09-26T07:13:55Z
+
+FJ-048 added `/fake-jev` to `.gitignore`, which changes the workspace candidate
+fingerprint and therefore invalidates this item's earlier evidence. The stage was
+re-run: the four Go files are byte-identical to the original pass, so the findings
+above stand unchanged, and `go test`, `go vet`, and `go build ./cmd/fake-jev` were
+re-executed against them. Only the recorded fingerprints differ.
