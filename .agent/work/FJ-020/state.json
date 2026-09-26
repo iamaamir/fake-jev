@@ -43,9 +43,7 @@
     "no verify",
     "no journal-visible control requests"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-020"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement the stub and meta endpoints against the engine",

@@ -188,6 +188,8 @@ specification escalation.
 
 - `AGENTS.md` — universal rules injected into tasks.
 - `.agent/README.md` — work-item and report schemas.
+- `.agent/gate-policy.json` — bootstrap exemptions (gate, code, scope, trackedBy); reviewed, never toggled per task.
+- `.agent/schema/` — canonical JSON contracts for work items, role packs and stage artifacts.
 - `docs/development/acceptance-catalog.md` — acceptance IDs traced to spec sections.
 - `docs/agents/` — how the engineering skills read the tracker, labels, and domain docs.
 - `docs/adr/` — architecture decision records (rare, meaningful decisions only).

@@ -37,9 +37,7 @@
     "no signals or ready file (FJ-031)",
     "no journal bookkeeping (FJ-013)"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-017"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement dispatch, limit enforcement, and failure bodies; test through a real listener",

@@ -43,9 +43,7 @@
     "no HTTP host",
     "no auth enforcement of any kind"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-016"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement encoding, models, and raw responses with golden tests",

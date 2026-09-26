@@ -6,6 +6,7 @@ each other without chat history.
 ```text
 .agent/
     work/<task-id>/state.json     durable work item (commit as needed)
+    work/<task-id>/<stage>.md     stage evidence artifact (commit as needed)
     reports/<task-id>/*.json      verification evidence (commit when it matters)
     logs/                         transient scratch logs (gitignored)
 ```
@@ -19,6 +20,7 @@ each other without chat history.
   "phase": "foundation",
   "objective": "Short concrete objective",
   "status": "planned",
+  "stage": null,
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -29,7 +31,7 @@ each other without chat history.
   "allowedFiles": ["internal/engine/stub.go", "internal/engine/stub_test.go"],
   "acceptance": ["C-MATCH-001: priority DESC then registration order ASC"],
   "nonGoals": ["no matcher specificity scoring"],
-  "verificationCommands": ["./scripts/verify-candidate FJ-001"],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement stub ordering",
@@ -44,6 +46,9 @@ Field meanings:
 | `id` | Stable task id; matches the directory name. |
 | `phase` | Which specification phase the item belongs to (e.g. `foundation`, `phase-1`). |
 | `status` | One of the vocabulary values below. |
+| `stage` | Current stage or `null`; one of the five vocabulary stages — see Stage artifacts below. |
+| `requiredStages` | Explicit additive-only override of the derived stage set; must keep every policy-derived stage in canonical order. Usually absent. |
+| `requiredStagesJustification` | Non-empty string; required iff the explicit list adds stages, absent otherwise. |
 | `assignedRole` | Optional role label for the worker (e.g. `implementer`); informational only. |
 | `leaseOwner` | Exclusive claim on this item by a worker identifier (e.g. `agent-7` or a session id). Required while `status` is `implementing`/`verifying`; must be unique across work items. `null` when unclaimed. |
 | `baseRevision` / `candidateRevision` | Git revisions before/after the attempt; `null` when Git metadata is unavailable. |
@@ -52,6 +57,7 @@ Field meanings:
 | `allowedFiles` | Files the implementor may modify. Entries are paths or `dir/*.go`-style globs; anything else is out of bounds. |
 | `acceptance` | Observable criteria that define done. |
 | `nonGoals` | Explicit exclusions that prevent scope creep. |
+| `verificationCommands` | Item-specific mandatory checks run by `./scripts/verify-candidate <task-id>` on every run regardless of status; real commands only — never a pointer to verify-candidate itself (which runs anyway); empty in practice. |
 | `lastVerification` | Copy of the most recent verification result (see below). |
 | `blockers` | Obstacles, including `{"type": "spec-gap", "description": "..."}`. |
 | `nextAction` | The single next step for whoever picks this up. |
@@ -87,6 +93,41 @@ lease alongside the orientation packet.
 `verify-candidate` records the revision it actually verified. Evidence for revision A
 must never be presented as evidence for revision B. If Git metadata is unavailable,
 the revision field is `null`/`unknown` and the evidence is correspondingly weaker.
+
+## Stage artifacts: `.agent/work/<id>/{specifier,coder,cleaner,hardener,qa}.md`
+
+One artifact per executed stage: concise prose — what was done, what was found,
+what remains — below the required front matter block (design §5):
+
+```yaml
+---
+stage: hardener
+task: FJ-017
+inputFingerprint: 9f2c…
+outputFingerprint: 4ab1…
+taskFingerprint: 7c2e…
+gitHead: a5a7846
+generatedAt: 2026-09-25T11:00:00Z
+---
+```
+
+- `inputFingerprint` / `outputFingerprint` — the workspace content digest
+  (§6.1) before and after the stage; the next required stage must link to your
+  output (`B.inputFingerprint == A.outputFingerprint`).
+- `taskFingerprint` — the task-semantics digest (§6.2) recorded when the stage
+  ran; verification requires it to equal the current value.
+- `gitHead` — diagnostic metadata only, never evidence identity.
+
+Verification is fingerprint-bound: a broken chain link, a recorded fingerprint
+that no longer matches, or a stale terminal artifact fails
+`stage.evidence_stale`; an unparseable header fails `stage.evidence_invalid`;
+a due stage with no artifact fails `stage.artifact_missing`.
+
+**Artifacts are evidence, never verdicts.** No `status`/verdict field exists in
+an artifact — only `./scripts/verify-candidate` emits
+`pass | fail | skipped | not_applicable`, and only in reports under
+`.agent/reports/<task-id>/`. Commit artifacts as needed, like any other work
+state.
 
 ## Verification evidence: `.agent/reports/<task-id>/`
 
@@ -132,6 +173,33 @@ reviewer must not treat it as evidence for the committed tree alone. `clean` is
 Reports are durable evidence another agent or CI can inspect. They are small; keep
 them. If report volume ever becomes noisy, commit reports only for accepted
 revisions and document that policy here rather than guessing.
+
+## Gate policy: `.agent/gate-policy.json`
+
+Reviewable bootstrap waivers for required checks whose tooling does not exist
+yet (design §9.2). v1 commits exactly four exemptions:
+
+| gate | blocks | scope | code | trackedBy |
+|------|--------|-------|------|-----------|
+| `G-L` | `stage.tooling_absent` | product, metadata | `stage.tooling_bootstrap_exempt` | FJ-044 |
+| `G-H` | `stage.tooling_absent` | product | `stage.tooling_bootstrap_exempt` | FJ-045 |
+| `G-Q` | `stage.tooling_absent` | product, metadata | `stage.tooling_bootstrap_exempt` | FJ-046 |
+| `G-C` | `toolchain.pyyaml_missing` | product, metadata | `toolchain.pyyaml_exempt` | FJ-047 |
+
+Each entry is `{gate, blocks, scope, code, reason, trackedBy}`. A waiver
+matches a blocking check only when **all** of these hold: `gate` equals the
+check's gate; `blocks` contains the code the check would otherwise report; the
+item's path class is in `scope`.
+
+`trackedBy` must name an existing work item whose `status` is not `complete`:
+an unknown id fails `policy.exemption_unknown`, a completed tracker fails
+`policy.exemption_stale` — exemptions clean up after themselves instead of
+lingering.
+
+Exemptions apply only to `skipped` rows: they never waive a `fail`, and they
+never manufacture a `pass` — a matched check stays visible as `skipped` with
+the exemption's `code`. Exemptions are policy, not worker choice: they live in
+this file, are reviewed like any other change, and are never toggled per task.
 
 ## Logs: `.agent/logs/`
 

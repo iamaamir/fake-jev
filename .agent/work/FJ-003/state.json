@@ -51,9 +51,7 @@
     "no executable assertions yet, only vector data",
     "no behavior invented beyond §44"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-003"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "transcribe §44 into the concern directories and add an index the harness can load",

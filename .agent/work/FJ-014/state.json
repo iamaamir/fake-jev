@@ -39,9 +39,7 @@
     "no stub selection",
     "no exact upstream framework prose emulation (§39.3)"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-014"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement route matching and first-error validation with golden 422 tests",

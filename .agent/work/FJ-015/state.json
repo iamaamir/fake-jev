@@ -37,9 +37,7 @@
     "no type coercion",
     "no partial answer fallback"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-015"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement the three helpers with tolerance and mismatch tests from §13",

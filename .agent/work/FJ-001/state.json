@@ -37,9 +37,7 @@
     "no Go 1.27-only language features",
     "no CLI framework dependency"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-001"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement the module, entry point, and version command",

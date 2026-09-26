@@ -41,9 +41,7 @@
     "no engine wiring",
     "no profile-specific answer validation beyond envelope shape"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-010"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement parsing, alias normalization, unknown-key rejection, and defaults",

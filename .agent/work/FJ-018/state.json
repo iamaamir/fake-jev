@@ -49,9 +49,7 @@
     "no CLI coverage",
     "no deferred §33 features"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-018"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "integrate the modules and drive the golden corpus through HTTP",

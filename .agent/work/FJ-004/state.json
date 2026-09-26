@@ -30,9 +30,7 @@
     "no release publishing yet",
     "no live upstream drift job"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-004"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add the workflow and confirm it passes on an empty tree",

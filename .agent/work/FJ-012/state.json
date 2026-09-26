@@ -38,9 +38,7 @@
     "no implicit repeat-last",
     "no reset endpoint (that is FJ-021)"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-012"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement sequence consumption and counters, then encode §44.7 as a test",

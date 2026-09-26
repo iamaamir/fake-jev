@@ -32,9 +32,7 @@
     "no performance benchmarking targets",
     "no sleeps-as-sync anywhere in the tests"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-040"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add race tests and fuzz targets for parsing, matcher input, and state transitions",

@@ -36,9 +36,7 @@
     "no log-format json beyond the flag contract",
     "no control-plane authentication"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-031"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement serve, ready-file atomicity, and signal handling",

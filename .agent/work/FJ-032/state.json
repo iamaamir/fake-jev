@@ -37,9 +37,7 @@
     "no duplicated verification logic in the CLI",
     "no interactive prompts"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-032"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement run and verify, then encode the §44.13 precedence table as tests",

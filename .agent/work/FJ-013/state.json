@@ -34,9 +34,7 @@
     "no HTTP status mapping (host concern)",
     "no control API surface"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-013"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement sequencing, journal capacity, and the atomicity guarantees under -race",

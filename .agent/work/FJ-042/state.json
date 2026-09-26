@@ -39,9 +39,7 @@
     "no TypeScript wrapper (phase 5)",
     "no WASM (phase 6)"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-042"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add the release workflow, image, and examples",

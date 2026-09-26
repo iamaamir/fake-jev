@@ -43,9 +43,7 @@
     "no Jev or HTTP knowledge in the engine",
     "no specificity scoring"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-011"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement registry, matcher, and ordering with table-driven tests from §44.5/§44.6",

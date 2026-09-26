@@ -4,6 +4,7 @@
   "phase": "foundation",
   "objective": "Decompose the published v1 PRD (PRD.md in this work item) into bounded, independently verifiable work items covering specification phases 0-4, and drive them through verify-candidate.",
   "status": "review",
+  "stage": "qa",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -38,9 +39,7 @@
     "No TypeScript wrapper (phase 5) or WASM work (phase 6)",
     "No redesign of the specification or of the architecture it defines"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-PRD-001"
-  ],
+  "verificationCommands": [],
   "lastVerification": {
     "revision": "b1b435b",
     "status": "passed",

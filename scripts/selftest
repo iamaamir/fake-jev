@@ -1268,6 +1268,27 @@ def gauntlet_report_binding():
     assert "bound to an older fingerprint" in out, out
 
 
+# --------------------------------------------------------------------------
+# Task 10 scenario: verificationCommands migration pin (real repository scan)
+# (design §6.2 migration note)
+# --------------------------------------------------------------------------
+
+@scenario("verification_commands_never_recurse")
+def verification_commands_never_recurse():
+    # Real repository items (read-only scan): verificationCommands must never
+    # invoke the verifier itself — the gauntlet already runs (design §6.2, §8.3).
+    bad = []
+    for path in sorted((REAL / ".agent" / "work").glob("*/state.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        for entry in data.get("verificationCommands") or []:
+            if not isinstance(entry, str) or "scripts/verify-candidate" in entry:
+                bad.append("%s: %r" % (path.parent.name, entry))
+    assert not bad, "pointer entries must be re-seeded to []: %s" % bad
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.

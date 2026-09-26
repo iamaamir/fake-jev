@@ -37,9 +37,7 @@
     "no control-plane auth",
     "no metrics backend"
   ],
-  "verificationCommands": [
-    "./scripts/verify-candidate FJ-041"
-  ],
+  "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add limit, redaction, and egress assertions as deterministic tests",
