@@ -545,6 +545,7 @@ python3 - "$TASK_ID" "$CAND_FP" "$TASK_JSON" "$TASK_RC" "$ENGINE_ROWS" \
 import json
 import os
 import re
+import subprocess
 import sys
 
 TASK_ID, CAND_FP, TASK_JSON, TASK_RC, OUT_PATH = sys.argv[1:6]
@@ -950,11 +951,59 @@ def evidence_rows():
                  % (header["outputFingerprint"], CAND_FP))
 
 
+def command_tail(proc):
+    """Last non-empty line of stderr, else stdout — one line, TSV-safe."""
+    for stream in (proc.stderr, proc.stdout):
+        lines = [ln.strip() for ln in (stream or "").splitlines() if ln.strip()]
+        if lines:
+            return lines[-1].replace("\t", " ")
+    return ""
+
+
+def verification_rows():
+    """§6.2/§8.3: with a task id, G-C executes the item's verificationCommands
+    — required checks, status-independent, run from the repository root."""
+    if not TASK_ID or TASK_RC != "0":
+        return  # without a usable task object the commands are unknowable
+    try:
+        state = load_json(".agent/work/%s/state.json" % TASK_ID)
+    except ValueError:
+        return  # malformed state: the work-item schema check already fails
+    commands = state.get("verificationCommands") or []
+    if not isinstance(commands, list):
+        return
+    for index, command in enumerate(commands):
+        name = "task.verify_command[%d]" % index
+        display = "verificationCommands[%d]" % index
+        if not isinstance(command, str):
+            continue  # entry validation belongs to the work-item schema check
+        if "scripts/verify-candidate" in command:
+            emit(name, "G-C", True, "fail", 1, "task.verify_command_recursive",
+                 display, "verificationCommands must not invoke verify-candidate")
+            continue
+        # Engine cwd is the repository root (verify-candidate cd's there first).
+        proc = subprocess.run(command, shell=True, capture_output=True,
+                              text=True, cwd=".")
+        if proc.returncode == 0:
+            emit(name, "G-C", True, "pass", 0, "task.verify_command_failed",
+                 display, "")
+        else:
+            reason = "exit %d" % proc.returncode
+            tail = command_tail(proc)
+            if tail:
+                reason += ": " + tail
+            emit(name, "G-C", True, "fail", proc.returncode,
+                 "task.verify_command_failed", display, reason)
+
+
 exemption_rows()
 if TASK_ID:
+    # Policy/stage rows gate their own emission; verificationCommands run
+    # regardless — §8.3 makes them status- and stage-independent.
     if task_policy_rows():
         evidence_rows()
         stage_applicability_rows()
+    verification_rows()
 out.close()
 PY
 ENGINE_RC=$?

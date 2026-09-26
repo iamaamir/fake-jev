@@ -1182,6 +1182,38 @@ def pyyaml_exempt_with_task():
     assert row["exempted"] is True, row
 
 
+# --------------------------------------------------------------------------
+# Task 8 scenarios: verificationCommands execution (design §6.2, §8.3)
+# --------------------------------------------------------------------------
+
+
+@scenario("verify_command_failure")
+def verify_command_failure():
+    item = base_item(verificationCommands=["true", "exit 3"])
+    repo = fixture("vc-fail", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    assert report["status"] == "failed", report["status"]
+    expect(report, "task.verify_command[0]", result="pass",
+           required=True, gate="G-C")
+    expect(report, "task.verify_command[1]", code="task.verify_command_failed",
+           result="fail", required=True, gate="G-C")
+    assert rows(report, "task.verify_command[1]")["exitCode"] == 3
+
+
+@scenario("verify_command_recursive")
+def verify_command_recursive():
+    item = base_item(verificationCommands=[
+        "./scripts/verify-candidate > /dev/null 2>&1; touch RECURSION_PROBE"])
+    repo = fixture("vc-recursive", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "task.verify_command[0]", code="task.verify_command_recursive",
+           result="fail", required=True, gate="G-C")
+    assert not (repo / "RECURSION_PROBE").exists(), \
+        "recursive verification command was executed"
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.
