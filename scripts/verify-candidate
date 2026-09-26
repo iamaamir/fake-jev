@@ -533,7 +533,7 @@ else
     "PyYAML not importable (design §4 conditional)" "toolchain.pyyaml_missing"
 fi
 
-# --- gauntlet engine: policy + evidence rows (stage applicability in Task 7) --
+# --- gauntlet engine: policy, evidence, applicability rows -------------------
 # Rows are TSV: name, gate, required, result, exitCode, code, display, reason.
 # The engine exits non-zero only on internal errors; check outcomes travel as
 # rows (failures are data, not a crashed run).
@@ -552,6 +552,11 @@ TASK_ID, CAND_FP, TASK_JSON, TASK_RC, OUT_PATH = sys.argv[1:6]
 CANONICAL = ["specifier", "coder", "cleaner", "hardener", "qa"]
 STAGE_GATES = {"specifier": "G-S", "coder": "G-C", "cleaner": "G-L",
                "hardener": "G-H", "qa": "G-Q"}
+TOOLING_REASONS = {
+    "cleaner": "complexity/CRAP analyzer not implemented yet",
+    "hardener": "mutation/hardening tooling not implemented yet",
+    "qa": "public-surface/system test harness not implemented yet",
+}
 GATE_IDS = set(STAGE_GATES.values())
 
 out = open(OUT_PATH, "w", encoding="utf-8")
@@ -744,6 +749,36 @@ def task_policy_rows():
     return not problems_found
 
 
+def stage_applicability_rows():
+    """§8.3/§9.3: which stages apply, and which due stages lack tooling.
+
+    `stage.<s>.requiredness` covers every canonical stage outside
+    requiredStages: non-required `not_applicable` carrying the item class as
+    its reason. It is emitted whenever policy is OK — even for a `ready`
+    item — because a stage outside requiredStages is never pending (§8.3).
+
+    `stage.<s>.tooling` covers the three tooling-backed stages that are due:
+    required `skipped`/`stage.tooling_absent`, which the report writer may
+    waive per §9.2 when gate, blocked code and class match.
+
+    Reaching this function means `task_policy_rows()` returned True, so
+    TASK_JSON is non-empty, parseable and classed (interpretation note 5).
+    """
+    info = json.loads(TASK_JSON)
+    required = info.get("requiredStages") or []
+    cls = info.get("class")
+    due = set(info.get("due") or [])
+    for stage in CANONICAL:
+        if stage not in required:
+            emit("stage.%s.requiredness" % stage, STAGE_GATES[stage], False,
+                 "not_applicable", -1, "stage.not_required",
+                 "stage %s requiredness" % stage, cls)
+        elif stage in TOOLING_REASONS and stage in due:
+            emit("stage.%s.tooling" % stage, STAGE_GATES[stage], True,
+                 "skipped", -1, "stage.tooling_absent",
+                 "stage %s tooling" % stage, TOOLING_REASONS[stage])
+
+
 ARTIFACT_KEYS = ("stage", "task", "inputFingerprint", "outputFingerprint",
                  "taskFingerprint", "gitHead", "generatedAt")
 HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -919,7 +954,7 @@ exemption_rows()
 if TASK_ID:
     if task_policy_rows():
         evidence_rows()
-        # stage_applicability_rows() arrives in Task 7
+        stage_applicability_rows()
 out.close()
 PY
 ENGINE_RC=$?
@@ -1139,6 +1174,70 @@ with open(os.environ["ROWS_TSV"], encoding="utf-8") as handle:
             "_required_issue": required_issue,
         })
 
+# (2) Task context: parsed once here and reused by exemption application
+# below and by the report dict at the end (the duplicate inline parse that
+# sat inside `if report_path:` is deleted). Only a successful task run
+# carries a trustworthy class (interpretation note 2).
+info = None
+task_json = os.environ.get("TASK_JSON") or ""
+if task_json and os.environ.get("TASK_RC") == "0":
+    try:
+        info = json.loads(task_json)
+    except ValueError:
+        info = None
+
+# (3) §9.2 / interpretation note 2: an exemption waives a row only when the
+# gate matches, `blocks` contains the row's code, and the item's path class
+# is in `scope` — and only a required `skipped` (§9.3 keeps required+NA
+# invalid; a `fail` is never exempted). Without a task id there is no class,
+# so taskless runs apply nothing. A missing .agent/gate-policy.json skips
+# the application entirely (the required-files row already fails the run),
+# and a malformed exemption entry waives nothing (fail closed).
+cls = (info or {}).get("class")
+if cls:
+    exemptions = []
+    policy_path = ".agent/gate-policy.json"
+    if os.path.isfile(policy_path):
+        try:
+            with open(policy_path, encoding="utf-8") as handle:
+                loaded = json.load(handle)
+            if isinstance(loaded, dict) and isinstance(
+                    loaded.get("exemptions"), list):
+                exemptions = loaded["exemptions"]
+        except (OSError, ValueError):
+            exemptions = []
+    for row in rows:
+        if row["result"] != "skipped" or not row["required"]:
+            continue
+        for exemption in exemptions:
+            if not isinstance(exemption, dict):
+                continue
+            blocks = exemption.get("blocks")
+            scope = exemption.get("scope")
+            if (not isinstance(blocks, list) or not isinstance(scope, list)
+                    or not isinstance(exemption.get("code"), str)
+                    or not isinstance(exemption.get("reason"), str)):
+                continue
+            if (row["gate"] == exemption.get("gate")
+                    and row["code"] in blocks
+                    and cls in scope):
+                row["code"] = exemption["code"]
+                row["exempted"] = True
+                row["reason"] = exemption["reason"]
+                break
+
+# (4) Interpretation note 10: GAUNTLET_SELFTEST_NA=<check-name> forces that
+# one row not_applicable so §12's required+NA row is reachable. Applied
+# after exemptions and before the §9.1 transform it can only turn a
+# pass/skip into the invalid combination the transform then fails as
+# gate.invalid_result — it creates a failure, never masks one.
+forced_na = os.environ.get("GAUNTLET_SELFTEST_NA")
+if forced_na:
+    for row in rows:
+        if row["name"] == forced_na and row["result"] in ("pass", "skipped"):
+            row["result"] = "not_applicable"
+            row["reason"] = "forced not_applicable by GAUNTLET_SELFTEST_NA"
+
 # Design §9.1: a required check may never be not_applicable — an invalid
 # combination is materialized as fail/gate.invalid_result (interpretation note 4).
 for row in rows:
@@ -1191,13 +1290,6 @@ if report_path:
         "unstaged": int(os.environ.get("TREE_UNSTAGED") or 0),
         "untracked": int(os.environ.get("TREE_UNTRACKED") or 0),
     }
-    info = None
-    task_json = os.environ.get("TASK_JSON") or ""
-    if task_json and os.environ.get("TASK_RC") == "0":
-        try:
-            info = json.loads(task_json)
-        except ValueError:
-            info = None
     report = {
         "taskId": os.environ.get("TASK_ID") or None,
         "candidateFingerprint": os.environ.get("CAND_FP") or None,

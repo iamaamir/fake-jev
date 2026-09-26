@@ -607,13 +607,22 @@ def required_fail_failure():
 
 @scenario("required_skipped_failure")
 def required_skipped_failure():
-    repo = fixture("req-skip", items={"FJ-900": base_item()})
+    # Task 3's committed gate-policy waives toolchain.pyyaml_missing, so §12's
+    # "required + skipped → failure" row needs a policy without exemptions.
+    # {"exemptions": []} still passes policy.exemptions.* (count 0).
+    def empty_gate_policy(repo):
+        (repo / ".agent" / "gate-policy.json").write_text(
+            json.dumps({"exemptions": []}) + "\n", encoding="utf-8")
+
+    repo = fixture("req-skip", items={"FJ-900": base_item()},
+                   mutate=empty_gate_policy)
     shim = yaml_shim(repo.parent / "pyyaml-shim")
     proc, report = run_verify(repo, task="FJ-900", env={"PYTHONPATH": shim})
     assert_exit(proc, False)
     assert report["status"] == "failed"
     expect(report, "check_role_packs", code="toolchain.pyyaml_missing",
            result="skipped", required=True)
+    assert rows(report, "check_role_packs")["exempted"] is False
 
 
 @scenario("optional_skipped_success")
@@ -1065,6 +1074,112 @@ def evidence_duplicate_key_padded():
     assert not any(c["name"] == "stage.coder.task_fingerprint"
                    for c in report["checks"]), \
         "an invalid header suppresses the dependent task-fingerprint row"
+
+
+# --------------------------------------------------------------------------
+# Task 7 scenarios: stage applicability, tooling rows, exemption
+# application and the NA seam (design §8.3, §9.1, §9.2, §9.3)
+# --------------------------------------------------------------------------
+
+def verifying_cleaner_item():
+    """Metadata item whose cleaner stage is due (§8.1: verifying → up to stage)."""
+    return base_item(status="verifying", stage="cleaner",
+                     leaseOwner="selftest-agent")
+
+
+def fingerprint_pair(repo, task_id):
+    """(candidate, task) fingerprints bound to the fixture exactly as written."""
+    return candidate_fp(repo), current_tfp(repo, task_id)
+
+
+@scenario("required_na_invalid_result")
+def required_na_invalid_result():
+    repo = fixture("req-na", items={"FJ-900": base_item()})
+    proc, report = run_verify(repo, task="FJ-900",
+                              env={"GAUNTLET_SELFTEST_NA": "check_required_files"})
+    assert_exit(proc, False)
+    assert report["status"] == "failed"
+    expect(report, "check_required_files", code="gate.invalid_result",
+           result="fail", required=True)
+
+
+@scenario("optional_na_success")
+def optional_na_success():
+    # product class, no go.mod yet → Go checks run non-required (note 1a),
+    # so the seam can turn the skip into not_applicable without failing.
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("opt-na", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900",
+                              env={"GAUNTLET_SELFTEST_NA": "check_go_test"})
+    assert_exit(proc, True)
+    assert report["status"] == "passed"
+    expect(report, "check_go_test", result="not_applicable", required=False)
+
+
+@scenario("metadata_hardener_na")
+def metadata_hardener_na():
+    # metadata derives S, C, L, Q: Hardener is outside requiredStages, and a
+    # stage outside requiredStages is never pending — ready emits it too.
+    repo = fixture("meta-hardener", items={"FJ-900": base_item()})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed"
+    row = expect(report, "stage.hardener.requiredness", gate="G-H",
+                 result="not_applicable", required=False,
+                 code="stage.not_required")
+    assert "metadata" in (row["reason"] or ""), row
+
+
+@scenario("exemption_tooling_bootstrap")
+def exemption_tooling_bootstrap():
+    item = verifying_cleaner_item()
+    repo = fixture("ex-tooling", items={"FJ-900": item})
+    fp, tfp = fingerprint_pair(repo, "FJ-900")
+    write_chain(repo, "FJ-900", ["specifier", "coder", "cleaner", "qa"], fp, tfp)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed"
+    row = expect(report, "stage.cleaner.tooling", gate="G-L",
+                 result="skipped", required=True,
+                 code="stage.tooling_bootstrap_exempt")
+    assert row["exempted"] is True, row
+
+
+@scenario("exemption_gate_mismatch")
+def exemption_gate_mismatch():
+    def narrow_blocks(repo):
+        # Same fixture, but the G-L exemption no longer names the blocking
+        # code: gate alone must not waive the row (§9.2 narrow matching).
+        path = repo / ".agent" / "gate-policy.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for exemption in data["exemptions"]:
+            if exemption.get("gate") == "G-L":
+                exemption["blocks"] = ["stage.not_the_tooling_code"]
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    item = verifying_cleaner_item()
+    repo = fixture("ex-gate", items={"FJ-900": item}, mutate=narrow_blocks)
+    fp, tfp = fingerprint_pair(repo, "FJ-900")
+    write_chain(repo, "FJ-900", ["specifier", "coder", "cleaner", "qa"], fp, tfp)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    assert report["status"] == "failed"
+    row = expect(report, "stage.cleaner.tooling", gate="G-L",
+                 result="skipped", required=True,
+                 code="stage.tooling_absent")
+    assert row["exempted"] is False, row
+
+
+@scenario("pyyaml_exempt_with_task")
+def pyyaml_exempt_with_task():
+    repo = fixture("pyyaml-exempt", items={"FJ-900": base_item()})
+    shim = yaml_shim(repo.parent / "pyyaml-shim")
+    proc, report = run_verify(repo, task="FJ-900", env={"PYTHONPATH": shim})
+    assert_exit(proc, True)
+    assert report["status"] == "passed"
+    row = expect(report, "check_role_packs", code="toolchain.pyyaml_exempt",
+                 result="skipped", required=True)
+    assert row["exempted"] is True, row
 
 
 # --- runner ---
