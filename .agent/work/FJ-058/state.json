@@ -1,0 +1,53 @@
+{
+  "id": "FJ-058",
+  "title": "Guard race + fuzz: G-H race row and bounded fuzz runner with crash-input preservation",
+  "phase": "foundation",
+  "objective": "Add the G-H verify rows: a repository go test -race row following the existing na_check/run_check pattern, and the guard fuzz runner (Fuzz target discovery, positive fuzztime enforcement, 0-target pass, crash failure with the failing input preserved under testdata/fuzz/), dueness- and class-gated per interpretation note 3, with matching selftest scenarios (design §5, FJ-058 row).",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§22.2 bounded fuzz with seed replay",
+    "§23 CI requirements",
+    "guard design §3.3 (race + fuzz)",
+    "guard design §4 (class scoping)",
+    "guard design §5 (G-H)",
+    "guard design §5 ownership pin (targets belong to FJ-040)"
+  ],
+  "relevantFiles": [
+    "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md",
+    "docs/superpowers/plans/2026-09-26-guard-stack.md",
+    "cmd/guard/fuzz.go",
+    "cmd/guard/fuzz_test.go",
+    "scripts/verify-candidate",
+    "scripts/selftest"
+  ],
+  "allowedFiles": [
+    "cmd/guard/",
+    "scripts/verify-candidate",
+    "scripts/selftest"
+  ],
+  "acceptance": [
+    "verify-candidate gains a go test -race repository row at gate G-H using the existing na_check/run_check pattern; empty package set and missing go.mod fail or skip closed per interpretation note 3",
+    "guard fuzz discovers Fuzz*(*testing.F) targets offline, rejects non-positive fuzz.fuzztime, passes with zero targets, and on crash preserves the failing input under testdata/fuzz/<Target>/ with a guard.fuzz.crash finding",
+    "fuzz and race rows run only for product class with the hardener stage due, are na otherwise, and a required row is never na (interpretation note 3)",
+    "selftest gains the race/fuzz scenarios (due-pass, due-fail, metadata na, zero-target, stage na, crash, bounded live pass); full battery 70 green and task-less ./scripts/verify-candidate exits 0"
+  ],
+  "nonGoals": [
+    "do not create fuzz targets (FJ-040 owns targets)",
+    "do not implement mutation or complexity floors (FJ-044/FJ-045)",
+    "do not weaken or delete any existing selftest scenario",
+    "do not edit the specification"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "wait for FJ-057 complete, then read ./scripts/agent-context FJ-058 and execute Task 6 of docs/superpowers/plans/2026-09-26-guard-stack.md",
+  "notes": [
+    "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; depends on FJ-057; ownership pin: this item ships the fuzz runner only, FJ-040 ships targets."
+  ],
+  "stage": null,
+  "leaseOwner": null
+}
