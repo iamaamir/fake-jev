@@ -1,0 +1,51 @@
+{
+  "id": "FJ-057",
+  "title": "Guard trace: test-marker scan subcommand with catalog validation and the G-Q verify row",
+  "phase": "foundation",
+  "objective": "Add the guard trace subcommand: a syntactic scan of _test.go string literals and testdata/contracts tags for C-ID markers with catalog validation, trace.active starting [], the fail-closed guard.trace verify row at gate G-Q, and the untraced-active / unknown-id / empty-pass selftest scenarios (design §5, FJ-057 row).",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§22 testing strategy",
+    "guard design §3.1 (trace floor)",
+    "guard design §5 (G-Q)",
+    "docs/development/acceptance-catalog.md (known-ID source)"
+  ],
+  "relevantFiles": [
+    "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md",
+    "docs/superpowers/plans/2026-09-26-guard-stack.md",
+    "cmd/guard/trace.go",
+    "cmd/guard/trace_test.go",
+    "scripts/verify-candidate",
+    "scripts/selftest",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "cmd/guard/",
+    "scripts/verify-candidate",
+    "scripts/selftest"
+  ],
+  "acceptance": [
+    "guard trace proves every active C-ID has a test marker and every _test.go marker names a catalog ID, offline and syntactically (no go.mod, no build)",
+    "trace.active starts [] so the repository passes with an empty activation set",
+    "verify-candidate gains the fail-closed guard.trace row at gate G-Q with the metadata na row (interpretation notes 1-3)",
+    "selftest gains the untraced-active, unknown-id and empty-pass scenarios; full battery green and task-less ./scripts/verify-candidate exits 0"
+  ],
+  "nonGoals": [
+    "do not add any acceptance ID to the catalog",
+    "do not weaken or delete any existing selftest scenario",
+    "do not edit the specification"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "wait for FJ-056 complete, then read ./scripts/agent-context FJ-057 and execute Task 5 of docs/superpowers/plans/2026-09-26-guard-stack.md",
+  "notes": [
+    "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; depends on FJ-056 (handlers registry and verify row scaffolding)."
+  ],
+  "stage": null,
+  "leaseOwner": null
+}
