@@ -3,15 +3,15 @@
   "title": "Phase 0: CI pipeline",
   "phase": "phase-0",
   "objective": "Add CI that runs tests, the race detector, vet, and the build matrix offline with no model, credential, or paid service.",
-  "status": "ready",
-  "baseRevision": null,
-  "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "status": "complete",
+  "baseRevision": "e7e7138",
+  "candidateRevision": "e7e7138",
+  "assignedRole": "qa",
+  "attempts": 1,
   "specReferences": [
-    "§23 CI requirements",
-    "§23.1 build matrix",
-    "§22 testing strategy"
+    "\u00a723 CI requirements",
+    "\u00a723.1 build matrix",
+    "\u00a722 testing strategy"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -31,8 +31,21 @@
     "no live upstream drift job"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "result": "passed",
+    "report": ".agent/reports/FJ-004/report-20260926T111511Z.json",
+    "revision": "e7e7138",
+    "candidateFingerprint": "c4e916423dd448457485d308552f3c4570ace87a995a9fff2b02c2e2e8c68cbe",
+    "taskFingerprint": "2ea92092d10f8694889c3b2ce13e29be73b029f0d14ff9cc9f8388d7bf688874",
+    "finishedAt": "2026-09-26T11:15:11Z",
+    "summary": "30 passed, 0 failed, 2 skipped, 4 not_applicable",
+    "qaTerminalRow": "pass"
+  },
   "blockers": [],
-  "nextAction": "add the workflow and confirm it passes on an empty tree",
-  "notes": []
+  "nextAction": "none \u2014 FJ-004 closed; first real GitHub Actions run on a fresh runner remains the open observation (qa.md G-1)",
+  "notes": [
+    "PM 2026-09-26: two G-L findings were applied as a coder revision pass before QA (comment no longer overclaims offline enforcement; GOPROXY hoisted to job-level env on both jobs; dead GOFLAGS removed). SHA-pinning of actions has no owning stage for metadata-class items (no hardener) \u2014 open PM question, tracked in qa.md/cleaner.md."
+  ],
+  "stage": "qa",
+  "leaseOwner": null
 }
