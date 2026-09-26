@@ -1,0 +1,61 @@
+{
+  "id": "FJ-056",
+  "title": "Guard core: cmd/guard skeleton, arch + lint subcommands, committed thresholds, G-L verify rows, CI gauntlet gates job",
+  "phase": "foundation",
+  "objective": "Implement the deterministic guard stack core: a stdlib-only cmd/guard with the frozen JSON contract and machine-code registry, arch and lint subcommands proving §17.3 and the L1/L2 lint floors offline, every §3.5 threshold committed in .agent/guards.json, fail-closed guard.arch/guard.lint verify rows at gate G-L, an additive CI gauntlet gates job, and matching selftest scenarios (design §5, FJ-056 row).",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "§17.3 engine purity boundary",
+    "§22 testing strategy",
+    "§23 CI requirements",
+    "guard design §3.2 (arch floor)",
+    "guard design §3.4 (lint floors)",
+    "guard design §3.5 (thresholds)",
+    "guard design §4 (verify rows)"
+  ],
+  "relevantFiles": [
+    "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md",
+    "docs/superpowers/plans/2026-09-26-guard-stack.md",
+    "spec/fake-jev-technical-spec-v2.md",
+    "cmd/guard/",
+    ".agent/guards.json",
+    "scripts/verify-candidate",
+    "scripts/selftest",
+    ".github/workflows/ci.yml"
+  ],
+  "allowedFiles": [
+    "cmd/guard/",
+    ".agent/guards.json",
+    "scripts/verify-candidate",
+    "scripts/selftest",
+    ".github/workflows/ci.yml"
+  ],
+  "acceptance": [
+    "cmd/guard runs offline with stdlib only and emits the frozen JSON contract {check, findings[], stats{}}; usage, unknown check, malformed or missing thresholds exit 2 with stdout empty",
+    "guard arch proves .agent/guards.json forbidden-import rules (exact whole-string and raw-prefix semantics) with stable finding codes, skipping skipDirs",
+    "guard lint proves err_discarded (L1) and unsafe_type_assert (L2) via go/types with GOPROXY=off-safe import resolution",
+    ".agent/guards.json is committed with every §3.5 threshold (arch, lint, complexity, mutation, trace, fuzz) and unknown JSON fields fail closed",
+    "verify-candidate gains fail-closed guard.arch/guard.lint rows at gate G-L with the stage.not_required metadata na rows (interpretation notes 1-3)",
+    "CI gains an additive gauntlet gates job running ./scripts/verify-candidate; the §23 mandated jobs stay untouched",
+    "selftest gains the eight guard arch/lint scenarios; full battery green and task-less ./scripts/verify-candidate exits 0"
+  ],
+  "nonGoals": [
+    "do not implement complexity or mutation floors (FJ-044/FJ-045)",
+    "do not add or remove any dependency",
+    "do not weaken or delete any existing selftest scenario",
+    "do not edit the specification"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "agent: read the task packet via ./scripts/agent-context FJ-056, then execute Tasks 1-4 of docs/superpowers/plans/2026-09-26-guard-stack.md with superpowers:subagent-driven-development or superpowers:executing-plans; serialization precondition: FJ-052 must be complete first (shared scripts/verify-candidate and scripts/selftest)",
+  "notes": [
+    "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; plan Tasks 1-4 close this item; guard stack sequence FJ-056 -> FJ-057 -> FJ-058 (design §5)."
+  ],
+  "stage": null,
+  "leaseOwner": null
+}
