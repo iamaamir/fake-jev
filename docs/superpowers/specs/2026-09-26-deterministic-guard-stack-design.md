@@ -146,7 +146,7 @@ No coverage floor (non-goal in §1).
 | Live fuzz per target | 30 s; any crash fails (repro input committed with the fix) |
 | Race | 0 (existing check) |
 
-Thresholds are committed with FJ-053 before measurement; changing any value requires an
+Thresholds are committed with FJ-056 before measurement; changing any value requires an
 explicit design revision — never a silent loosening.
 
 ## 4. Gate integration, exemptions, fail-closed semantics
@@ -194,11 +194,11 @@ New items (intent; task packets formalize acceptance and `allowedFiles` at execu
 
 | Item | Delivers |
 |---|---|
-| **FJ-053 guard core** | `cmd/guard` skeleton, JSON contract, machine-code registry; `arch` subcommand (§17.3 + `guards.json` rules); `lint` subcommand (L1, L2); `.agent/guards.json` with **all** §3.5 thresholds; verify rows `guard.arch`/`guard.lint` at G-L with fail-closed invocation; CI `gauntlet gates` job; matching selftest scenarios |
-| **FJ-054 guard trace** | `trace` subcommand (test-AST + testdata marker scan); `trace.active` starts `[]`; verify row at G-Q; selftest: untraced-active, unknown-id, empty-pass |
-| **FJ-055 guard race+fuzz** | G-H rows: `go test -race ./...` (existing `na_check` pattern) and the `fuzz` runner (target discovery, `fuzztime`, 0-target pass, crash → committed repro input) |
+| **FJ-056 guard core** | `cmd/guard` skeleton, JSON contract, machine-code registry; `arch` subcommand (§17.3 + `guards.json` rules); `lint` subcommand (L1, L2); `.agent/guards.json` with **all** §3.5 thresholds; verify rows `guard.arch`/`guard.lint` at G-L with fail-closed invocation; CI `gauntlet gates` job; matching selftest scenarios |
+| **FJ-057 guard trace** | `trace` subcommand (test-AST + testdata marker scan); `trace.active` starts `[]`; verify row at G-Q; selftest: untraced-active, unknown-id, empty-pass |
+| **FJ-058 guard race+fuzz** | G-H rows: `go test -race ./...` (existing `na_check` pattern) and the `fuzz` runner (target discovery, `fuzztime`, 0-target pass, crash → committed repro input) |
 
-**Ownership pin:** FJ-055 owns the fuzz *runner*; **FJ-040 (phase-4) owns fuzz *targets***
+**Ownership pin:** FJ-058 owns the fuzz *runner*; **FJ-040 (phase-4) owns fuzz *targets***
 and finds the machinery already in place — its frozen acceptance is untouched. Mutation needs
 no target creation (it walks all product packages), so FJ-045's acceptance also stands.
 
@@ -206,18 +206,18 @@ no target creation (it walks all product packages), so FJ-045's acceptance also 
 subcommands** (vehicle chosen by this design; their acceptance stays byte-unchanged — their
 non-semantic `nextAction` gains a reference to this design at pickup). FJ-046 remains a *test
 package* (G-Q harness), not a subcommand; it waits for a real HTTP surface (after FJ-018),
-while trace enforces from FJ-054 onward regardless — the per-code exemption model makes this
+while trace enforces from FJ-057 onward regardless — the per-code exemption model makes this
 work. FJ-047 and FJ-049 are unchanged.
 
 **Sequence:**
 
 ```text
-FJ-053 -> FJ-054 -> FJ-055 -> FJ-044 -> FJ-045 -> FJ-010 (phase-1 begins)
+FJ-056 -> FJ-057 -> FJ-058 -> FJ-044 -> FJ-045 -> FJ-010 (phase-1 begins)
    ... FJ-046 at data-plane maturity (~after FJ-018); FJ-040 stays phase-4
 ```
 
 **Serialization precondition (out of scope of this design):** FJ-052 — an independent
-process-hardening track — must complete before FJ-053 starts, because both edit
+process-hardening track — must complete before FJ-056 starts, because both edit
 `scripts/verify-candidate` and `scripts/selftest`. One writer at a time on the shared files
 (`scripts/verify-candidate`, `scripts/selftest`, `.agent/guards.json`) avoids rebase theater.
 
@@ -254,3 +254,4 @@ revision.
 | §4 amendment approved | user pick | — |
 | §5 initial verdict | system_one: `approve_with_adjust` 0.53, conf. 0.29 (`approve` 0.19, `rework` 0.28) | — |
 | §5 adjusted (FJ-052 reclassified as serialization precondition) | user delegated to designer; system_one re-run: `approve` 0.57, conf. 0.36 (`rework` 0.01) | direction shift accepted as confirmation |
+| Guard items renumbered FJ-053/054/055 → FJ-056/057/058 | collision fix | concurrent agent allocated FJ-053 (go.mod requires cleanup, closed) and FJ-054 (verifier module posture, queued) between the first commit (`2186b66`) and this revision; FJ-055 left free for the other agent's next sequential allocation |
