@@ -613,24 +613,51 @@ python3 - <<'PY'
 import json
 import os
 
+VALID_RESULTS = {"pass", "fail", "skipped", "not_applicable"}
+
 rows = []
 with open(os.environ["ROWS_TSV"], encoding="utf-8") as handle:
     for line in handle:
-        parts = line.rstrip("\n").split("\t")
+        # split(..., 8) folds any surplus tabs into the last field instead of
+        # crashing the unpack; short lines are padded below.
+        parts = line.rstrip("\n").split("\t", 8)
         while len(parts) < 9:
             parts.append("")
-        (name, gate, required, result, exit_code, code, exempted,
+        (name, gate, required_field, result, exit_code, code, exempted,
          display, reason) = parts
+        issues = []
+        required_issue = None
+        if required_field in ("0", "1"):
+            required = required_field == "1"
+        else:
+            # Fail closed: anything that is not exactly "0" marks the row
+            # required, so a corrupt required field can never demote a row.
+            required = True
+            required_issue = "invalid required vocabulary: %r" % required_field
+        if result not in VALID_RESULTS:
+            issues.append("invalid result vocabulary: %r" % result)
+        if exit_code in ("-1", ""):
+            exit_value = None
+        else:
+            try:
+                exit_value = int(exit_code)
+            except ValueError:
+                exit_value = None
+                issues.append("invalid exitCode vocabulary: %r" % exit_code)
+        if result == "pass" and exit_value not in (None, 0):
+            issues.append("result pass recorded with nonzero exitCode")
         rows.append({
             "name": name,
             "gate": gate,
-            "required": required == "1",
+            "required": required,
             "result": result,
-            "exitCode": None if exit_code in ("-1", "") else int(exit_code),
+            "exitCode": exit_value,
             "code": code,
             "exempted": exempted == "1",
             "command": display,
             "reason": reason or None,
+            "_issues": issues,
+            "_required_issue": required_issue,
         })
 
 # Design §9.1: a required check may never be not_applicable — an invalid
@@ -640,6 +667,31 @@ for row in rows:
         row["result"] = "fail"
         row["code"] = "gate.invalid_result"
         row["reason"] = "required check reported not_applicable"
+
+# Fail closed on malformed row data, mirroring note 4: an unrecognized result
+# token, an unparseable exitCode, or a pass/nonzero-exit contradiction rewrites
+# the row to required fail/gate.invalid_result, and a corrupt required field
+# does the same whenever the row is not already blocking. Corrupt input can
+# therefore never yield status passed while a row carries a fail indication or
+# a nonzero exitCode.
+for row in rows:
+    issues = row.pop("_issues")
+    required_issue = row.pop("_required_issue")
+    row_blocking = row["required"] and (
+        row["result"] == "fail"
+        or (row["result"] == "skipped" and not row["exempted"]))
+    if issues:
+        if required_issue:
+            issues.append(required_issue)
+        row["result"] = "fail"
+        row["code"] = "gate.invalid_result"
+        row["reason"] = "; ".join(issues)
+        row["required"] = True
+    elif required_issue and not row_blocking:
+        row["result"] = "fail"
+        row["code"] = "gate.invalid_result"
+        row["reason"] = required_issue
+        row["required"] = True
 
 blocking = [row for row in rows if row["required"] and (
     row["result"] == "fail"

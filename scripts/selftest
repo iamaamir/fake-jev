@@ -624,6 +624,34 @@ def optional_skipped_success():
     expect(report, "check_go_build", result="skipped", required=False)
 
 
+@scenario("invalid_row_fail_closed")
+def invalid_row_fail_closed():
+    # Sabotage the FIXTURE copy of record_row so the required
+    # check_required_files row is stored with the v1-style result token
+    # "failed" (invalid vocabulary). The real repository script is never
+    # touched; the writer must rewrite the row to fail/gate.invalid_result
+    # and fail the run instead of passing it.
+    def sabotage(repo):
+        target = repo / "scripts" / "verify-candidate"
+        text = target.read_text(encoding="utf-8")
+        needle = '  CHECK_RESULTS+=("$result")'
+        assert text.count(needle) == 1, text.count(needle)
+        target.write_text(text.replace(
+            needle,
+            '  if [ "$name" = "check_required_files" ]; then result="failed"; fi\n'
+            + needle,
+            1), encoding="utf-8")
+
+    repo = fixture("bad-row", items={"FJ-900": base_item()}, mutate=sabotage)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert proc.returncode == 1, (proc.returncode, proc.stdout)
+    assert report["status"] == "failed", report["status"]
+    expect(report, "check_required_files", result="fail",
+           code="gate.invalid_result")
+    # Only the sabotaged row is rewritten; unrelated rows round-trip.
+    expect(report, "check_shell_syntax", result="pass")
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.
