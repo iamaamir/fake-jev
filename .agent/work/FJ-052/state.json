@@ -1,0 +1,48 @@
+{
+  "id": "FJ-052",
+  "title": "Harden: status history, per-stage attribution, and role separation",
+  "phase": "foundation",
+  "objective": "Close the three enforcement gaps exposed by the FJ-002 dogfood run: (1) status transitions are prose-only, so implementing -> complete skips verifying/review undetectably; (2) lastVerification can be recorded from a pre-flip run that emitted no terminal rows; (3) one worker performs every stage with no per-stage attribution, so role expertise and review independence cannot be checked. Approved as the full hardening package by the repository owner; execution is sequenced after the phase-0 ladder.",
+  "status": "planned",
+  "specReferences": [
+    "gauntlet design §5 (stage artifact header fields)",
+    "gauntlet design §6.2 (semantic include-set freeze; design revision required for new semantic fields)",
+    "gauntlet design §7 (terminal freshness) and §8.1 (state rules)",
+    "docs/development/agent-workflow.md (model roles; parallel-work single-worker sentence)"
+  ],
+  "relevantFiles": [
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md",
+    "docs/development/agent-workflow.md",
+    ".agent/schema/work-item.schema.json",
+    ".agent/schema/stage-artifact.schema.json",
+    "scripts/verify-candidate",
+    "scripts/selftest"
+  ],
+  "allowedFiles": [
+    ".agent/",
+    "docs/",
+    "scripts/"
+  ],
+  "acceptance": [
+    "design revision committed first, covering: status transition history, per-stage attribution on stage artifacts, an qa-author != coder-author rule, the workflow norm change ending single-worker multi-role coverage, and resolution of the design's dangling non-semantic `reviews` field mention (forbidden by the schema)",
+    "schemas updated to match the revision, preserving additionalProperties rules (work-item gains statusHistory if introduced; stage-artifact gains author if introduced)",
+    "verify-candidate enforces: (a) lastVerification coverage — a complete item's recorded report must contain pass rows for every required stage's chain and terminal checks, so FJ-002's pre-flip report-20260926T075318Z would fail; (b) transition order as defined by the revision; (c) qa author != coder author",
+    "selftest covers each new check with a fail-closed demonstration scenario",
+    "grandfathering defined for items completed before the revision (FJ-001, FJ-002, FJ-043, FJ-048, FJ-PRD-001 carry no history or attribution) so the battery stays green",
+    "starts only after FJ-003 and FJ-004 are complete and the in-flight selftest reformat has landed",
+    "./scripts/verify-candidate and ./scripts/selftest exit 0 after every step"
+  ],
+  "nonGoals": [
+    "no fake-jev product code",
+    "no soft self-attested markers (assignedRole nudges, lease handoff theater) offered as a substitute for attribution — explicitly rejected by the owner",
+    "no engine or gate changes while FJ-003/FJ-004 are in flight"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "nextAction": "wait for FJ-003 and FJ-004 to complete, then run the specifier stage on this item",
+  "notes": [
+    "Decision provenance: FJ-002 dogfood session — owner chose the full hardening package (statusHistory, attribution, role separation, workflow norm change) with execution after the phase-0 ladder; soft markers were rejected as theater.",
+    "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records."
+  ]
+}

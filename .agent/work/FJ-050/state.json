@@ -31,13 +31,13 @@
   "acceptance": [
     "design §13 batch note records the approved wording tensions: []-omission vs §6.2 letter, pending vs in-progress vs §8.3",
     "report-retention policy documented where .agent/README.md promises it, covering the untracked .agent/reports volume",
-    "stage attribution (per-stage author on stage artifacts) resolved only via a design/spec amendment first; the spec-gap is recorded below and no schema field is invented before it",
+    "stage attribution (per-stage author on stage artifacts) resolved only via a design/spec amendment first; the spec-gap is recorded below and no schema field is invented before it (execution: FJ-052)",
     "fail-closed scenario gaps closed: PyYAML-absent, missing role pack, due/pending e2e assertion, scope-mismatch exemption, exempted+fail coexistence, non-list verificationCommands guards",
     "hardening minors triaged: T7/T8/agent-context named minors addressed or explicitly rejected in notes; T4-T6 minors whose details were lost to session compaction are re-reviewed or dropped by decision",
     "scripts/__pycache__/ ignored per repository hygiene",
     "./scripts/verify-candidate and ./scripts/selftest still exit 0 after each change",
     "validator field lists reconciled: explicit null requiredStages passed verify-candidate (check_work_item_schema's LISTS omits it) while agent-context rejected it and the JSON schema disallows it — discovered when opening this item; add a regression scenario",
-    "lastVerification ordering rule documented or enforced: FJ-002's recorded run (report-20260926T075318Z) preceded the implementing->complete flip, so it emitted no stage.qa rows (in-progress stages emit none); only the unrecorded final run covered them — record from a post-flip run, or make verify enforce it"
+    "lastVerification ordering rule documented or enforced: FJ-002's recorded run (report-20260926T075318Z) preceded the implementing->complete flip, so it emitted no stage.qa rows (in-progress stages emit none); only the unrecorded final run covered them — record from a post-flip run, or make verify enforce it (execution: FJ-052)"
   ],
   "nonGoals": [
     "no product-phase implementation work",
@@ -49,7 +49,7 @@
   "blockers": [
     {
       "type": "spec-gap",
-      "description": "Per-stage attribution (author/actor on stage-artifact headers) is defined neither in the specification nor in the gauntlet design (schema has stage, task, fingerprints, gitHead, generatedAt only). Requires a design/spec amendment before any schema change."
+      "description": "Per-stage attribution (author/actor on stage-artifact headers) is defined neither in the specification nor in the gauntlet design (schema has stage, task, fingerprints, gitHead, generatedAt only). Requires a design/spec amendment before any schema change. Resolution owned by FJ-052."
     }
   ],
   "nextAction": "triage the acceptance bullets when picked up; start attribution with a design/spec amendment, never a schema edit",
