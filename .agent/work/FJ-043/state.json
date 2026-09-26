@@ -3,7 +3,7 @@
   "title": "Gauntlet: stage packs, expertise packs, fingerprint-bound evidence",
   "phase": "foundation",
   "objective": "Implement the frozen gauntlet design (docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md): shared fingerprint tooling, role/expertise packs with schemas, four-valued verification with gate-policy exemptions, evidence-chain enforcement, agent-context gauntlet view, and the full §12 self-test battery.",
-  "status": "review",
+  "status": "complete",
   "stage": "qa",
   "baseRevision": null,
   "candidateRevision": null,
@@ -39,9 +39,15 @@
     "No jsonschema dependency: schemas are contracts, the validator enforces them directly"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "revision": "397ca18",
+    "status": "passed",
+    "report": ".agent/reports/FJ-043/report-20260926T062800Z.json",
+    "summary": "30 passed, 2 skipped, 4 not_applicable",
+    "finishedAt": "2026-09-26T06:28:00Z"
+  },
   "blockers": [],
-  "nextAction": "Review the gauntlet evidence: ./scripts/verify-candidate FJ-043 must pass, then hand off.",
+  "nextAction": "Rollout complete and verified; pick up the next work item.",
   "notes": [
     "Umbrella item for the gauntlet rollout; its stage artifacts are recorded retroactively at the end of the plan (see plan task 11, design interpretation note 13).",
     "Lifecycle condensed to ready -> review because the stages were executed as this plan's documentation and tooling work; there is no workflow engine enforcing transitions."
