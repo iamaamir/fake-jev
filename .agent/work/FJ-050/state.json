@@ -1,0 +1,58 @@
+{
+  "id": "FJ-050",
+  "title": "Backlog: deferred gauntlet follow-ups and stage attribution",
+  "phase": "foundation",
+  "objective": "Persist the follow-ups deferred during the gauntlet rollout (FJ-043) so they survive session handoffs: design §13 batch notes, the report-retention policy promised by .agent/README.md, fail-closed selftest scenario gaps, hardening minors from T4-T9 reviews, repository hygiene, and the per-stage attribution spec gap (stage artifacts record no author).",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "leaseOwner": null,
+  "attempts": 0,
+  "specReferences": [
+    "gauntlet design §5 (stage artifact header fields)",
+    "gauntlet design §13 (batch note)",
+    ".agent/README.md (report retention placeholder)"
+  ],
+  "relevantFiles": [
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md",
+    "docs/development/agent-workflow.md",
+    ".agent/schema/stage-artifact.schema.json",
+    "scripts/selftest",
+    "scripts/verify-candidate",
+    "scripts/agent-context"
+  ],
+  "allowedFiles": [
+    ".agent/",
+    "docs/",
+    "scripts/",
+    "AGENTS.md"
+  ],
+  "acceptance": [
+    "design §13 batch note records the approved wording tensions: []-omission vs §6.2 letter, pending vs in-progress vs §8.3",
+    "report-retention policy documented where .agent/README.md promises it, covering the untracked .agent/reports volume",
+    "stage attribution (per-stage author on stage artifacts) resolved only via a design/spec amendment first; the spec-gap is recorded below and no schema field is invented before it",
+    "fail-closed scenario gaps closed: PyYAML-absent, missing role pack, due/pending e2e assertion, scope-mismatch exemption, exempted+fail coexistence, non-list verificationCommands guards",
+    "hardening minors triaged: T7/T8/agent-context named minors addressed or explicitly rejected in notes; T4-T6 minors whose details were lost to session compaction are re-reviewed or dropped by decision",
+    "scripts/__pycache__/ ignored per repository hygiene",
+    "./scripts/verify-candidate and ./scripts/selftest still exit 0 after each change"
+  ],
+  "nonGoals": [
+    "no product-phase implementation work",
+    "no change to .agent/schema or public contracts before the design/spec amendment for attribution",
+    "no weakening of existing tests or gates to accommodate backlog items"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [
+    {
+      "type": "spec-gap",
+      "description": "Per-stage attribution (author/actor on stage-artifact headers) is defined neither in the specification nor in the gauntlet design (schema has stage, task, fingerprints, gitHead, generatedAt only). Requires a design/spec amendment before any schema change."
+    }
+  ],
+  "nextAction": "triage the acceptance bullets when picked up; start attribution with a design/spec amendment, never a schema edit",
+  "notes": [
+    "Umbrella backlog carried out of the FJ-043 close-out session; sub-items may be split into their own work items when picked up.",
+    "Original detail for T4 minors 2-9, T5 nits 3-8 and T6 minors 3-5 existed only in chat and was compacted; re-review those stages' findings or record them as dropped."
+  ]
+}
