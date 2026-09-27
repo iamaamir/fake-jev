@@ -40,7 +40,7 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "subagent/coder-1 executing the coder stage: schemas, verify checks, selftest scenarios, seeding",
+  "nextAction": "subagent/cleaner-1 executing the cleaner stage (G-L hygiene over scripts/schema/docs changes)",
   "notes": [
     "Decision provenance: FJ-002 dogfood session — owner chose the full hardening package (statusHistory, attribution, role separation, workflow norm change) with execution after the phase-0 ladder; soft markers were rejected as theater.",
     "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records."
@@ -48,8 +48,10 @@
   "statusHistory": [
     "planned",
     "ready",
+    "implementing",
+    "verifying",
     "implementing"
   ],
-  "stage": "coder",
-  "leaseOwner": "subagent/coder-1"
+  "stage": "cleaner",
+  "leaseOwner": "subagent/cleaner-1"
 }
