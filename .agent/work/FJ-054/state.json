@@ -3,7 +3,7 @@
   "title": "Harden: pin the offline module posture in the verifier, and constrain module-graph directives",
   "phase": "phase-0",
   "objective": "Make the offline, standard-library-only module posture fail closed in ./scripts/verify-candidate and locally, not only inside the CI workflow, and record a repository policy that module-graph directives (replace, exclude, retract) are not used without review.",
-  "status": "implementing",
+  "status": "verifying",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -54,6 +54,7 @@
     "ready",
     "implementing",
     "verifying",
-    "implementing"
+    "implementing",
+    "verifying"
   ]
 }

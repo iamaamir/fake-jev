@@ -1226,14 +1226,15 @@ printf 'verify-candidate: module environment pinned (GOFLAGS=%s GOPROXY=%s GOWOR
 
 # An active workspace file silently changes which modules resolve while leaving
 # go.mod untouched, and a root vendor/ directory switches Go to -mod=vendor
-# automatically. Both are detected here — pure environment/filesystem
-# inspection, before any Go check runs — and recorded as required rows naming
-# the offender; when neither exists no row is emitted, so the clean battery is
-# unchanged. An ambient GOWORK that points at nothing cannot put a build into
-# workspace mode, so only an existing file is a finding (the pinned GOWORK=off
-# above keeps the dangling value inert for every go invocation below). The
-# discovery probe clears GOWORK on top of the pinned environment, which is how
-# a parent-directory go.work is found with no environment variable at all.
+# automatically. Both are detected here — environment/filesystem inspection
+# plus one offline `go env GOWORK` probe, before any Go check runs — and
+# recorded as required rows naming the offender; when neither exists no row is
+# emitted, so the clean battery is unchanged. An ambient GOWORK that points at
+# nothing cannot put a build into workspace mode, so only an existing file is a
+# finding (the pinned GOWORK=off above keeps the dangling value inert for every
+# go invocation below). The discovery probe clears GOWORK on top of the pinned
+# environment, which is how a parent-directory go.work is found with no
+# environment variable at all.
 GO_WORKSPACE_FILE=""
 if [ -n "$AMBIENT_GOWORK" ] && [ -e "$AMBIENT_GOWORK" ]; then
   GO_WORKSPACE_FILE="$AMBIENT_GOWORK"
