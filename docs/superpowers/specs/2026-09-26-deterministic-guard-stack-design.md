@@ -1,7 +1,8 @@
 # Deterministic Guard Stack for Product Code — Design
 
 Date: 2026-09-26
-Status: design approved in the brainstorming session of 2026-09-26 (written-spec review pending)
+Status: design approved in the brainstorming session of 2026-09-26; written-spec review
+completed 2026-09-27 (16 findings resolved, re-review verdict SPEC READY)
 Source decisions: five clarifying answers (scope, failure classes, tooling tolerance, quality bar,
 sequencing) plus the architecture pick, all agreed in the brainstorming session of 2026-09-26;
 section verdicts corroborated by `system_one` (see §7).
@@ -17,14 +18,15 @@ Goals:
 3. **Stdlib/in-repo tooling only** — every check runs offline (`GOPROXY=off`-safe): no
    third-party tools, no network, no paid services (§23 mandate).
 4. **Hard floors, zero tolerance** — a violation fails `./scripts/verify-candidate` *and* CI
-   identically, from one committed thresholds file.
+   identically, wherever the row is required, from one committed thresholds file.
 5. **One in-repo binary** (`cmd/guard`, Go, stdlib) implements all guard logic as subcommands
    emitting stable JSON; **`verify-candidate` stays the single enforcer** (shells out, reads
    JSON, emits gate rows — precedent: `candidate-fingerprint` delegation); CI gains a job that
    runs `verify-candidate` itself.
 6. **Satisfies the frozen FJ-044/045/046 acceptance unchanged** (deterministic analysis,
-   stable machine codes, `gate-policy.json` exemption removal) — the guard binary is their
-   vehicle; their acceptance text is never weakened.
+   stable machine codes, `gate-policy.json` exemption removal) — the guard binary is
+   FJ-044/045's vehicle; FJ-046 keeps its test-package vehicle per §5; their acceptance
+   text is never weakened.
 
 Non-goals:
 
@@ -34,8 +36,11 @@ Non-goals:
   evidence semantics.
 - Third-party tooling, network access, or live-upstream drift testing (§22.7 remains optional).
 - Applying floors to metadata items: guard rows are **product-class checks**, mirroring the
-  existing Go-check scoping of the frozen gauntlet design §8.3/§9.3 — required iff the work
-  item's class is `product`, `not_applicable (stage.not_required)` for `metadata`. No new
+  existing Go-check scoping of gauntlet design §8.3/§9.3 (§8.3's scheduling stays frozen;
+  this design **extends** §9.3's code inventory with the new `guard.arch.failed`,
+  `guard.lint.failed`, `guard.trace.failed`, `guard.fuzz.failed`, `guard.race.failed`,
+  `guard.tool.failed`, and `go.system_suite_failed` row codes rather than altering it) — required iff the work item's
+  class is `product`, `not_applicable (stage.not_required)` for `metadata`. No new
   exemption mechanism is introduced; classification itself is unchanged.
 - Coverage floors — subsumed by mutation + traceability (§3), and strictly weaker; adding a
   second score invites calibration drift.
@@ -55,7 +60,10 @@ cmd/guard (Go, stdlib-only, offline)
     guard.arch.forbidden_import,
     guard.lint.err_discarded, guard.lint.unsafe_type_assert,
     guard.complexity.threshold, guard.mutation.survivor,
-    guard.fuzz.crash, guard.race.failed, guard.tool.failed
+    guard.fuzz.crash,
+    guard.trace.failed, guard.arch.failed, guard.lint.failed,
+    guard.fuzz.failed, guard.race.failed, guard.tool.failed,
+    go.system_suite_failed   <- FJ-046's system-suite row code
 
 ./scripts/verify-candidate            (single enforcer, unchanged role)
   shells out, validates JSON, maps findings to gate rows:
@@ -88,15 +96,22 @@ Key choices:
 
 - **Marker convention:** a test covers a C-ID by carrying it in a subtest name:
   `t.Run("C-MATCH-007/choice-order", ...)`. `guard trace` walks `_test.go` files with
-  `go/parser` and also scans `testdata/contracts` for C-ID tags (an empty result is fine —
-  tags accumulate as vectors gain IDs).
+  `go/parser`: coverage counts every `C-[A-Z0-9]+-[0-9]+` occurrence in a string literal
+  (the AST walk — any literal counts, so early annotations are not rejected), plus every
+  such occurrence in files under `testdata/contracts` (an empty result is fine — tags
+  accumulate as vectors gain IDs). `testdata/fuzz/` is outside this scan: a committed
+  corpus string must never satisfy an active ID.
 - **Activation:** `guards.json` `trace.active` starts `[]`; a phase item's task packet appends
   its C-IDs **before that item's verification runs** (FJ-010 appends phase-1's during its own
   execution), and every appended ID persists for all later verify runs. Never demands tests
   for features that do not exist yet.
-- **Floors (zero tolerance):** active ID with zero markers → `guard.trace.untraced`; marker
-  naming an ID absent from `docs/development/acceptance-catalog.md` → `guard.trace.unknown_id`.
-  Inactive-but-traced is allowed (early annotation is encouraged).
+- **Floors (zero tolerance):** active ID with zero markers → `guard.trace.untraced`; a
+  `_test.go` marker naming an ID absent from `docs/development/acceptance-catalog.md` →
+  `guard.trace.unknown_id`. The unknown-id floor applies to `_test.go` markers **only**:
+  five existing `testdata/contracts` tags (`C-MIXED-001/002`, `C-VALID-003/004`,
+  `C-VERIF-004`) have no catalog row, the catalog is FJ-049's sole ownership, and a
+  day-one failure would deadlock FJ-057's own close. Inactive-but-traced is allowed
+  (early annotation is encouraged).
 - The catalog stays **read-only** to guards — FJ-049 remains the sole catalog editor;
   activation lives in `guards.json`.
 
@@ -121,7 +136,11 @@ Key choices:
   `guards.json` per-mutant timeout. Floors: **overall ≥ 75%, per-package ≥ 60%**; survivors
   surface as `guard.mutation.survivor`. 0 mutants in scope = **pass** by defined convention.
 - **race:** `go test -race ./...` becomes a required G-H verify row (CI already runs it per
-  §23).
+  §23). Requiredness ladder: required=1 when the item is product-class with the hardener
+  stage due (which holds at review/complete); task-less runs emit the row visible with
+  required=0 — CI's §23 `go test -race ./...` job is the task-less race enforcer; with no
+  `go.mod` or no repository Go packages it skips non-required (nothing to run, exactly
+  like the existing Go-check skips).
 - **fuzz:** seed-corpus replay already rides ordinary `go test`; bounded live fuzz at G-H and
   CI: **30s per target** (`guards.json` `fuzz.fuzztime`); `guard fuzz` AST-discovers
   `func Fuzz*` targets; 0 targets = pass; a crash fails with `guard.fuzz.crash` and the
@@ -153,8 +172,9 @@ explicit design revision — never a silent loosening.
 
 **Exemptions are per-code, not per-gate.** Each entry in `.agent/gate-policy.json` lists
 `blocks: [failure codes]`, a `scope` of item classes, and a `trackedBy` item that verify §9.2
-requires to exist and be **non-complete**. Today's bootstrap entries block only
-`stage.tooling_absent` — the row a gate reports while its planned tooling does not exist.
+requires to exist and be **non-complete**. Today's bootstrap entries: G-L/G-H/G-Q block
+only `stage.tooling_absent` — the row a gate reports while its planned tooling does not
+exist; the G-C entry blocks `toolchain.pyyaml_missing`.
 
 Consequences (normative):
 
@@ -167,8 +187,11 @@ Consequences (normative):
    replaces with real tool output.
 3. An exempt gate's blocked code is skipped with a visible reason and machine code — never
    silently half-run.
-4. **Class scoping mirrors the Go checks** (frozen design §8.3/§9.3): every guard row is
-   required iff the work item's class is `product`; metadata items receive
+4. **Class scoping mirrors the Go checks** (gauntlet design §8.3/§9.3 — frozen for the
+   inventory they already carry; this design **extends** §9.3's inventory with the new
+   `guard.arch.failed`, `guard.lint.failed`, `guard.trace.failed`, `guard.fuzz.failed`,
+   `guard.race.failed`, `guard.tool.failed`, and `go.system_suite_failed` row codes): every guard row is required
+   iff the work item's class is `product`; metadata items receive
    `not_applicable (stage.not_required, class metadata)` for guard rows exactly as they
    already do for `go test`/`go vet`/`go build`. Gate-policy `scope` matching is untouched.
 
@@ -203,11 +226,27 @@ and finds the machinery already in place — its frozen acceptance is untouched.
 no target creation (it walks all product packages), so FJ-045's acceptance also stands.
 
 **Existing items:** FJ-044 and FJ-045 implement their analyzers **as `cmd/guard`
-subcommands** (vehicle chosen by this design; their acceptance stays byte-unchanged — their
-non-semantic `nextAction` gains a reference to this design at pickup). FJ-046 remains a *test
-package* (G-Q harness), not a subcommand; it waits for a real HTTP surface (after FJ-018),
-while trace enforces from FJ-057 onward regardless — the per-code exemption model makes this
-work. FJ-047 and FJ-049 are unchanged.
+subcommands** (vehicles: FJ-044 = `cmd/guard/complexity`, FJ-045 = `cmd/guard/mutation`;
+their acceptance stays byte-unchanged — their non-semantic `nextAction` gains a reference
+to this design at pickup). FJ-046 remains a *test package* (G-Q harness), **not** a
+subcommand; it waits for a real HTTP surface (after FJ-018), while trace enforces from
+FJ-057 onward regardless — the per-code exemption model makes this work. FJ-047 and FJ-049
+are unchanged.
+
+**AllowedFiles amendments at pickup (safe now):** at pickup, FJ-044/045/046 `allowedFiles`
+(and `relevantFiles`) are amended to add `cmd/guard/` (044/045), `scripts/verify-candidate`,
+`scripts/selftest`, and `.agent/gate-policy.json` — safe because no stage artifacts exist
+yet, so the taskFingerprint move invalidates nothing. The same holds for **FJ-010**: its
+packet gains `.agent/guards.json` in `allowedFiles` at pickup (same no-artifacts-yet
+safety).
+
+**Full deliverables per item (each at its own execution):**
+
+| Item | Delivers |
+|---|---|
+| **FJ-044** | the `complexity` subcommand plus its verify dispatch arm at G-L; removes the `stage.cleaner.tooling` entry from `TOOLING_REASONS` (replaced by real row output) and the matching `gate-policy.json` entry; retargets the two selftest scenarios keyed on `stage.cleaner.tooling` |
+| **FJ-045** | the `mutation` subcommand plus its verify dispatch arm at G-H; removes the `stage.hardener.tooling` entry from `TOOLING_REASONS` and the matching `gate-policy.json` entry |
+| **FJ-046** | the G-Q system-suite **test package** (not a subcommand) plus its verify dispatch arm (code `go.system_suite_failed`); removes the `stage.qa.tooling` entry from `TOOLING_REASONS` and the matching `gate-policy.json` entry |
 
 **Sequence:**
 

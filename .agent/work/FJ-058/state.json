@@ -32,8 +32,8 @@
   "acceptance": [
     "verify-candidate gains a go test -race repository row at gate G-H using the existing na_check/run_check pattern; empty package set and missing go.mod fail or skip closed per interpretation note 3",
     "guard fuzz discovers Fuzz*(*testing.F) targets offline, rejects non-positive fuzz.fuzztime, passes with zero targets, and on crash preserves the failing input under testdata/fuzz/<Target>/ with a guard.fuzz.crash finding",
-    "fuzz and race rows run only for product class with the hardener stage due, are na otherwise, and a required row is never na (interpretation note 3)",
-    "selftest gains the race/fuzz scenarios (due-pass, due-fail, metadata na, zero-target, stage na, crash, bounded live pass); full battery 70 green and task-less ./scripts/verify-candidate exits 0"
+    "in task-ful runs, fuzz and race run only for product class with the hardener stage due and are not_applicable for non-product classes; while the hardener stage is not yet due they emit no row (pending under gauntlet §8.3); task-less runs enforce fuzz (required=1) and race (visible, required=0) per the plan's requiredness matrix, with CI's §23 race job as the task-less race enforcer",
+    "selftest gains the race/fuzz scenarios (due-pass, due-fail, metadata na, zero-target, stage na, crash, bounded live pass); full battery 74 green and task-less ./scripts/verify-candidate exits 0"
   ],
   "nonGoals": [
     "do not create fuzz targets (FJ-040 owns targets)",
@@ -50,5 +50,7 @@
   ],
   "stage": null,
   "leaseOwner": null,
-  "statusHistory": ["planned"]
+  "statusHistory": [
+    "planned"
+  ]
 }

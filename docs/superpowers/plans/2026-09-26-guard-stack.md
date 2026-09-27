@@ -28,27 +28,27 @@
 
 These resolve points the design left open or where repository reality constrains the reading. Each is a consequence of fail-closed, deadlock-avoidance, or determinism reasoning recorded during planning; they are normative for this implementation.
 
-1. **Bootstrap guard skips (deadlock avoidance, mirrors gauntlet note 1).** Design §4 requires fail-closed once the tooling exists, but FJ-056's own first commit cannot pass a required row whose binary does not exist yet. Therefore, while `go.mod` or `cmd/guard/` is absent, the `check_guard_arch`/`check_guard_lint`/`check_guard_trace`/`check_guard_fuzz` rows are `skipped`, **`required: false`**, reason `cmd/guard does not exist yet (foundation bootstrap)`. The race row skips `no go.mod yet (foundation phase)` / `no repository Go packages yet` non-required, exactly like the existing Go-check skips. Required is **always** 0 on bootstrap skips: report-writer blocking is `required && skipped && !exempted`, and a required bootstrap skip would block the very first task-less run (fixture repos and CI included).
-2. **Presence means full fail-closed (design §4, verbatim).** The skip in note 1 covers only *total absence*. If `cmd/guard/` and `go.mod` exist, then: missing or unparsable `.agent/guards.json`, a binary that fails to build, malformed report JSON, `check` mismatch, `findings` not an array, `exit 0` with findings, or `exit 1` with none — all record a required-fail row with code `guard.tool.failed`. There is no half-run state.
+1. **Bootstrap guard skips (deadlock avoidance, mirrors gauntlet note 1).** Design §4 requires fail-closed once a repository has code to guard, but a foundation-phase repository (and every selftest fixture) may have no Go module at all. Therefore the `check_guard_arch`/`check_guard_lint`/`check_guard_trace`/`check_guard_fuzz`/`check_go_race` rows are `skipped`, **`required: false`**, while there is nothing to guard: reason `no go.mod yet (foundation phase)` while `go.mod` is absent, `no repository Go packages yet` while the module has no packages — exactly the existing Go-check skip reasoning, now shared by every guard row (one `GUARD_SKIP` decision). `cmd/guard/` absence is **not** a skip key: once a module with packages exists, a missing or unbuildable binary is a **required** `guard.tool.failed` (`guard_row` fail-closes through `guard_build`; note 2). Required is **always** 0 on bootstrap skips: report-writer blocking is `required && skipped && !exempted`, and a required bootstrap skip would block the very first task-less run (fixture repos and CI included).
+2. **Presence means full fail-closed (design §4, verbatim).** The skips in note 1 cover only nothing-to-guard states (no `go.mod`, no repository Go packages). Once a module with packages exists, then: missing or unparsable `.agent/guards.json`, a binary that fails to build (including `cmd/guard/` being absent entirely), malformed report JSON, `check` mismatch, `findings` not an array, `exit 0` with findings, or `exit 1` with none — all record a required-fail row with code `guard.tool.failed`. There is no half-run state.
 3. **Requiredness matrix.** `HARDENER_DUE` is read from `candidate-fingerprint task`'s `due` array (1 iff `hardener ∈ due`; only possible for `product` items — metadata `requiredStages` has no hardener).
 
    | Context | arch / lint / trace | fuzz | race (`check_go_race`) |
    |---|---|---|---|
-   | task-less (no task id) | required=1 (tool present), else note-1 skip | required=1 (tool present), else note-1 skip | run, required=**0** (visible; the §23 CI job enforces race) |
+   | task-less (no task id) | required=1, else note-1 skip | required=1, else note-1 skip | run, required=**0** (visible; the §23 CI job enforces race) |
    | task-ful, class `metadata` | `not_applicable (stage.not_required, class metadata (design §9.3))`, required=0 | same | same |
    | task-ful, `product`, hardener due (verifying@hardener / review / complete) | required=1 | required=1 | required=1 (skip non-required if no go.mod / no packages) |
-   | task-ful, `product`, hardener not due | required=1 | `stage.not_required`, reason `hardener stage not due`, required=0 | same |
+   | task-ful, `product`, hardener not due | required=1 | **no row** (pending under gauntlet §8.3: no check entry, no verdict) | **no row** (pending under gauntlet §8.3) |
    | task-ful, state unparseable (class unknown) | run, required=0 | `stage.not_required`, reason `class not product (design §4.4)`, required=0 | same |
 
-   Rationale: task-less runs are what CI's `gauntlet gates` job executes, so arch/lint/trace/fuzz must block there; fuzz is required at task-less because **no other CI lane runs fuzz** and 0 targets returns instantly (design §4 vacuous pass). Race is non-required at task-less because §23's own `go test -race ./...` job already enforces it. A `required` row may never be `not_applicable` (report-writer §9.1 transform), which is why every na row carries `required=0`.
+   Rationale: task-less runs are what CI's `gauntlet gates` job executes, so arch/lint/trace/fuzz must block there; fuzz is required at task-less because **no other CI lane runs fuzz** and 0 targets returns instantly (design §4 vacuous pass). Race is non-required at task-less because §23's own `go test -race ./...` job already enforces it. A `required` row may never be `not_applicable` (report-writer §9.1 transform), which is why every na row carries `required=0`. Fuzz and race are stage-bound (G-H): when the hardener stage is pending, gauntlet §8.3 decides "no check entry and no verdict — it is not `skipped`, which would be a verdict", so neither row is emitted at all; a pending row is not an `na` row, and arch/lint/trace are class-gated (§4.4) and still bind.
 4. **Rows land with their subcommand (fail-closed preserved).** Task 4 adds only the arch+lint arms to the dispatch block; Task 5 adds trace; Task 6 adds fuzz and race (plus their `check_code` entries). At no intermediate revision does a row exist whose tool does not.
-5. **Trace marker semantics (design §3.1 read against repository reality).** Markers for *coverage* = every `C-[A-Z0-9]+-[0-9]+` occurrence in `_test.go` string literals (AST) **plus** every occurrence in files under `testdata/` (design's `testdata/contracts` — the whole tree is `contracts/`). The subtest-name convention stays the documented convention, but any string literal counts as coverage so early annotations are not rejected. **`guard.trace.unknown_id` is enforced on `_test.go` markers only**; `testdata/` tags are *not* catalog-validated: five vector tags (`C-MIXED-001/002`, `C-VALID-003/004`, `C-VERIF-004`) exist under `testdata/contracts/` with no catalog row, the catalog is FJ-049's sole ownership, and a floor that fails the repository on day one would deadlock FJ-057's own close — the opposite of §4's vacuous-pass rule. Known set = catalog table rows (`^\|\s*(C-[A-Z0-9]+-\d+)\s*\|`); an absent/rowless catalog is a tool error (exit 2). Active IDs not covered → `guard.trace.untraced` (path `.agent/guards.json`), zero tolerance.
+5. **Trace marker semantics (design §3.1 read against repository reality).** Markers for *coverage* = every `C-[A-Z0-9]+-[0-9]+` occurrence in `_test.go` string literals (AST) **plus** every occurrence in files under `testdata/contracts/` (the whole tree is `contracts/`); `testdata/fuzz/` is outside this scan so a committed corpus string can never satisfy an active ID (design §3.1). The subtest-name convention stays the documented convention, but any string literal counts as coverage so early annotations are not rejected. **`guard.trace.unknown_id` is enforced on `_test.go` markers only**; `testdata/` tags are *not* catalog-validated: five vector tags (`C-MIXED-001/002`, `C-VALID-003/004`, `C-VERIF-004`) exist under `testdata/contracts/` with no catalog row, the catalog is FJ-049's sole ownership, and a floor that fails the repository on day one would deadlock FJ-057's own close — the opposite of §4's vacuous-pass rule. Known set = catalog table rows (`^\|\s*(C-[A-Z0-9]+-\d+)\s*\|`); an absent/rowless catalog is a tool error (exit 2). Active IDs not covered → `guard.trace.untraced` (path `.agent/guards.json`), zero tolerance.
 6. **Guard JSON contract as verified by `verify-candidate`.** `exit 0` + valid JSON + `check == <subcommand>` + `findings: []` → pass. `exit 1` + valid JSON + `check == <subcommand>` + non-empty `findings` → fail with `findings[0].code`, reason `path:line: message (+N more finding(s))`. Everything else → `guard.tool.failed` (reason carries `exit N` + stderr tail). Findings are emitted sorted by `(path, line, code)` so `findings[0]` is deterministic.
-7. **Lint scope and exemptions.** Files = `GoFiles + TestGoFiles` of each kept package (external `XTestGoFiles` excluded). L1 `err_discarded`: an `ExprStmt` call, or a blank-identifier slot of a tuple assign, whose aligned result type `implements(error)` via `go/types`; `defer`/`go` statements are not expression statements and are never flagged. `lint.errIgnored` (committed allowlist: `fmt.Print`, `fmt.Printf`, `fmt.Println`, `fmt.Fprint`, `fmt.Fprintf`, `fmt.Fprintln`) suppresses L1 for those callees — matched on the types-derived `pkgPath.Name`/`Type.Method`, never on raw text — which is what keeps the four existing `fmt.Fprint*` statements in `internal/cli/dispatch.go` clean without touching files outside `allowedFiles`. L2 `unsafe_type_assert`: single-value `x.(T)` is flagged unless it sits in a 2-LHS comma-ok assign (`v, ok := x.(T)` / `if v, ok := ...`) — the `.(type)` form of a type switch parses with a nil type and is never a candidate. Any type-check error → exit 2 (`guard.tool.failed`), because absence of violations cannot be proven.
+7. **Lint scope and exemptions.** Files = `GoFiles + TestGoFiles` of each kept package (external `XTestGoFiles` excluded). L1 `err_discarded`: an `ExprStmt` call, or a blank-identifier slot of a tuple assign, whose aligned result type `implements(error)` via `go/types`; `defer`/`go` statements are not expression statements and are never flagged. **There is no suppression mechanism: L1 is zero-tolerance with no allowlist** (`lint.errIgnored` does not exist) — the four pre-existing `fmt.Fprint*` statements in `internal/cli/dispatch.go` are rewritten in Task 4 to a form outside L1's scope (Task 4's first step; the file joins Task 4's Files and FJ-056's `allowedFiles`, amended while the item is still `planned`). STOP and record a spec gap if design §3.2's L1 rule as written would flag every compliant rewrite — never invent a suppression list to make the scan pass. L2 `unsafe_type_assert`: single-value `x.(T)` is flagged unless it sits in a 2-LHS comma-ok assign (`v, ok := x.(T)` / `if v, ok := ...`) — the `.(type)` form of a type switch parses with a nil type and is never a candidate. Any type-check error → exit 2 (`guard.tool.failed`), because absence of violations cannot be proven.
 8. **Arch matching.** Files = `GoFiles + TestGoFiles + XTestGoFiles`; a rule applies when the package's module-relative directory equals `pkg` exactly (no prefix invention — documented). `forbidExact` = whole-string import match; `forbidPrefix` = raw prefix match (families encoded with a trailing `/`, e.g. `net/http/`; `fake-jev/internal/control` deliberately also covers `.../control-api`). Entry list is §17.3 verbatim plus the design's local-package entries, committed in `guards.json` and changeable only by design revision. `skipDirs` is a **root-level** `guards.json` key shared by every subcommand (mirrors verify's `NON_REPO_DIRS`: `agent .agents .claude .pi .scratch`), applied after `go list -e` decoding; a kept package with a `go list` error is a tool error (exit 2).
 9. **Fuzz invocation (empirically validated on go1.26 before planning).** `go test -count=1 -run '^$' -fuzz '^<Name>$' -fuzztime <guards.json fuzztime> <importPath>` — `-run '^$'` skips the package's unit tests but the seed corpus **still runs** as the fuzz baseline (verified: `f.Add("boom")` panics under `-run '^$' -fuzz ...`), so seeds cannot be skipped and each target is exercised exactly once per invocation. Classification of a non-zero exit (patterns re-verified verbatim against go1.26.3 while writing Task 6): `Failing input written to <path>` (no colon; `<path>` is relative to the package directory — go1.26.3 has already written the artifact to `<pkgDir>/testdata/fuzz/<Name>/<hash>`, so the copy into `<pkgDir>/testdata/fuzz/<Name>/` is a no-op by construction and only guards odd paths) → report `guard.fuzz.crash` with the preserved input path; else `failure while testing seed corpus entry` (lowercase, verbatim) or `--- FAIL: <Name>` → `guard.fuzz.crash` without copy, path = the declaring `_test.go` at its `Fuzz*` line (the seed lives in `f.Add` or committed testdata and is already in the tree); else (`[build failed]`, unknown output) → exit 2. Seed crashes also fail the ordinary `go test` row — that is design-correct (seed replay rides ordinary `go test`) and the fuzz scenarios assert only the fuzz row. Discovery: `FuncDecl` named `Fuzz*`, no receiver, no results, exactly one parameter syntactically `*testing.F`, in `TestGoFiles`/`XTestGoFiles`; 0 targets → pass with `stats.targets = 0` (no `go test` invocation at all, which is what keeps task-less runs instant).
 10. **`guards.json` is fully committed with FJ-056 (§3.5)**, including the `complexity` and `mutation` floors that FJ-044/FJ-045 will enforce later; `loadGuards` validates *every* section on every invocation (unknown fields rejected via `DisallowUnknownFields`), so a typo anywhere is exit 2. `cmd/guard`'s registry knows `complexity`/`mutation` from Task 1 but reports `not implemented yet` (exit 2) until those items land their case arms — verify never wires rows for them in this plan.
-11. **Fixture isolation.** The selftest pristine fixture stays tool-free (no `go.mod`, no `cmd/guard/`, no `guards.json`) so all 52 existing scenarios keep passing untouched. New helper `with_guard_tool` copies `go.mod` (if absent), the **non-test** `*.go` files of `cmd/guard/` (so fixture-side C-ID markers can never leak into a real scan) and `.agent/guards.json` on demand. Guard fixtures never contain `testdata/` (pristine does not copy it), so real `C-GOLD` tags cannot accidentally satisfy fixture activation.
+11. **Fixture isolation.** The selftest pristine fixture stays tool-free (no `go.mod`, no `cmd/guard/`, no `guards.json`) so all 56 existing scenarios keep passing — with one fixture adjustment: `go_required_for_product` also copies the guard tool once Task 4 wires the rows (note 1: a module with packages and no `cmd/guard/` is required `guard.tool.failed`), while `go_product_zero_packages_skip` keeps skipping through note 1's zero-packages arm. New helper `with_guard_tool` copies `go.mod` (if absent), the **non-test** `*.go` files of `cmd/guard/` (so fixture-side C-ID markers can never leak into a real scan) and `.agent/guards.json` on demand. Guard fixtures never contain `testdata/` (pristine does not copy it), so real `C-GOLD` tags cannot accidentally satisfy fixture activation.
 12. **Plan-file freeze + verification discipline.** Same as the gauntlet plan: checkboxes are reference-only; every task ends with `./scripts/selftest` (from Task 4 on), `./scripts/verify-candidate` task-less exit 0, and the task's own battery; only then commit. Never weaken a scenario to make an implementation pass.
 
 ## Lifecycle: closing FJ-056 / FJ-057 / FJ-058 (exact recipe)
@@ -187,9 +187,7 @@ const validGuardsJSON = `{
     ]
   },
   "lint": {
-    "rules": ["err_discarded", "unsafe_type_assert"],
-    "errIgnored": ["fmt.Print", "fmt.Printf", "fmt.Println",
-                   "fmt.Fprint", "fmt.Fprintf", "fmt.Fprintln"]
+    "rules": ["err_discarded", "unsafe_type_assert"]
   },
   "complexity": {"cyclomaticMax": 15, "crapMax": 50},
   "mutation": {"overallMinPct": 75, "perPackageMinPct": 60,
@@ -456,8 +454,7 @@ type ArchGuards struct {
 }
 
 type LintGuards struct {
-	Rules      []string `json:"rules"`
-	ErrIgnored []string `json:"errIgnored"`
+	Rules []string `json:"rules"`
 }
 
 type ComplexityGuards struct {
@@ -555,14 +552,6 @@ func (g *Guards) validate() error {
 	if !enabled["err_discarded"] || !enabled["unsafe_type_assert"] {
 		return errors.New("lint.rules must enable exactly the closed set (err_discarded, unsafe_type_assert)")
 	}
-	if len(g.Lint.ErrIgnored) == 0 {
-		return errors.New("lint.errIgnored must keep the fmt print family")
-	}
-	for _, c := range g.Lint.ErrIgnored {
-		if !strings.Contains(c, ".") {
-			return fmt.Errorf("lint.errIgnored entry %q must be pkg.Func or Type.Method", c)
-		}
-	}
 	if g.Complexity.CyclomaticMax < 1 || g.Complexity.CrapMax < 1 {
 		return errors.New("complexity thresholds must be >= 1")
 	}
@@ -648,7 +637,7 @@ func main() {
 // stderr, stdout stays empty).
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprint(stderr, usage)
+		stderrf(stderr, "%s", usage)
 		return 2
 	}
 	sub := args[0]
@@ -660,32 +649,42 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if !known {
-		fmt.Fprintf(stderr, "guard: unknown check %q\n", sub)
+		stderrf(stderr, "guard: unknown check %q\n", sub)
 		return 2
 	}
 	g, err := loadGuards(".agent/guards.json")
 	if err != nil {
-		fmt.Fprintf(stderr, "guard: %v\n", err)
+		stderrf(stderr, "guard: %v\n", err)
 		return 2
 	}
 	handler, ok := handlers[sub]
 	if !ok {
-		fmt.Fprintf(stderr, "guard: check %q not implemented yet\n", sub)
+		stderrf(stderr, "guard: check %q not implemented yet\n", sub)
 		return 2
 	}
 	findings, stats, err := handler(g)
 	if err != nil {
-		fmt.Fprintf(stderr, "guard: %v\n", err)
+		stderrf(stderr, "guard: %v\n", err)
 		return 2
 	}
 	if err := emitReport(stdout, &Report{Check: sub, Findings: findings, Stats: stats}); err != nil {
-		fmt.Fprintf(stderr, "guard: emit report: %v\n", err)
+		stderrf(stderr, "guard: emit report: %v\n", err)
 		return 2
 	}
 	if len(findings) > 0 {
 		return 1
 	}
 	return 0
+}
+
+// stderrf writes to stderr, consuming the write error in one checked place:
+// a failed write already lost the message and run() exits 2 regardless, but
+// L1's zero-tolerance rule (interpretation note 7) forbids discarding an
+// error-returning call at the call site, and there is no suppression list.
+func stderrf(w io.Writer, format string, a ...any) {
+	if _, err := fmt.Fprintf(w, format, a...); err != nil {
+		return
+	}
 }
 ```
 
@@ -941,8 +940,7 @@ func TestRunArchThroughCLI(t *testing.T) {
 				"fake-jev/internal/cli", "fake-jev/internal/control"},
 		}}},
 		Lint: LintGuards{
-			Rules:      []string{"err_discarded", "unsafe_type_assert"},
-			ErrIgnored: []string{"fmt.Fprint"},
+			Rules: []string{"err_discarded", "unsafe_type_assert"},
 		},
 		Complexity: ComplexityGuards{CyclomaticMax: 15, CrapMax: 50},
 		Mutation: MutationGuards{OverallMinPct: 75, PerPackageMinPct: 60,
@@ -978,8 +976,7 @@ func TestRunArchCleanFixtureExitsZero(t *testing.T) {
 			Pkg: "internal/engine", ForbidExact: []string{"net/http"},
 		}}},
 		Lint: LintGuards{
-			Rules:      []string{"err_discarded", "unsafe_type_assert"},
-			ErrIgnored: []string{"fmt.Fprint"},
+			Rules: []string{"err_discarded", "unsafe_type_assert"},
 		},
 		Complexity: ComplexityGuards{CyclomaticMax: 15, CrapMax: 50},
 		Mutation: MutationGuards{OverallMinPct: 75, PerPackageMinPct: 60,
@@ -1257,11 +1254,7 @@ Create `.agent/guards.json` with exactly:
     ]
   },
   "lint": {
-    "rules": ["err_discarded", "unsafe_type_assert"],
-    "errIgnored": [
-      "fmt.Print", "fmt.Printf", "fmt.Println",
-      "fmt.Fprint", "fmt.Fprintf", "fmt.Fprintln"
-    ]
+    "rules": ["err_discarded", "unsafe_type_assert"]
   },
   "complexity": {"cyclomaticMax": 15, "crapMax": 50},
   "mutation": {"overallMinPct": 75, "perPackageMinPct": 60, "mutantTimeoutSeconds": 60},
@@ -1275,7 +1268,6 @@ Prose notes for the reviewer (they live in the commit body, not the JSON):
 - `arch.forbidden` is spec §17.3 verbatim mapped to import paths per spec §17's tree: `compat/jev` → `fake-jev/internal/compat/jev` (prefix covers `.../jev/v1`), `cli` → `fake-jev/internal/cli`, `control API packages` → `fake-jev/internal/control` (raw prefix also covers a future `internal/control-api`). `net/http` and `os/exec` are exact whole-string matches: the spec names packages, not families, and inventing family rules would exceed the spec (note 8).
 - `internal/engine` does not exist yet — the rule is committed now and proves vacuous until FJ-010 creates the package (design §4 vacuous-pass: no "has package yet?" heuristic).
 - `complexity`/`mutation` floors are committed before measurement (design §3.5 line: "Thresholds are committed with FJ-056 before measurement"); `loadGuards` already validates them.
-- `lint.errIgnored` is the interpretation note 7 allowlist that keeps `internal/cli/dispatch.go`'s four `fmt.Fprint*` statements lint-clean without touching files outside `allowedFiles`.
 
 - [ ] **Step 5: Demo the subcommand against the real repository**
 
@@ -1321,7 +1313,7 @@ go list discovery with skipDirs matching verify's NON_REPO_DIRS; a kept
 package that fails to load is a tool error, never a silent pass.
 .agent/guards.json commits all 3.5 floors before measurement: engine
 forbidden imports (exact net/http + os/exec, raw-prefix local packages),
-the closed lint rule set with the fmt allowlist, complexity/mutation
+the closed lint rule set, complexity/mutation
 floors for their future subcommands, empty trace activation, and the 30s
 fuzz budget."
 ```
@@ -1356,8 +1348,6 @@ func lintFullGuards() *Guards {
 		}}},
 		Lint: LintGuards{
 			Rules: []string{"err_discarded", "unsafe_type_assert"},
-			ErrIgnored: []string{"fmt.Print", "fmt.Printf", "fmt.Println",
-				"fmt.Fprint", "fmt.Fprintf", "fmt.Fprintln"},
 		},
 		Complexity: ComplexityGuards{CyclomaticMax: 15, CrapMax: 50},
 		Mutation: MutationGuards{OverallMinPct: 75, PerPackageMinPct: 60,
@@ -1438,7 +1428,7 @@ func g(t T) {
 	}
 }
 
-func TestLintAllowlistCoversFmtFamily(t *testing.T) {
+func TestLintFmtFamilyFlagged(t *testing.T) {
 	findings, err := runLintFixture(t, map[string]string{"m.go": `package m
 
 import (
@@ -1453,8 +1443,9 @@ func g(w io.Writer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(findings) != 0 {
-		t.Fatalf("fmt.Fprint is allowlisted, got %+v", findings)
+	if len(findings) != 1 || findings[0].Line != 9 ||
+		findings[0].Message != "fmt.Fprint: error result discarded as statement" {
+		t.Fatalf("L1 has no exemptions: fmt.Fprint must be flagged, got %+v", findings)
 	}
 }
 
@@ -1634,41 +1625,18 @@ func fileRel(relPkg, name string) string {
 	return relPkg + "/" + name
 }
 
-// calleeLabel derives the allowlist key (pkgPath.Func / Type.Method, note 7)
-// from types information, plus a display form for messages. Non-call
-// expressions have no allowlist key.
-func calleeLabel(fun ast.Expr, info *types.Info) (key, display string) {
+// calleeDisplay names the callee in finding messages: the bare function
+// name for a plain identifier, the full expression otherwise. Purely
+// syntactic — the zero-tolerance rule needs no exemption key (note 7).
+func calleeDisplay(fun ast.Expr) string {
 	fun = unwrapParens(fun)
 	switch f := fun.(type) {
 	case *ast.Ident:
-		display = f.Name
-		if fn, ok := info.Uses[f].(*types.Func); ok && fn.Pkg() != nil {
-			key = fn.Pkg().Path() + "." + fn.Name()
-		}
-		return key, display
+		return f.Name
 	case *ast.SelectorExpr:
-		if sel := info.Selections[f]; sel != nil {
-			fn, ok := sel.Obj().(*types.Func)
-			if !ok {
-				return "", types.ExprString(f)
-			}
-			recv := sel.Recv()
-			if ptr, ok := recv.(*types.Pointer); ok {
-				recv = ptr.Elem()
-			}
-			name := "?"
-			if named, ok := recv.(*types.Named); ok {
-				name = named.Obj().Name()
-			}
-			key = name + "." + fn.Name()
-			return key, types.ExprString(f)
-		}
-		if obj, ok := info.Uses[f.Sel].(*types.Func); ok && obj.Pkg() != nil {
-			key = obj.Pkg().Path() + "." + obj.Name()
-		}
-		return key, types.ExprString(f)
+		return types.ExprString(f)
 	default:
-		return "", types.ExprString(fun)
+		return types.ExprString(fun)
 	}
 }
 
@@ -1758,10 +1726,6 @@ func runLint(g *Guards) ([]Finding, map[string]int, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	allowed := map[string]bool{}
-	for _, c := range g.Lint.ErrIgnored {
-		allowed[c] = true
-	}
 	var findings []Finding
 	for _, p := range pkgs {
 		relPkg := moduleRel(modPath, p.ImportPath)
@@ -1783,9 +1747,7 @@ func runLint(g *Guards) ([]Finding, map[string]int, error) {
 			continue
 		}
 		info := &types.Info{
-			Types:      map[ast.Expr]types.TypeAndValue{},
-			Uses:       map[*ast.Ident]types.Object{},
-			Selections: map[*ast.SelectorExpr]*types.Selection{},
+			Types: map[ast.Expr]types.TypeAndValue{},
 		}
 		conf := types.Config{Importer: imp}
 		if _, err := conf.Check(p.ImportPath, fset, files, info); err != nil {
@@ -1813,15 +1775,12 @@ func runLint(g *Guards) ([]Finding, map[string]int, error) {
 					if !ok || !implementsError(tv.Type) {
 						return true
 					}
-					key, display := calleeLabel(callFun(st.X), info)
-					if key != "" && allowed[key] {
-						return true
-					}
 					findings = append(findings, Finding{
 						Code:    "guard.lint.err_discarded",
 						Path:    relFile,
 						Line:    fset.Position(st.Pos()).Line,
-						Message: display + ": error result discarded as statement",
+						Message: calleeDisplay(callFun(st.X)) +
+							": error result discarded as statement",
 					})
 				case *ast.AssignStmt:
 					for i, lhs := range st.Lhs {
@@ -1835,11 +1794,7 @@ func runLint(g *Guards) ([]Finding, map[string]int, error) {
 						}
 						msg := "error result assigned to _"
 						if call, ok := unwrapParens(st.Rhs[min(len(st.Rhs)-1, i)]).(*ast.CallExpr); ok {
-							key, display := calleeLabel(call.Fun, info)
-							if key != "" && allowed[key] {
-								continue
-							}
-							msg = display + ": " + msg
+							msg = calleeDisplay(call.Fun) + ": " + msg
 						}
 						findings = append(findings, Finding{
 							Code:    "guard.lint.err_discarded",
@@ -1866,7 +1821,8 @@ func runLint(g *Guards) ([]Finding, map[string]int, error) {
 	return findings, stats, nil
 }
 
-// callFun extracts the callee of a call expression for allowlist matching.
+// callFun extracts the callee of a call expression for the finding message;
+// a non-call expression is passed through unchanged.
 func callFun(e ast.Expr) ast.Expr {
 	if call, ok := e.(*ast.CallExpr); ok {
 		return call.Fun
@@ -1878,8 +1834,8 @@ func callFun(e ast.Expr) ast.Expr {
 Implementation notes (for review, no code needed):
 
 - `min` is Go 1.21+ builtin (go.mod declares 1.26). For same-length multi-RHS assigns the aligned RHS index is `i`; for single-RHS assigns the index collapses to 0, which is the tuple source itself — `min(len(st.Rhs)-1, i)` picks the right element in both shapes.
-- The blank-assign allowlist lookup only applies when the aligned RHS is a direct call; a non-call error value assigned to `_` is always flagged.
-- `calleeLabel` never trusts syntax alone: the allowlist key comes from `go/types` objects (`pkgPath.Func`, bare `Type.Method`), so a local helper named `Fprint` cannot slip under `fmt.Fprint`.
+- The blank-assign display name only applies when the aligned RHS is a direct call; a non-call error value assigned to `_` gets the generic message and is always flagged.
+- No exemption path exists: `calleeDisplay` is purely syntactic message text, and the aligned result type — not the callee — decides whether L1 flags a discard (interpretation note 7: zero tolerance, no suppression list).
 
 Modify `cmd/guard/main.go` — register the handler:
 
@@ -1905,12 +1861,38 @@ go vet ./cmd/guard
 D=$(mktemp -d) && go build -o "$D/guard" ./cmd/guard
 "$D/guard" lint; echo "exit=$?"
 ```
-Expected: vet silent; exit `0` with:
+Expected: vet silent; exit `1` with exactly the four pre-existing
+discards in `internal/cli/dispatch.go`:
 
 ```json
 {
   "check": "lint",
-  "findings": [],
+  "findings": [
+    {
+      "code": "guard.lint.err_discarded",
+      "path": "internal/cli/dispatch.go",
+      "line": 22,
+      "message": "fmt.Fprint: error result discarded as statement"
+    },
+    {
+      "code": "guard.lint.err_discarded",
+      "path": "internal/cli/dispatch.go",
+      "line": 34,
+      "message": "fmt.Fprint: error result discarded as statement"
+    },
+    {
+      "code": "guard.lint.err_discarded",
+      "path": "internal/cli/dispatch.go",
+      "line": 44,
+      "message": "fmt.Fprintf: error result discarded as statement"
+    },
+    {
+      "code": "guard.lint.err_discarded",
+      "path": "internal/cli/dispatch.go",
+      "line": 45,
+      "message": "fmt.Fprint: error result discarded as statement"
+    }
+  ],
   "stats": {
     "files": 13,
     "packages": 3
@@ -1918,7 +1900,7 @@ Expected: vet silent; exit `0` with:
 }
 ```
 
-`files=13` = 10 cmd/guard files (6 implementation + 4 tests) + 2 internal/cli + 1 cmd/fake-jev. The empty report proves the floor holds today: the four `fmt.Fprint`/`fmt.Fprintf` statements in `internal/cli/dispatch.go` hit the `lint.errIgnored` allowlist, `os.Exit(...)` in `cmd/fake-jev/main.go` is void (not an error result), and no unchecked assertion exists anywhere in the repository.
+`files=13` = 10 cmd/guard files (6 implementation + 4 tests) + 2 internal/cli + 1 cmd/fake-jev. Exactly four findings and nothing else: the report enumerates the four pre-existing `fmt.Fprint`/`fmt.Fprintf` discards in `internal/cli/dispatch.go` (lines 22, 34, 44, 45) — L1 has no suppression list, so they surface now and Task 4's first step rewrites them to a checked form (the file joins Task 4's Files and FJ-056's `allowedFiles`). `os.Exit(...)` in `cmd/fake-jev/main.go` is void (not an error result), and no unchecked assertion exists anywhere in the repository.
 
 - [ ] **Step 5: Verify the repository stays green**
 
@@ -1931,9 +1913,9 @@ Expected: `RESULT: PASS`, exit 0.
 git status --short    # only cmd/guard/
 git add cmd/guard
 git commit -m "feat: FJ-056 add the lint subcommand for discarded errors and unsafe type assertions" \
-  -m "lint proves the closed 3.2 set absent with go/types: statement and
-blank-slot discards of error results (allowlist keys derived from type
-objects, never from syntax) and single-value type assertions outside
+  -m "lint enforces the closed 3.2 set with go/types: statement and
+blank-slot discards of error results (zero tolerance — no allowlist, no
+suppression mechanism) and single-value type assertions outside
 comma-ok context. Type errors, parse errors and missing export data exit 2
 so an uncompilable package can never read as clean. Export data comes from
 go list -deps -export under GOPROXY=off, keeping lint deterministic and
@@ -1943,11 +1925,83 @@ offline."
 ## Task 4: Verify rows + CI gauntlet job + close FJ-056
 
 **Files:**
+- Modify: `internal/cli/dispatch.go` (the four unchecked writes, step 1)
+- Modify: `.agent/work/FJ-056/state.json` (allowedFiles + relevantFiles amendment, step 1)
 - Modify: `scripts/verify-candidate` (`check_code` entries + one guard block after the `CLASS` case)
 - Modify: `scripts/selftest` (helper + 8 scenarios, inserted above `# --- runner ---`)
 - Modify: `.github/workflows/ci.yml` (additive job)
 
-- [ ] **Step 1: Extend `check_code`**
+- [ ] **Step 1: Rewrite `internal/cli/dispatch.go` for L1, amend FJ-056's file list**
+
+L1 has no suppression list (interpretation note 7), and the guard rows land later in this task, so the repository's four pre-existing violations are fixed first — exactly the four findings the Task 3 demo reported (lines 22, 34, 44, 45).
+
+`internal/cli/dispatch.go` — route all four writes through one checked helper; the write error is consumed in exactly one place, where a failed write has already lost the message and the exit code does not change anyway:
+
+```go
+// Package cli owns the fake-jev command line: argument dispatch and the
+// subcommands implemented so far. It is the only package that talks to the
+// process environment; subcommands receive their streams explicitly so they
+// stay testable without touching the real process.
+package cli
+
+import (
+	"fmt"
+	"io"
+)
+
+// Process exit codes (specification §42.1).
+const (
+	exitOK      = 0
+	exitFailure = 2
+	exitVerify  = 3
+)
+
+// Run executes one fake-jev invocation and returns the process exit code.
+func Run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		writef(stderr, "%s", usage)
+		return exitFailure
+	}
+
+	command, rest := args[0], args[1:]
+	switch command {
+	case "version":
+		if len(rest) > 0 {
+			return usageError(stderr, "version takes no arguments")
+		}
+		return runVersion(stdout)
+	case "help", "-h", "--help":
+		writef(stdout, "%s", usage)
+		return exitOK
+	default:
+		return usageError(stderr, "unknown command %q", command)
+	}
+}
+
+// usageError reports a CLI usage failure on stderr and returns the usage exit
+// code (§42.1).
+func usageError(stderr io.Writer, format string, args ...any) int {
+	writef(stderr, "fake-jev: "+format+"\n", args...)
+	writef(stderr, "%s", usage)
+	return exitFailure
+}
+
+// writef writes formatted output and consumes the write error in one checked
+// place: a failed write already lost the message and the caller's exit code
+// does not change, but lint L1 (zero tolerance, interpretation note 7)
+// forbids discarding an error-returning call at the call site.
+func writef(w io.Writer, format string, a ...any) {
+	if _, err := fmt.Fprintf(w, format, a...); err != nil {
+		return
+	}
+}
+```
+
+(The `usage` const and `runVersion` are unchanged — keep them byte-identical.) Every path writes the same bytes and returns the same exit code as before, so the dispatch tests stay green.
+
+While `.agent/work/FJ-056/state.json` is still `planned`, add `internal/cli/dispatch.go` to its `allowedFiles` and `relevantFiles`: the file joins this task's edits, and amending before the taskFingerprint moves invalidates nothing (design §5 — no stage artifacts exist yet).
+
+- [ ] **Step 2: Extend `check_code`**
 
 In `scripts/verify-candidate`, inside `check_code()`'s `case`, add two entries (keep the column style of the neighbours):
 
@@ -1961,18 +2015,25 @@ In `scripts/verify-candidate`, inside `check_code()`'s `case`, add two entries (
 (only the two new lines are added — they slot between `check_go_build` and the
 `*` default; the neighbouring lines are context.)
 
-- [ ] **Step 2: Insert the guard block**
+- [ ] **Step 3: Insert the guard block**
 
-Insert immediately after the `CLASS` case's `esac` (currently line 1147, right before `# --- aggregate`) and before the aggregate section. Everything — helpers and rows — lives in this single block so its conflict surface with concurrent work is one insertion point (interpretation note 4). Tasks 5 and 6 extend the two marked spots; do not add those rows yet.
+Insert immediately after the `CLASS` case's `esac` (right before `# --- aggregate`) and before the aggregate section. Everything — helpers and rows — lives in this single block so its conflict surface with concurrent work is one insertion point (interpretation note 4). Tasks 5 and 6 extend the two marked spots; do not add those rows yet.
 
 ```bash
 # --- guard rows (design §4 fail-closed; interpretation notes 1-3) -----------
 # One block for all guard helpers and rows: rows land together with their
 # subcommand (arch+lint now; trace in FJ-057, fuzz+race in FJ-058), so a row
 # never exists without its tool.
-GUARD_TOOL=0
-if [ -f go.mod ] && [ -d cmd/guard ]; then
-  GUARD_TOOL=1
+# Nothing-to-guard detection (interpretation note 5): skip only when there is
+# nothing to scan — no go.mod (foundation phase) or zero repository Go
+# packages. A module with packages and a missing or unbuildable cmd/guard
+# reaches guard_build below and fails closed as guard.tool.failed instead
+# (note 2); cmd/guard's absence is never a skip key.
+GUARD_SKIP=""
+if [ ! -f go.mod ]; then
+  GUARD_SKIP="no go.mod yet (foundation phase)"
+elif [ -z "${ALL_PKGS//[$'\n\t ']/}" ]; then
+  GUARD_SKIP="no repository Go packages yet"
 fi
 
 GUARD_BIN=""
@@ -2095,16 +2156,16 @@ else
   if [ -n "$TASK_ID" ] && [ "$CLASS" != "product" ]; then
     GUARD_REQ=0
   fi
-  if [ "$GUARD_TOOL" -eq 1 ]; then
+  if [ -z "$GUARD_SKIP" ]; then
     guard_row "guard arch (forbidden imports)" arch "$GUARD_REQ" "G-L"
     guard_row "guard lint (err_discarded, unsafe_type_assert)" lint "$GUARD_REQ" "G-L"
     # Task 5 inserts the trace guard_row here (gate G-Q).
     # Task 6 inserts the fuzz guard_row here (gate G-H).
   else
     skip_check "guard arch (forbidden imports)" check_guard_arch \
-      "cmd/guard does not exist yet (foundation bootstrap)" "" 0 "G-L"
+      "$GUARD_SKIP" "" 0 "G-L"
     skip_check "guard lint (err_discarded, unsafe_type_assert)" check_guard_lint \
-      "cmd/guard does not exist yet (foundation bootstrap)" "" 0 "G-L"
+      "$GUARD_SKIP" "" 0 "G-L"
     # Task 5 inserts the trace skip here (gate G-Q).
     # Task 6 inserts the fuzz skip here (gate G-H).
   fi
@@ -2117,10 +2178,11 @@ Notes on the block (review aid):
 - `record_row`'s name parameter is the row name (`check_guard_arch`, …), which is what reports and `expect()` use; `check_code` maps it to `guard.arch.failed` etc. Skipped guard rows therefore carry the code they *would* fail with — exactly how `check_go_test` skips carry `go.test_failed`.
 - The verdict parser is the only place that trusts guard output: exit∉{0,1}, empty/malformed JSON, `check` mismatch, non-list findings, exit-0-with-findings, exit-1-without-findings, malformed `findings[0]` — all become `guard.tool.failed` rows, never crashes (design §4).
 - `GUARD_BUILD_STATE` caches the build across the block's rows for one verify run; command substitution strips the parser's trailing newline, so `tag` matching is exact.
+- `GUARD_SKIP` reuses `ALL_PKGS`, computed by the go-rows section directly above, so guard rows and go rows always take the same nothing-to-guard decision for the same repository.
 
-- [ ] **Step 3: Add the selftest helper and 8 scenarios**
+- [ ] **Step 4: Add the selftest helper and 8 scenarios**
 
-In `scripts/selftest`, insert directly above the `# --- runner ---` marker (line 1292; the file's own comment says later task groups go there):
+In `scripts/selftest`, insert directly above the `# --- runner ---` marker (the file's own comment there says later task groups go there):
 
 ```python
 # --------------------------------------------------------------------------
@@ -2283,7 +2345,7 @@ def guard_thresholds_malformed():
 
 @scenario("guard_bootstrap_skip")
 def guard_bootstrap_skip():
-    # Pristine fixture: no go.mod, no cmd/guard — note-1 bootstrap skip,
+    # Pristine fixture: no go.mod — note-1 nothing-to-guard skip,
     # never blocking (a required skip would deadlock the foundation phase).
     item = base_item(allowedFiles=["testdata/golden.json"])
     repo = fixture("guard-bootstrap", items={"FJ-900": item})
@@ -2292,12 +2354,14 @@ def guard_bootstrap_skip():
     assert report["status"] == "passed", report["status"]
     row = expect(report, "check_guard_arch", result="skipped",
                  required=False, code="guard.arch.failed", gate="G-L")
-    assert "foundation bootstrap" in row["reason"], row["reason"]
+    assert "no go.mod" in row["reason"], row["reason"]
     expect(report, "check_guard_lint", result="skipped", required=False,
            code="guard.lint.failed", gate="G-L")
 ```
 
-- [ ] **Step 4: Run the guard scenarios, then the full suite**
+Also adjust the existing `go_required_for_product` scenario (defined earlier in `scripts/selftest`): change `mutate=with_go_module` to `mutate=guard_fixture`. Note 1's fail-closed rule means a fixture with `go.mod` and packages but no `cmd/guard/` now records required `guard.tool.failed` guard rows, which would fail that scenario's exit assertion; `guard_fixture` copies the tool so its go rows stay the only required rows under test. `go_product_zero_packages_skip` stays untouched — the zero-packages arm of `GUARD_SKIP` keeps its guard rows skipping alongside its go rows.
+
+- [ ] **Step 5: Run the guard scenarios, then the full suite**
 
 Run:
 ```bash
@@ -2306,23 +2370,24 @@ python3 scripts/selftest guard_
 Expected: `PASS`×8, `summary: 8 passed, 0 failed`, exit 0.
 
 Run: `python3 scripts/selftest`
-Expected: `summary: 60 passed, 0 failed`, exit 0 (52 existing + these 8).
+Expected: `summary: 64 passed, 0 failed`, exit 0 (56 existing + these 8).
 
-- [ ] **Step 5: Verify task-less (the row set the CI job will run)**
+- [ ] **Step 6: Verify task-less (the row set the CI job will run)**
 
 Run: `./scripts/verify-candidate`
 Expected: `RESULT: PASS`, exit 0, and the output shows `check_guard_arch`/`check_guard_lint` rows passing (tool present, no violations in this repository).
 
-- [ ] **Step 6: Add the CI gauntlet job**
+- [ ] **Step 7: Add the CI gauntlet job**
 
 Append to `.github/workflows/ci.yml` after the `build` job:
 
 ```yaml
   # Additive gauntlet gates (design §5): the verifier itself is the enforcer,
   # run task-less exactly as the local workflow runs it. Guard rows enforce
-  # with CI requiredness here (arch/lint/trace/fuzz); the test job above owns
-  # go test -race per 23, so the task-less race row stays visible and
-  # non-required (interpretation note 3).
+  # with CI requiredness here (arch and lint now; trace lands with task 5,
+  # fuzz with task 6). The test job above already owns go test -race per 23,
+  # and the task-less race row stays visible and non-required once task 6
+  # inserts it (interpretation note 3).
   gauntlet:
     name: gauntlet gates
     runs-on: ubuntu-latest
@@ -2339,22 +2404,25 @@ Append to `.github/workflows/ci.yml` after the `build` job:
 
 Sanity: `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); print('yaml ok'"` — fix the quote typo above when running (the file must parse; the step is `import yaml, sys` only if PyYAML exists, otherwise use any available YAML check or rely on review — the workflow must not gain a new dependency).
 
-- [ ] **Step 7: Commit the feature**
+- [ ] **Step 8: Commit the feature**
 
 ```bash
-git status --short    # scripts/verify-candidate scripts/selftest .github/workflows/ci.yml
-git add scripts/verify-candidate scripts/selftest .github/workflows/ci.yml
+git status --short    # internal/cli/dispatch.go scripts/verify-candidate scripts/selftest .github/workflows/ci.yml
+git add internal/cli/dispatch.go scripts/verify-candidate scripts/selftest .github/workflows/ci.yml
 git commit -m "feat: FJ-056 wire guard rows into verify-candidate and add the CI gauntlet job" \
   -m "verify-candidate gains one self-contained guard block after the class
 case: a cached binary build, a fail-closed JSON contract validator, and
 four-valued arch/lint rows at G-L. Metadata items receive
-stage.not_required, absent tooling skips non-required with the bootstrap
-reason, and every tool or contract failure maps to guard.tool.failed.
-selftest covers the eight arch/lint paths; CI gains an additive gauntlet
-job that runs the verifier task-less."
+stage.not_required; nothing-to-guard repositories (no go.mod, or no
+repository Go packages) skip non-required with the matching reason; and
+every tool or contract failure maps to guard.tool.failed. The four
+unchecked writes in internal/cli/dispatch.go route through one checked
+writef helper so lint L1 is clean before the rows land. selftest covers
+the eight arch/lint paths; CI gains an additive gauntlet job that runs
+the verifier task-less."
 ```
 
-- [ ] **Step 8: Close FJ-056 (evidence bound to this revision)**
+- [ ] **Step 9: Close FJ-056 (evidence bound to this revision)**
 
 The feat commit above is FJ-056's final code commit. Run the lifecycle exactly as specified in the "Lifecycle" section, substituting `FJ-056`. The five artifact bodies (no `## Traces` section):
 
@@ -2367,35 +2435,37 @@ the additive CI gauntlet job. No C-ID claims are made.
 
 coder.md body:
 Implemented per plan tasks 1-4: cmd/guard/{main,report,guards,pkgscan,arch,
-lint}.go plus their tests (31 unit tests); .agent/guards.json carrying every
+lint}.go plus their tests (31 unit tests); the checked-write rewrite of
+internal/cli/dispatch.go for lint L1; .agent/guards.json carrying every
 3.5 floor; the verify-candidate guard block (check_guard_arch/check_guard_lint
 at G-L); 8 selftest scenarios; ci.yml gauntlet job. No C-ID claims are made.
 
 cleaner.md body:
-go vet ./cmd/... clean, gofmt clean, selftest 60 passed / 0 failed, only the
+go vet ./cmd/... clean, gofmt clean, selftest 64 passed / 0 failed, only the
 task's allowedFiles staged. No C-ID claims are made.
 
 hardener.md body:
 Floors are fail-closed at the tool: missing/malformed guards.json and build
 failures record guard.tool.failed; the arch rule set is spec 17.3 verbatim;
-the lint set is closed at L1/L2 with a types-derived allowlist;
+the lint set is closed at L1/L2 with zero-tolerance L1 (no suppression list);
 complexity/mutation/fuzz/trace floors are committed and inert until their
 subcommands land (registry exit 2). No C-ID claims are made.
 
 qa.md body:
 ./scripts/verify-candidate FJ-056 RESULT: PASS at review and at complete;
-task-less RESULT: PASS; selftest summary 60 passed, 0 failed; guard rows
+task-less RESULT: PASS; selftest summary 64 passed, 0 failed; guard rows
 required at G-L for product and CI runs, na for metadata, non-required
-bootstrap skip when cmd/guard is absent. No C-ID claims are made.
+nothing-to-guard skips (no go.mod or no repository Go packages). No C-ID
+claims are made.
 ```
 
 Then the lifecycle's steps 4–7 (review flip → verify R1 must exit 0 → complete + `lastVerification` from R1 → verify R2 must exit 0 → close commit staging only `.agent/work/FJ-056 .agent/reports/FJ-056`).
 
-- [ ] **Step 9: Final checks for the task**
+- [ ] **Step 10: Final checks for the task**
 
 Run:
 ```bash
-./scripts/selftest                       # summary: 60 passed, 0 failed
+./scripts/selftest                       # summary: 64 passed, 0 failed
 ./scripts/verify-candidate                # RESULT: PASS (task-less)
 ./scripts/verify-candidate FJ-056         # RESULT: PASS (status complete)
 go test ./cmd/... ./internal/...
@@ -2806,17 +2876,17 @@ Metadata branch (after the lint `na_check`):
     "stage.not_required" "class metadata (design §9.3)" 0 "G-Q"
 ```
 
-Tool-present branch (after the lint `guard_row`):
+Run branch (after the lint `guard_row`):
 
 ```bash
     guard_row "guard trace (active C-ID coverage)" trace "$GUARD_REQ" "G-Q"
 ```
 
-Tool-absent branch (after the lint `skip_check`):
+Skip branch (after the lint `skip_check`):
 
 ```bash
     skip_check "guard trace (active C-ID coverage)" check_guard_trace \
-      "cmd/guard does not exist yet (foundation bootstrap)" "" 0 "G-Q"
+      "$GUARD_SKIP" "" 0 "G-Q"
 ```
 
 The three `# Task 6 ...` markers stay untouched.
@@ -2893,7 +2963,7 @@ Run: `python3 scripts/selftest trace_`
 Expected: `PASS`×3, `summary: 3 passed, 0 failed`, exit 0.
 
 Run: `python3 scripts/selftest`
-Expected: `summary: 63 passed, 0 failed`, exit 0 (60 from Task 4 plus these 3).
+Expected: `summary: 67 passed, 0 failed`, exit 0 (64 from Task 4 plus these 3).
 
 - [ ] **Step 8: Verify task-less with the new row**
 
@@ -2935,7 +3005,7 @@ total), the trace handlers entry, three verify rows (na metadata, bootstrap
 skip, required product/CI) and 3 selftest scenarios. No C-ID claims are made.
 
 cleaner.md body:
-go vet clean, gofmt clean, selftest 63 passed / 0 failed, repository-level
+go vet clean, gofmt clean, selftest 67 passed / 0 failed, repository-level
 guard trace exits 0 with findings []. No C-ID claims are made.
 
 hardener.md body:
@@ -2947,7 +3017,7 @@ and skipDirs stay outside the walk. No C-ID claims are made.
 qa.md body:
 ./scripts/verify-candidate FJ-057 RESULT: PASS at review and at complete;
 task-less RESULT: PASS with check_guard_trace pass at G-Q; selftest summary
-63 passed, 0 failed; guard trace unit tests 40 pass; repository guard trace
+67 passed, 0 failed; guard trace unit tests 40 pass; repository guard trace
 findings []. No C-ID claims are made.
 ```
 
@@ -2959,7 +3029,7 @@ Then the lifecycle's steps 4–7 (review flip → verify R1 must exit 0 → comp
 
 Run:
 ```bash
-./scripts/selftest                       # summary: 63 passed, 0 failed
+./scripts/selftest                       # summary: 67 passed, 0 failed
 ./scripts/verify-candidate                # RESULT: PASS (task-less)
 ./scripts/verify-candidate FJ-057         # RESULT: PASS (status complete)
 go test ./cmd/... ./internal/...
@@ -3483,23 +3553,22 @@ except Exception:
     doc = {}
 print(1 if "hardener" in (doc.get("due") or []) else 0)' 2>/dev/null || echo 0)"
   fi
-  GH_NA=""
-  if [ -n "$TASK_ID" ] && [ "$CLASS" != "product" ]; then
-    GH_NA="class not product (design §4.4)"
-  elif [ -n "$TASK_ID" ] && [ "$HARDENER_DUE" != "1" ]; then
-    GH_NA="hardener stage not due"
-  fi
-  if [ -n "$GH_NA" ]; then
+  if [ -n "$TASK_ID" ] && [ "$CLASS" = "product" ] && [ "$HARDENER_DUE" != "1" ]; then
+    # Pending under gauntlet §8.3 (note 3, row 4): no check entry, no
+    # verdict — while the hardener stage is not due, the fuzz and race rows
+    # are simply not emitted. A pending row is neither na nor skipped.
+    :
+  elif [ -n "$TASK_ID" ] && [ "$CLASS" != "product" ]; then
     na_check "guard fuzz (bounded crash scan)" check_guard_fuzz \
-      "stage.not_required" "$GH_NA" 0 "G-H"
+      "stage.not_required" "class not product (design §4.4)" 0 "G-H"
     na_check "go test -race (repository packages)" check_go_race \
-      "stage.not_required" "$GH_NA" 0 "G-H"
+      "stage.not_required" "class not product (design §4.4)" 0 "G-H"
   else
-    if [ "$GUARD_TOOL" -eq 1 ]; then
+    if [ -z "$GUARD_SKIP" ]; then
       guard_row "guard fuzz (bounded crash scan)" fuzz 1 "G-H"
     else
       skip_check "guard fuzz (bounded crash scan)" check_guard_fuzz \
-        "cmd/guard does not exist yet (foundation bootstrap)" "" 0 "G-H"
+        "$GUARD_SKIP" "" 0 "G-H"
     fi
     if [ ! -f go.mod ]; then
       skip_check "go test -race (repository packages)" check_go_race \
@@ -3518,15 +3587,18 @@ print(1 if "hardener" in (doc.get("due") or []) else 0)' 2>/dev/null || echo 0)"
 Notes on the ladder (review aid):
 
 - Metadata never reaches this code — 5b already recorded its two na rows.
-- With `TASK_ID` set and this `else` branch reached, `CLASS` is `product`
-  whenever `GH_NA` stays empty: any other class matched the first `if`. So
-  the final `run_check … 1` arm is exactly "product, hardener due", and the
-  task-less arm is the last `else` (note 3, rows 1 and 4).
+- The first branch is the pending case: task-ful product without hardener
+  due. The second is every other non-product task-ful state (including a
+  class the policy could not parse — unknown is not `product`, so it still
+  takes the na branch). So the run branch is reached only task-less or for
+  product with hardener due: inside it, the final `run_check … 1` arm is
+  exactly "product, hardener due", and the last `else` is the task-less arm
+  (note 3, rows 1 and 3).
 - `HARDENER_DUE` reads the already-materialized `TASK_JSON`; for task-less
-  runs it stays 0 and is never consulted (both conditions test `-n
-  "$TASK_ID"` first). A fingerprint parse failure degrades to 0, i.e. na —
-  fail-closed toward not blocking on unparseable state, matching how `CLASS`
-  itself degrades.
+  runs it stays 0 and is never consulted (every condition tests `-n
+  "$TASK_ID"` first). A fingerprint parse failure degrades to 0: product
+  then records no fuzz/race row at all (pending — fail-closed toward not
+  blocking on unparseable state), matching how `CLASS` itself degrades.
 - Bootstrap skips stay `required=0` in both columns (note 1): a required
   skip would block the first task-less run on a fixture repo.
 
@@ -3543,7 +3615,7 @@ In `scripts/selftest`, insert above `# --- runner ---`:
 @scenario("race_product_due_pass")
 def race_product_due_pass():
     def mutate(repo):
-        with_go_module(repo)
+        guard_fixture(repo)
     item = base_item(status="review", stage="qa",
                      allowedFiles=["testdata/golden.json"])
     repo = fixture("race-due", items={"FJ-900": item}, mutate=mutate)
@@ -3556,16 +3628,16 @@ def race_product_due_pass():
     assert report["status"] == "passed", report["status"]
     expect(report, "check_go_race", result="pass", required=True,
            gate="G-H")
-    # No cmd/guard in this fixture: note-1 bootstrap skip, code from
-    # check_code, never blocking.
-    expect(report, "check_guard_fuzz", result="skipped", required=False,
-           code="guard.fuzz.failed", gate="G-H")
+    # guard_fixture supplies cmd/guard: fuzz runs its zero-target vacuous
+    # pass (note 9) — a required pass, never a skip.
+    expect(report, "check_guard_fuzz", result="pass", required=True,
+           gate="G-H")
 
 
 @scenario("race_product_due_fail")
 def race_product_due_fail():
     def mutate(repo):
-        with_go_module(repo)
+        guard_fixture(repo)
         (repo / "internal" / "sample" / "sample_test.go").write_text(
             "package sample\n"
             "\n"
@@ -3581,7 +3653,9 @@ def race_product_due_fail():
     assert_exit(proc, False)
     expect(report, "check_go_race", code="guard.race.failed",
            result="fail", required=True, gate="G-H")
-    expect(report, "check_guard_fuzz", result="skipped", required=False)
+    # The failing unit test does not make fuzz crash: zero targets, so the
+    # fuzz row is a required pass (note 9; `-run '^$'` never executes tests).
+    expect(report, "check_guard_fuzz", result="pass", required=True)
 
 
 @scenario("race_metadata_na")
@@ -3613,18 +3687,18 @@ def fuzz_zero_targets():
 
 @scenario("fuzz_stage_na")
 def fuzz_stage_na():
-    # product + ready: hardener is not due yet (note 3, row 4), so both G-H
-    # rows are na with the dueness reason while arch/lint/trace still bind.
+    # product, status ready: hardener is not due yet, so note 3's row 4
+    # applies — no fuzz/race row at all (pending under gauntlet §8.3, neither
+    # na nor skipped) while arch/lint/trace still bind. The name is kept for
+    # the tracker; the assertions prove absence through the row list.
     item = base_item(allowedFiles=["testdata/golden.json"])
     repo = fixture("fuzz-na", items={"FJ-900": item}, mutate=guard_fixture)
     proc, report = run_verify(repo, task="FJ-900")
     assert_exit(proc, True)
-    row = expect(report, "check_guard_fuzz", result="not_applicable",
-                 required=False, code="stage.not_required", gate="G-H")
-    assert "hardener stage not due" in row["reason"], row["reason"]
-    row = expect(report, "check_go_race", result="not_applicable",
-                 required=False, code="stage.not_required", gate="G-H")
-    assert "hardener stage not due" in row["reason"], row["reason"]
+    assert not any(c["name"] == "check_guard_fuzz" for c in report["checks"]), \
+        "fuzz must emit no row while the hardener stage is not due"
+    assert not any(c["name"] == "check_go_race" for c in report["checks"]), \
+        "race must emit no row while the hardener stage is not due"
     expect(report, "check_guard_arch", result="pass", required=True,
            gate="G-L")
 
@@ -3689,9 +3763,13 @@ def fuzz_live_pass():
 Notes on the scenarios:
 
 - `race_product_due_pass`/`fuzz_live_pass`/`fuzz_crash` are product items at
-  `review`, so `due` contains `hardener` and both G-H rows leave the na
-  branch (note 3, row 3). `write_chain` is only needed where exit 0 is
+  `review`, so `due` contains `hardener` and both G-H rows are emitted
+  required=1 (note 3, row 3). `write_chain` is only needed where exit 0 is
   asserted; the failing scenarios rely on the fuzz/race rows themselves.
+- `fuzz_stage_na` keeps its name but asserts note 3's row 4 literally: with
+  the hardener stage not due the ladder emits nothing for fuzz and race, so
+  both row names must be absent from `report["checks"]` (`rows()` raises on
+  a missing name, hence the `any()` checks against the raw list).
 - `fuzz_live_pass`'s fuzz function body is empty — a predicate-free fuzz
   target cannot panic, so the 1s bounded run is deterministic. The shortened
   `fuzztime` is fixture-local (the guards.json mutation mirrors
@@ -3706,7 +3784,7 @@ Run: `python3 scripts/selftest race_ fuzz_`
 Expected: `PASS`×7, `summary: 7 passed, 0 failed`, exit 0.
 
 Run: `python3 scripts/selftest`
-Expected: `summary: 70 passed, 0 failed`, exit 0 (63 from Task 5 plus these
+Expected: `summary: 74 passed, 0 failed`, exit 0 (67 from Task 5 plus these
 7).
 
 - [ ] **Step 8: Verify task-less with the new rows**
@@ -3756,7 +3834,7 @@ hardener-gate ladder in the guard block, and 7 selftest scenarios. No C-ID
 claims are made.
 
 cleaner.md body:
-go vet clean, gofmt clean, selftest 70 passed / 0 failed, repository-level
+go vet clean, gofmt clean, selftest 74 passed / 0 failed, repository-level
 guard fuzz exits 0 with findings [] and stats.targets 0. No C-ID claims are
 made.
 
@@ -3771,7 +3849,7 @@ at task-less (note 3). No C-ID claims are made.
 qa.md body:
 ./scripts/verify-candidate FJ-058 RESULT: PASS at review and at complete;
 task-less RESULT: PASS with guard fuzz pass at G-H and race pass at G-H
-(non-required); selftest summary 70 passed, 0 failed; guard fuzz unit tests
+(non-required); selftest summary 74 passed, 0 failed; guard fuzz unit tests
 47 pass; repository guard fuzz findings [] with stats.targets 0. No C-ID
 claims are made.
 ```
@@ -3789,7 +3867,7 @@ fails, the candidate is not shippable; do not adjust the ladder.
 
 Run:
 ```bash
-./scripts/selftest                       # summary: 70 passed, 0 failed
+./scripts/selftest                       # summary: 74 passed, 0 failed
 ./scripts/verify-candidate                # RESULT: PASS (task-less)
 ./scripts/verify-candidate FJ-058         # RESULT: PASS (status complete)
 go test ./cmd/... ./internal/...
@@ -3819,7 +3897,7 @@ go test ./cmd/... ./internal/...
 go vet ./cmd/... ./internal/...
 ```
 
-Expected: selftest `summary: 70 passed, 0 failed` exit 0; all three task
+Expected: selftest `summary: 74 passed, 0 failed` exit 0; all three task
 verifications and the task-less run print `RESULT: PASS` exit 0 (their
 `lastVerification` blocks were persisted at each close); `go test`/`go vet`
 print `ok`/silence.
