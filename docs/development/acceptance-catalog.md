@@ -170,3 +170,6 @@ specification.
 | C-QUAL-004 | Fuzz targets show malformed untrusted input yields a controlled error and never a panic or corrupted state. | §22.2 |
 | C-QUAL-005 | Golden contracts run offline with no credentials, model, or network. | §23 |
 | C-QUAL-006 | Required machine-readable contract artifacts are committed and reviewable. | §45 |
+| C-QUAL-007 | `./scripts/verify-candidate` runs the product Go checks under a pinned module environment: ambient `GOFLAGS`, `GOPROXY`, `GOWORK`, `GOPRIVATE`, `GONOSUMDB`, `GOSUMDB`, or `GOTOOLCHAIN` cannot change the outcome, and a warm module cache cannot turn a missing declaration into a silent pass. | §2, §17.2, §31 |
+| C-QUAL-008 | `./scripts/verify-candidate` fails closed when an ancestor `go.work` or a committed `vendor/` directory would change module resolution for this repository. | §2, §17.2 |
+| C-QUAL-009 | `replace`, `exclude`, and `retract` directives are not introduced into `go.mod` without explicit review. | §17.2 |

@@ -37,12 +37,19 @@
   ],
   "verificationCommands": [],
   "lastVerification": null,
-  "blockers": [],
+  "blockers": [
+    {
+      "type": "spec-gap",
+      "description": "go.work/vendor fail-closed detection and the replace/exclude/retract prohibition are defined neither in the specification (it never mentions verify-candidate; per spec/README it governs public product behavior) nor in any design document. Resolution owned by FJ-054: adjudicated as non-public behavior enforced against §17.2, §31, §2 and §23, and recorded via new acceptance-catalog rows C-QUAL-007..009 — the amendment vehicle already in this item's allowedFiles — following the FJ-050/FJ-052 pattern (gap recorded first, amendment by the owning item, then execution)."
+    }
+  ],
   "nextAction": "specifier: turn hardener findings F3, F5 and S1 from .agent/work/FJ-053/hardener.md into observable criteria; the spec is silent on go.work and vendor, so confirm whether this is a spec-gap or fully constrained by §17.2",
   "notes": [
     "PM 2026-09-26: opened from the FJ-053 hardener stage. Verified there: an undeclared import fails closed even with a warm cache and the proxy on, but four conditions bypass it — GOFLAGS=-mod=mod with a warm cache and GOPROXY=off, -mod=mod with a reachable proxy and GONOSUMDB, a parent-directory go.work, and a committed vendor/. Today the only offline enforcement is GOPROXY=off inside .github/workflows/ci.yml; scripts/verify-candidate contains no GOPROXY, GOFLAGS, go.sum or go mod reference at all."
   ],
   "stage": null,
   "leaseOwner": null,
-  "statusHistory": ["planned"]
+  "statusHistory": [
+    "planned"
+  ]
 }
