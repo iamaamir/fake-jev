@@ -171,6 +171,11 @@ generatedAt: 2026-09-25T11:00:00Z
 - `taskFingerprint`: the task-semantic digest (§6.2) computed when the stage
   ran; verification requires it to equal the current task fingerprint (§7).
 - `gitHead`: diagnostic metadata only. It is never evidence identity.
+- `author`: the worker that produced the artifact — a non-empty free-form
+  string (convention: `<kind>/<label>`, e.g. `session/specifier`,
+  `subagent/qa-1`). Optional in the schema so pre-revision artifacts stay
+  parseable; verification requires it on every due artifact of a
+  non-grandfathered item (§8.5).
 - No `status`/verdict field exists in an artifact. Verdicts
   (`pass|fail|skipped|not_applicable`) are produced solely by
   `verify-candidate`, in reports.
@@ -261,7 +266,7 @@ prevents derivation and fails verification first (§8.2).
 Every field not listed above is non-semantic by default and excluded —
 `title`, `phase`, `assignedRole`, `relevantFiles`, `baseRevision`,
 `candidateRevision`, `status`, `stage`, `leaseOwner`, `attempts`,
-`lastVerification`, `reviews`, `blockers`, `nextAction`, `notes`. The
+`lastVerification`, `statusHistory`, `blockers`, `nextAction`, `notes`. The
 include-set is frozen: making another field semantic requires a design
 revision. Workflow-only changes (status transitions, lease moves) therefore
 leave `taskFingerprint` unchanged by construction.
@@ -315,6 +320,18 @@ have no terminal check (work in progress; blocked preserves evidence as-is),
 and `planned`/`ready` have no stage to check. The check is evaluated only when
 the relevant artifact exists — a missing artifact already fails the table
 above — and belongs to that stage's gate, so no new gate id is introduced.
+
+**Recorded-report coverage.** When `status` is `complete`, a
+non-grandfathered item's recorded `lastVerification.report` must itself show
+the evidence the completion rests on: for every stage in that report's
+recorded `policy.requiredStages`, pass rows for `stage.<s>.artifact`,
+`stage.<s>.header`, and `stage.<s>.task_fingerprint`; pass rows for
+`stage.<s>.chain` for every such stage after the first (the first required
+stage has no predecessor link); and a pass row for `stage.<s>.terminal` of
+the last required stage. A missing or failing row fails closed with
+`policy.last_verification_coverage`, as does a missing or unparseable
+`lastVerification`. A report recorded before the evidence existed — a
+pre-flip report — therefore cannot back a `complete` status.
 
 **Display rule.** A broken link is attributed to its target stage: the stage
 whose `inputFingerprint` no longer matches its predecessor's `outputFingerprint`
@@ -412,6 +429,72 @@ The classes above cover every `allowedFiles` path in the current work items
   `status` and `stage`. When a task id is given, G-C additionally executes the
   item's `verificationCommands` (§6.2), equally status-independent; without a
   task id they are unknowable and do not run.
+
+### 8.4 Status transition history
+
+`state.json` gains one optional field: `statusHistory` — an ordered array of
+status strings recording every transition the item has made. Rules, enforced
+by `check_work_item_schema` so every battery run checks every item:
+
+- required for every non-grandfathered item (§8.6); absent fails;
+- the first entry is a pre-execution status: `planned` or `ready` (§8.1);
+- every consecutive pair must be an allowed transition:
+
+| from | to |
+|------|----|
+| `planned` | `ready` |
+| `ready` | `implementing` |
+| `implementing` | `verifying` |
+| `verifying` | `implementing` (stage advance or rework) |
+| `verifying` | `review` |
+| `review` | `complete` |
+| `review` | `implementing` (rework) |
+| `planned`, `ready`, `implementing`, `verifying`, `review` | `blocked` |
+| `blocked` | `ready` |
+
+- `complete` is terminal: no further entries are allowed, and the last entry
+  must equal the current `status`;
+- entries must be status-vocabulary strings; consecutive duplicates fail.
+
+The worker that flips `status` appends the new status to `statusHistory` in
+the same change. The history is workflow-only metadata: excluded from the
+task fingerprint (§6.2) by default. Fail-closed intent: a skip such as
+`implementing → complete` cannot pass — an unrecorded flip leaves the history
+ending somewhere other than the current status, and a recorded one violates
+the edge table.
+
+### 8.5 Author attribution
+
+Each stage artifact header records `author` (§5). Verification requires:
+
+- a non-empty `author` on every due artifact of a non-grandfathered item —
+  a missing value fails `stage.<s>.author`;
+- for a non-grandfathered item with both `coder` and `qa` artifacts parsed,
+  `qa`'s `author` must differ from `coder`'s — equality fails
+  `policy.author_overlap`.
+
+Producing and accepting are performed by different workers: the workflow norm
+(`docs/development/agent-workflow.md`) states this, and verification enforces
+the acceptance floor. Author strings are free-form — verification checks
+presence and inequality, never identity. This is an evidence rule, not an
+authentication mechanism.
+
+### 8.6 Grandfathering (pre-revision completions)
+
+Items completed before this revision cannot carry honest status history or
+author attribution: their real transitions predate the fields, and
+reconstructing them from git yields pre-revision paths (items opened as
+`ready`; closes recorded as `ready → complete`) that the rules above must
+reject. An explicit, frozen list exempts them from §7 recorded-report
+coverage, §8.4 history, and §8.5 author requirements:
+
+```text
+GRANDFATHERED = FJ-001, FJ-002, FJ-003, FJ-004, FJ-043, FJ-048, FJ-053, FJ-PRD-001
+```
+
+All other items — including the revision task itself — must comply. The list
+is explicit rather than timestamp-derived so the check is deterministic and
+fails closed on any unlisted historical item.
 
 ## 9. Verification results and gate policy
 
@@ -535,9 +618,13 @@ QA          artifact: pending  gate: not run
 `.agent/schema/{role-pack,stage-artifact,work-item}.schema.json` are the
 canonical contracts; `verify-candidate`'s validator is an implementation of
 those contracts. `role-pack.schema.json` is fully determined by §4;
-`stage-artifact.schema.json` covers the artifact front matter (§5);
-`work-item.schema.json` covers the whole `state.json` contract — including the
-pre-existing `leaseOwner` rules — not only the fields introduced here.
+`stage-artifact.schema.json` covers the artifact front matter (§5) including
+the optional `author`; `work-item.schema.json` covers the whole `state.json`
+contract — including the pre-existing `leaseOwner` rules and the optional
+`statusHistory` (§8.4) — not only the fields introduced here. Both new fields
+are optional in the schemas so grandfathered items and pre-revision artifacts
+stay valid; verification, not the schema, imposes presence where §7, §8.4 and
+§8.5 require it.
 
 `jsonschema` is not available in this environment and is not a dependency: the
 validator enforces the schema rules directly. `scripts/selftest` guarantees
@@ -589,6 +676,13 @@ mixed path classes                 → strongest policy wins
 unknown path classification        → failure (policy.unknown_scope)
 unknown trace id in specifier.md   → failure (stage.trace_unknown)
 fingerprint excludes .agent/work   → artifact write does not change digest
+missing or edge-violating statusHistory on a non-grandfathered item
+                                   → failure (state.json schema check, §8.4)
+complete item whose recorded report lacks required stage rows
+                                   → failure (policy.last_verification_coverage, §7)
+missing author on a due artifact of a non-grandfathered item
+                                   → failure (stage.<s>.author, §8.5)
+qa author equal to coder author    → failure (policy.author_overlap, §8.5)
 ```
 
 This applies the gauntlet to the gauntlet itself.
@@ -624,7 +718,8 @@ This applies the gauntlet to the gauntlet itself.
 
 ## 14. Non-goals
 
-- No workflow engine, no new status vocabulary, no stage history database.
+- No workflow engine, no new status vocabulary, no stage history database
+  (`statusHistory` is a plain ordered list in `state.json`, §8.4).
 - No generated persona prompts; packs stay short and pointer-based.
 - No model-specific or harness-specific files in the repository.
 - No self-certification: artifacts never carry verdicts.

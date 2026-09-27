@@ -153,8 +153,13 @@ Establish shared contracts first, then fan out.
 - **Do not parallelize mechanical work** — file listing, string search, JSON parsing,
   running tests, comparing hashes. That is tool work, and it is cheap in one place.
 
-A single worker may cover several roles on a small change; what must stay distinct is
-the evidence boundary between producing a change and accepting one.
+Each stage is performed by a distinct worker, and every stage artifact records
+its author. The accepting role (`qa`) must never be the worker that produced
+the change: `verify-candidate` fails a `qa` artifact whose `author` equals the
+`coder` artifact's `author`, and fails any due artifact missing its `author`.
+Single-worker multi-role coverage is ended as a norm; verification enforces
+the author floor at the evidence boundary between producing a change and
+accepting one.
 
 ## Retry and escalation
 
