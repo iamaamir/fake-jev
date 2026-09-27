@@ -22,7 +22,7 @@
 - Edit only files listed in the task's **Files** block.
 - **The plan file freezes when execution starts.** Do not tick checkboxes or otherwise edit this file mid-execution: `docs/` content participates in the candidate fingerprint. Track progress via `.agent/work/<task-id>/state.json` (`status`, `nextAction`, `lastVerification`).
 - **Serialization precondition (design §5):** `./scripts/agent-context FJ-052` (or `python3 -c` on `.agent/work/FJ-052/state.json`) must show `status: complete` **before Task 1 starts** — FJ-052 and this plan both edit `scripts/verify-candidate` and `scripts/selftest`. If FJ-052 is not complete, or FJ-054 (or any other item) is in flight against `scripts/verify-candidate`, STOP and wait; do not rebase around a live writer.
-- Work items FJ-056/057/058 are created (status `planned`) together with this plan's commit. Stay at `planned` for all code work — `planned` needs no lease, and stage/artifact rows only exist for due stages, so mid-task verifies stay green. The close recipes below flip status at the end of Tasks 4, 5 and 6.
+- Work items FJ-056/057/058 are created (status `planned`) together with this plan's commit. Stay at `planned` for all code work — `planned` needs no lease, and stage/artifact rows only exist for due stages, so mid-task verifies stay green. State transitions occur only inside the close sequence below: the lease exists there briefly while stepping through `implementing`/`verifying`, and is released on entry to `review`. The close recipes below flip status at the end of Tasks 4, 5 and 6.
 
 ## Design interpretation notes (frozen for this plan)
 
@@ -76,22 +76,36 @@ Every close follows this order — evidence must bind to the *final* code revisi
    taskFingerprint: $TFP
    gitHead: $GH
    generatedAt: $NOW
+   author: <author-label>
    ---
    ```
    Bodies are short and stage-specific (exact texts in each close section; **no `## Traces` section** — these items make no C-ID claims, and an absent section means no claims). Every `input`/`output` equals `$FP`, which satisfies both the first stage (no predecessor) and the terminal rule (qa output == current candidate fingerprint).
-4. **Flip to review:**
+
+   **Author labels are a binding step (§8.5), not a suggestion.** The `specifier`/`coder`/`cleaner`/`hardener` records carry the executing agent's own label (e.g. `subagent/guard-1` — substitute your actual identity as the `<author-label>` placeholder), and **the `qa` artifact MUST be authored by a distinct subagent (e.g. `subagent/qa-review-1`) that performs a real review of the final diff before writing `qa.md`** — that is what satisfies the enforced floor `qa.author != coder.author` (`policy.author_overlap`) and restores genuine per-stage review. Honest split: the first four records are retrospective evidence from the single executing worker; `qa` is an independent reviewer.
+4. **Flip to review — a stepped sequence that enters every state in order.** Step 3's artifacts must already exist (order: bindings → artifacts → flips → verify). Each step below is its own read-modify-write appending to `statusHistory`, walking the allowed edges `planned → ready → implementing → verifying → review`. **Do not run verify between these steps** — nothing may run until review: the artifacts are already written, so the final review-run passes, and a mid-sequence run would be pointless anyway (a lease and a half-ordered history buy nothing).
    ```bash
    python3 - <<'PY'
    import json, os, pathlib
    p = pathlib.Path(".agent/work/FJ-056/state.json")
-   s = json.loads(p.read_text(encoding="utf-8"))
-   s.update(status="review", stage="qa", assignedRole="qa",
-            baseRevision=os.environ["GH"], candidateRevision=os.environ["GH"],
-            leaseOwner=None)
-   p.write_text(json.dumps(s, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+   def step(**fields):
+       s = json.loads(p.read_text(encoding="utf-8"))
+       s["statusHistory"] = s.get("statusHistory", []) + [fields.pop("append")]
+       s.update(**fields)
+       p.write_text(json.dumps(s, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+
+   label = "subagent/guard-1"   # the executing agent's own label (step 3's author)
+   step(append="ready", status="ready")
+   step(append="implementing", status="implementing", leaseOwner=label)
+   step(append="verifying", status="verifying", leaseOwner=label)
+   step(append="review", status="review", stage="qa", assignedRole="qa",
+        baseRevision=os.environ["GH"], candidateRevision=os.environ["GH"],
+        leaseOwner=None)
    PY
    ```
-5. **Verify:** `./scripts/verify-candidate FJ-056` must exit 0 (`RESULT: PASS`, `report: .agent/reports/FJ-056/report-*.json` printed). Policy, evidence chain, terminal, task fingerprint and every guard row must pass at `review` (all stages due).
+   The lease exists only inside this sequence (`implementing`/`verifying`) and is released at `review`.
+5. **Verify:** `./scripts/verify-candidate FJ-056` must exit 0 (`RESULT: PASS`, `report: .agent/reports/FJ-056/report-*.json` printed). Policy, evidence chain, terminal, task fingerprint and every guard row must pass at `review` (all stages due); the state.json schema check passes too (`statusHistory` ends at `review`, no lease required at `review`), as do the per-stage `author` rows and `policy.author_overlap` (qa's distinct reviewer label).
 6. **Complete + persist `lastVerification`** from that report, then verify again:
    ```bash
    VERIFY_OUT=$(./scripts/verify-candidate FJ-056) || { printf '%s\n' "$VERIFY_OUT"; exit 1; }
@@ -115,6 +129,7 @@ Every close follows this order — evidence must bind to the *final* code revisi
        "summary": "%d passed, %d failed, %d skipped, %d not_applicable" % (
            c["pass"], c["fail"], c["skipped"], c["not_applicable"]),
    }
+   s["statusHistory"] = s.get("statusHistory", []) + ["complete"]
    s.update(status="complete",
             nextAction="none — FJ-056 closed; FJ-057 takes the trace subcommand",
             attempts=s.get("attempts", 0) + 1)
@@ -122,7 +137,7 @@ Every close follows this order — evidence must bind to the *final* code revisi
    PY
    ./scripts/verify-candidate FJ-056   # must exit 0 again with status=complete
    ```
-   (`lastVerification` and `status` are outside the semantic task fields and `.agent/work` is outside the candidate digest, so this edit cannot invalidate the evidence just recorded.)
+   (`lastVerification`, `status` and the appended `statusHistory` entry are outside the semantic task fields and `.agent/work` is outside the candidate digest, so this edit cannot invalidate the evidence just recorded.)
 7. **Close commit** staging only this item's state and reports:
    ```bash
    git add .agent/work/FJ-056 .agent/reports/FJ-056
