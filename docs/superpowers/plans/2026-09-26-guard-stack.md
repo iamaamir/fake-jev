@@ -1289,7 +1289,7 @@ Expected (exit `0`):
 }
 ```
 
-`packages=3`: `fake-jev`, `fake-jev/cmd/fake-jev`, `fake-jev/internal/cli` — the new `fake-jev/cmd/guard`. `files=11`: 8 guard files (5 implementation + 3 test) + 1 + 2. `agent/` sample packages are skipped by `skipDirs` (the only rule targets `internal/engine`, which does not exist yet, so the report is empty by construction).
+`packages=3`: `fake-jev/cmd/guard` (new), `fake-jev/cmd/fake-jev`, `fake-jev/internal/cli`. `files=11`: 8 guard files (5 implementation + 3 test) + 1 + 2. `agent/` sample packages are skipped by `skipDirs` (the only rule targets `internal/engine`, which does not exist yet, so the report is empty by construction).
 
 Also vet:
 ```bash
@@ -2024,7 +2024,7 @@ Insert immediately after the `CLASS` case's `esac` (right before `# --- aggregat
 # One block for all guard helpers and rows: rows land together with their
 # subcommand (arch+lint now; trace in FJ-057, fuzz+race in FJ-058), so a row
 # never exists without its tool.
-# Nothing-to-guard detection (interpretation note 5): skip only when there is
+# Nothing-to-guard detection (interpretation note 1): skip only when there is
 # nothing to scan — no go.mod (foundation phase) or zero repository Go
 # packages. A module with packages and a missing or unbuildable cmd/guard
 # reaches guard_build below and fails closed as guard.tool.failed instead
@@ -2402,7 +2402,7 @@ Append to `.github/workflows/ci.yml` after the `build` job:
         run: ./scripts/verify-candidate
 ```
 
-Sanity: `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); print('yaml ok'"` — fix the quote typo above when running (the file must parse; the step is `import yaml, sys` only if PyYAML exists, otherwise use any available YAML check or rely on review — the workflow must not gain a new dependency).
+Sanity: `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); print('yaml ok')"` (the file must parse; the step is `import yaml, sys` only if PyYAML exists, otherwise use any available YAML check or rely on review — the workflow must not gain a new dependency).
 
 - [ ] **Step 8: Commit the feature**
 
@@ -3485,7 +3485,8 @@ tree (the crashing unit test's inputs land in `t.TempDir()` modules).
 
 - [ ] **Step 5: Add the fuzz and race rows to verify-candidate**
 
-5a. In `check_code`'s case, extend the entries from Tasks 4-5:
+5a. In `check_code`'s case, keep the arch/lint entries from Task 4 and the trace
+entry from Task 5 as they are; add the fuzz and race entries alongside them:
 
 ```bash
     check_guard_trace)          echo "guard.trace.failed" ;;

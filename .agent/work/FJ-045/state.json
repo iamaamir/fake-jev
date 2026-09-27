@@ -9,7 +9,7 @@
   "assignedRole": null,
   "leaseOwner": null,
   "attempts": 0,
-  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2"],
+  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2", "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md"],
   "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
   "allowedFiles": ["internal/hardening/"],
   "acceptance": [

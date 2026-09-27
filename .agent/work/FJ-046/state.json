@@ -11,7 +11,8 @@
   "attempts": 0,
   "specReferences": [
     "spec/fake-jev-technical-spec-v2.md §44 golden contract vectors",
-    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2"
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §9.2",
+    "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md"
   ],
   "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
   "allowedFiles": ["test/"],
