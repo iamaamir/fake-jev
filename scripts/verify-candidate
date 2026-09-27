@@ -1201,6 +1201,65 @@ else
 fi
 rm -f "$ENGINE_ROWS" "$ENGINE_ERR"
 
+# --- module posture: pinned environment + fail-closed resolution checks ------
+#
+# The product Go checks below run under an environment this script sets itself,
+# not the operator's shell: each of the seven module-posture variables is
+# exported explicitly (the process environment beats ambient values and beats
+# any go env file), so ambient GOFLAGS, GOPROXY, GOWORK, GOPRIVATE, GONOSUMDB,
+# GOSUMDB or GOTOOLCHAIN cannot change the outcome. GOFLAGS pins -mod=readonly
+# so a warm module cache can never resolve an undeclared import or rewrite
+# go.mod; GOPROXY=off matches the CI posture (.github/workflows/ci.yml);
+# GOTOOLCHAIN=local keeps every go invocation offline (a go.mod floor the local
+# toolchain cannot satisfy fails loudly instead of downloading a toolchain).
+AMBIENT_GOWORK="${GOWORK:-}"
+export GOFLAGS="-mod=readonly"
+export GOPROXY="off"
+export GOWORK="off"
+export GOPRIVATE=""
+export GONOSUMDB=""
+export GOSUMDB="sum.golang.org"
+export GOTOOLCHAIN="local"
+printf 'verify-candidate: module environment pinned (GOFLAGS=%s GOPROXY=%s GOWORK=%s GOPRIVATE=%s GONOSUMDB=%s GOSUMDB=%s GOTOOLCHAIN=%s)\n' \
+  "$GOFLAGS" "$GOPROXY" "$GOWORK" "$GOPRIVATE" "$GONOSUMDB" "$GOSUMDB" \
+  "$GOTOOLCHAIN"
+
+# An active workspace file silently changes which modules resolve while leaving
+# go.mod untouched, and a root vendor/ directory switches Go to -mod=vendor
+# automatically. Both are detected here — pure environment/filesystem
+# inspection, before any Go check runs — and recorded as required rows naming
+# the offender; when neither exists no row is emitted, so the clean battery is
+# unchanged. An ambient GOWORK that points at nothing cannot put a build into
+# workspace mode, so only an existing file is a finding (the pinned GOWORK=off
+# above keeps the dangling value inert for every go invocation below). The
+# discovery probe clears GOWORK on top of the pinned environment, which is how
+# a parent-directory go.work is found with no environment variable at all.
+GO_WORKSPACE_FILE=""
+if [ -n "$AMBIENT_GOWORK" ] && [ -e "$AMBIENT_GOWORK" ]; then
+  GO_WORKSPACE_FILE="$AMBIENT_GOWORK"
+else
+  DISCOVERED_GOWORK="$(env -u GOWORK go env GOWORK 2>/dev/null || true)"
+  if [ -n "$DISCOVERED_GOWORK" ] && [ "$DISCOVERED_GOWORK" != "off" ] && \
+      [ -e "$DISCOVERED_GOWORK" ]; then
+    GO_WORKSPACE_FILE="$DISCOVERED_GOWORK"
+  fi
+fi
+if [ -n "$GO_WORKSPACE_FILE" ]; then
+  printf '==> module posture: no go.work in effect\n'
+  printf '    workspace file in effect: %s\n' "$GO_WORKSPACE_FILE"
+  printf '    FAIL (exit 1, code go.workspace_active)\n\n'
+  record_row "check_go_workspace" "module posture: no go.work in effect" \
+    "G-C" 1 "fail" 1 "go.workspace_active" \
+    "workspace file in effect: $GO_WORKSPACE_FILE"
+fi
+if [ -d vendor ]; then
+  printf '==> module posture: no vendor/ directory\n'
+  printf '    vendor/ present at repository root switches Go to -mod=vendor\n'
+  printf '    FAIL (exit 1, code go.vendor_present)\n\n'
+  record_row "check_go_vendor" "module posture: no vendor/ directory" \
+    "G-C" 1 "fail" 1 "go.vendor_present" "vendor/ present at repository root"
+fi
+
 # --- product checks (activated as phases land) -------------------------------
 
 # Repository-owned packages only. Tool-managed skill installs live inside the
@@ -1255,10 +1314,14 @@ check_go_vet() {
 check_go_build() { go build ./cmd/fake-jev; }
 
 # Go checks are required iff class == product (design §8.3). metadata items get
-# not_applicable/stage.not_required (§9.3); an unknown class or a missing module
-# runs them non-required so foundation work is never deadlocked (interpretation
-# note 1). A product item with go.mod but no packages yet skips non-required
-# until something exists to test (interpretation note 1b).
+# not_applicable/stage.not_required (§9.3). The unknown class (a task-less run
+# or an unparseable task context) runs them required when a go.mod is present:
+# a battery that exits 0 while the module does not build would be exactly the
+# silent pass the pinned module environment exists to prevent (acceptance
+# C-QUAL-007). A missing module still skips non-required so foundation work is
+# never deadlocked (interpretation note 1). A product item with go.mod but no
+# packages yet skips non-required until something exists to test (interpretation
+# note 1b).
 ALL_PKGS="$(repo_packages 2>/dev/null || true)"
 case "$CLASS" in
   metadata)
@@ -1297,10 +1360,10 @@ case "$CLASS" in
     ;;
   *)
     if [ -f go.mod ]; then
-      run_check "go test (repository packages)" check_go_test 0
-      run_check "go vet (repository packages)" check_go_vet 0
+      run_check "go test (repository packages)" check_go_test 1
+      run_check "go vet (repository packages)" check_go_vet 1
       if [ -d cmd/fake-jev ]; then
-        run_check "go build ./cmd/fake-jev" check_go_build 0
+        run_check "go build ./cmd/fake-jev" check_go_build 1
       else
         skip_check "go build ./cmd/fake-jev" check_go_build \
           "cmd/fake-jev does not exist yet" "" 0
