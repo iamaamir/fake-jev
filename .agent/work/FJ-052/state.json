@@ -3,7 +3,7 @@
   "title": "Harden: status history, per-stage attribution, and role separation",
   "phase": "foundation",
   "objective": "Close the three enforcement gaps exposed by the FJ-002 dogfood run: (1) status transitions are prose-only, so implementing -> complete skips verifying/review undetectably; (2) lastVerification can be recorded from a pre-flip run that emitted no terminal rows; (3) one worker performs every stage with no per-stage attribution, so role expertise and review independence cannot be checked. Approved as the full hardening package by the repository owner; execution is sequenced after the phase-0 ladder.",
-  "status": "implementing",
+  "status": "complete",
   "specReferences": [
     "gauntlet design §5 (stage artifact header fields)",
     "gauntlet design §6.2 (semantic include-set freeze; design revision required for new semantic fields)",
@@ -38,9 +38,17 @@
     "no engine or gate changes while FJ-003/FJ-004 are in flight"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "result": "passed",
+    "report": ".agent/reports/FJ-052/report-20260927T123726Z.json",
+    "revision": "c389b3b",
+    "candidateFingerprint": "7122486b0b0f93a063e01a58d8ef96276b4f917e9fe93f2614e0ae234fa85b69",
+    "taskFingerprint": "f688e36458c7a2ba1571ca1f4371b29f3a3771234496b113c557bc0c2f73c9ad",
+    "finishedAt": "2026-09-27T12:37:26Z",
+    "summary": "36 passed, 0 failed, 2 skipped, 4 not_applicable"
+  },
   "blockers": [],
-  "nextAction": "subagent/qa-1 executing the qa stage: independent acceptance review of FJ-052 vs specifier criteria",
+  "nextAction": "R2 verification run at complete, then close commit staging .agent/work/FJ-052 and .agent/reports/FJ-052 only",
   "notes": [
     "Decision provenance: FJ-002 dogfood session — owner chose the full hardening package (statusHistory, attribution, role separation, workflow norm change) with execution after the phase-0 ladder; soft markers were rejected as theater.",
     "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records.",
@@ -53,8 +61,11 @@
     "verifying",
     "implementing",
     "verifying",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
   "stage": "qa",
-  "leaseOwner": "subagent/qa-1"
+  "leaseOwner": null
 }
