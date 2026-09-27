@@ -3,7 +3,7 @@
   "title": "Harden: pin the offline module posture in the verifier, and constrain module-graph directives",
   "phase": "phase-0",
   "objective": "Make the offline, standard-library-only module posture fail closed in ./scripts/verify-candidate and locally, not only inside the CI workflow, and record a repository policy that module-graph directives (replace, exclude, retract) are not used without review.",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -43,18 +43,21 @@
       "description": "go.work/vendor fail-closed detection and the replace/exclude/retract prohibition are defined neither in the specification (it never mentions verify-candidate; per spec/README it governs public product behavior) nor in any design document. Resolution owned by FJ-054: adjudicated as non-public behavior enforced against §17.2, §31, §2 and §23, and recorded via new acceptance-catalog rows C-QUAL-007..009 — the amendment vehicle already in this item's allowedFiles — following the FJ-050/FJ-052 pattern (gap recorded first, amendment by the owning item, then execution)."
     }
   ],
-  "nextAction": "cleaner running at implementing/cleaner (coder checkpoint consumed early; repaired per FJ-052 pair pattern); cleaner.md then verifying/cleaner flip",
+  "nextAction": "review gate: verify at review with all stages due, then qa commit, recorded verify, complete flip, close",
   "notes": [
     "PM 2026-09-26: opened from the FJ-053 hardener stage. Verified there: an undeclared import fails closed even with a warm cache and the proxy on, but four conditions bypass it — GOFLAGS=-mod=mod with a warm cache and GOPROXY=off, -mod=mod with a reachable proxy and GONOSUMDB, a parent-directory go.work, and a committed vendor/. Today the only offline enforcement is GOPROXY=off inside .github/workflows/ci.yml; scripts/verify-candidate contains no GOPROXY, GOFLAGS, go.sum or go mod reference at all."
   ],
-  "stage": "cleaner",
-  "leaseOwner": "subagent/cleaner-1",
+  "stage": "qa",
+  "leaseOwner": null,
   "statusHistory": [
     "planned",
     "ready",
     "implementing",
     "verifying",
     "implementing",
-    "verifying"
+    "verifying",
+    "implementing",
+    "verifying",
+    "review"
   ]
 }
