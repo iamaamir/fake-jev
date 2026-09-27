@@ -40,18 +40,21 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "subagent/cleaner-1 executing the cleaner stage (G-L hygiene over scripts/schema/docs changes)",
+  "nextAction": "subagent/qa-1 executing the qa stage: independent acceptance review of FJ-052 vs specifier criteria",
   "notes": [
     "Decision provenance: FJ-002 dogfood session — owner chose the full hardening package (statusHistory, attribution, role separation, workflow norm change) with execution after the phase-0 ladder; soft markers were rejected as theater.",
-    "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records."
+    "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records.",
+    "QA adjudication (orchestrator, R1-precursor): qa.md findings 1-7 accepted as non-blocking. Finding 1 (author row suppressed on unparseable header) fails closed via stage.<s>.header; empty-author and missing-artifact cases cannot reach a pass. Findings 2/4 correct the review brief, not the code. Findings 3/5/6/7 sanctioned by design §8.6/§7/§13 and heredoc-isolation pattern."
   ],
   "statusHistory": [
     "planned",
     "ready",
     "implementing",
     "verifying",
+    "implementing",
+    "verifying",
     "implementing"
   ],
-  "stage": "cleaner",
-  "leaseOwner": "subagent/cleaner-1"
+  "stage": "qa",
+  "leaseOwner": "subagent/qa-1"
 }
