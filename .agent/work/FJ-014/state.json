@@ -43,5 +43,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement route matching and first-error validation with golden 422 tests",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

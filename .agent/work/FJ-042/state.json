@@ -43,5 +43,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add the release workflow, image, and examples",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

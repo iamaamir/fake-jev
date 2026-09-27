@@ -36,5 +36,6 @@
   "notes": [
     "Opened with a one-line candidate-fingerprint extension (METADATA_FILES gains \"LICENSE\") because classification fails closed on unknown paths by design.",
     "Normative strength recorded honestly: §17 says the v1 layout SHOULD start as given; the LICENSE gap is layout completion plus release hygiene, not a MUST."
-  ]
+  ],
+  "statusHistory": ["planned"]
 }

@@ -36,5 +36,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add race tests and fuzz targets for parsing, matcher input, and state transitions",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

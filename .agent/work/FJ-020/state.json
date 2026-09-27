@@ -47,5 +47,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement the stub and meta endpoints against the engine",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

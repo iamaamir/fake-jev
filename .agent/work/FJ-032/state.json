@@ -41,5 +41,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement run and verify, then encode the §44.13 precedence table as tests",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

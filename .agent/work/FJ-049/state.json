@@ -33,5 +33,6 @@
   "notes": [
     "This item is the sole holder of docs/development/acceptance-catalog.md in allowedFiles; no other work item may edit the catalog.",
     "If release wiring is needed, it rides FJ-042's release workflow — coordinate an allowedFiles amendment at pickup rather than editing .github/workflows here."
-  ]
+  ],
+  "statusHistory": ["planned"]
 }

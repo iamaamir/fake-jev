@@ -182,14 +182,18 @@ def line_or_none(value):
 
 ARTIFACT_KEYS = {"stage", "task", "inputFingerprint", "outputFingerprint",
                  "taskFingerprint", "gitHead", "generatedAt"}
+# Optional §5 header keys: accepted on any artifact, never required (the
+# engine's OPTIONAL_ARTIFACT_KEYS is the authority; this mirrors it).
+OPTIONAL_ARTIFACT_KEYS = {"author"}
 HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
 TASK_ID_RE = re.compile(r"\AFJ-[A-Za-z0-9-]+\Z")
 
 
 def parse_artifact(path):
     """Stage-artifact front matter (design §5) under the same rules the engine
-    applies: `key: value` lines only, exact seven-key set, stage/task/digest
-    validation. Returns (header, body); raises ValueError when invalid."""
+    applies: `key: value` lines only, the required seven-key set plus the
+    optional `author`, stage/task/digest validation. Returns (header, body);
+    raises ValueError when invalid."""
     with open(path, encoding="utf-8") as handle:
         text = handle.read()
     if not text.startswith("---\n"):
@@ -205,9 +209,15 @@ def parse_artifact(path):
         if key in header:
             raise ValueError("duplicate front matter key: %s" % key)
         header[key] = value
-    if set(header) != ARTIFACT_KEYS:
-        raise ValueError("front matter keys %s != %s"
-                         % (sorted(header), sorted(ARTIFACT_KEYS)))
+    missing = sorted(ARTIFACT_KEYS - set(header))
+    unknown = sorted(set(header) - ARTIFACT_KEYS - OPTIONAL_ARTIFACT_KEYS)
+    if missing:
+        raise ValueError("front matter missing keys: %s" % ", ".join(missing))
+    if unknown:
+        raise ValueError("front matter unknown keys: %s" % ", ".join(unknown))
+    for key in sorted(OPTIONAL_ARTIFACT_KEYS):
+        if key in header and not header[key]:
+            raise ValueError("front matter %s must be non-empty" % key)
     if header["stage"] not in STAGE_NAMES:
         raise ValueError("unknown stage %r" % header["stage"])
     if not TASK_ID_RE.match(header["task"]):

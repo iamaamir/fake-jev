@@ -42,5 +42,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement history, reset, and verify with the §44.8 reset vector as a test",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

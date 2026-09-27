@@ -33,6 +33,13 @@
       "description": "Non-empty while status is implementing/verifying; unique across work items; null when unclaimed."
     },
     "attempts": { "type": "integer", "minimum": 0 },
+    "statusHistory": {
+      "type": "array", "minItems": 1,
+      "items": { "type": "string", "enum": ["planned", "ready", "implementing",
+                                            "verifying", "review", "blocked",
+                                            "complete"] },
+      "description": "Ordered record of every status transition (design §8.4). Optional in the schema so grandfathered items (§8.6) stay valid; check_work_item_schema in scripts/verify-candidate requires it, the planned/ready first entry, allowed edges, and last entry == status for every non-grandfathered item."
+    },
     "specReferences": { "type": "array", "items": { "type": "string" } },
     "relevantFiles": { "type": "array", "items": { "type": "string" } },
     "allowedFiles": { "type": "array", "items": { "type": "string" } },

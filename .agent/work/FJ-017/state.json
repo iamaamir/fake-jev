@@ -41,5 +41,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement dispatch, limit enforcement, and failure bodies; test through a real listener",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

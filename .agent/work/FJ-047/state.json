@@ -22,5 +22,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "Pick up when CI needs role-pack validation to be unconditional.",
-  "notes": ["Tracking item for the toolchain.pyyaml_missing exemption on G-C (gate-policy.json)."]
+  "notes": ["Tracking item for the toolchain.pyyaml_missing exemption on G-C (gate-policy.json)."],
+  "statusHistory": ["planned"]
 }

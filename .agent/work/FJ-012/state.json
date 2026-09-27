@@ -42,5 +42,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement sequence consumption and counters, then encode §44.7 as a test",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

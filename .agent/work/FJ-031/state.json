@@ -40,5 +40,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement serve, ready-file atomicity, and signal handling",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

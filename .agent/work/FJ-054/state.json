@@ -43,5 +43,6 @@
     "PM 2026-09-26: opened from the FJ-053 hardener stage. Verified there: an undeclared import fails closed even with a warm cache and the proxy on, but four conditions bypass it — GOFLAGS=-mod=mod with a warm cache and GOPROXY=off, -mod=mod with a reachable proxy and GONOSUMDB, a parent-directory go.work, and a committed vendor/. Today the only offline enforcement is GOPROXY=off inside .github/workflows/ci.yml; scripts/verify-candidate contains no GOPROXY, GOFLAGS, go.sum or go mod reference at all."
   ],
   "stage": null,
-  "leaseOwner": null
+  "leaseOwner": null,
+  "statusHistory": ["planned"]
 }

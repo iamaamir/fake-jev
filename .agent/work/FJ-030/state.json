@@ -34,5 +34,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement validate on top of the configuration validator",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

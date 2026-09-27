@@ -38,5 +38,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement sequencing, journal capacity, and the atomicity guarantees under -race",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

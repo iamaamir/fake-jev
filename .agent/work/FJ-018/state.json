@@ -53,5 +53,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "integrate the modules and drive the golden corpus through HTTP",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

@@ -49,5 +49,6 @@
     "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; depends on FJ-057; ownership pin: this item ships the fuzz runner only, FJ-040 ships targets."
   ],
   "stage": null,
-  "leaseOwner": null
+  "leaseOwner": null,
+  "statusHistory": ["planned"]
 }

@@ -45,5 +45,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement parsing, alias normalization, unknown-key rejection, and defaults",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

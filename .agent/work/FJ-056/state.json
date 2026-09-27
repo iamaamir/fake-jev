@@ -57,5 +57,6 @@
     "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; plan Tasks 1-4 close this item; guard stack sequence FJ-056 -> FJ-057 -> FJ-058 (design §5)."
   ],
   "stage": null,
-  "leaseOwner": null
+  "leaseOwner": null,
+  "statusHistory": ["planned"]
 }

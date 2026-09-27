@@ -41,5 +41,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "add limit, redaction, and egress assertions as deterministic tests",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

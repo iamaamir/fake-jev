@@ -3,7 +3,7 @@
   "title": "Harden: status history, per-stage attribution, and role separation",
   "phase": "foundation",
   "objective": "Close the three enforcement gaps exposed by the FJ-002 dogfood run: (1) status transitions are prose-only, so implementing -> complete skips verifying/review undetectably; (2) lastVerification can be recorded from a pre-flip run that emitted no terminal rows; (3) one worker performs every stage with no per-stage attribution, so role expertise and review independence cannot be checked. Approved as the full hardening package by the repository owner; execution is sequenced after the phase-0 ladder.",
-  "status": "planned",
+  "status": "implementing",
   "specReferences": [
     "gauntlet design §5 (stage artifact header fields)",
     "gauntlet design §6.2 (semantic include-set freeze; design revision required for new semantic fields)",
@@ -40,9 +40,16 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "wait for FJ-003 and FJ-004 to complete, then run the specifier stage on this item",
+  "nextAction": "subagent/coder-1 executing the coder stage: schemas, verify checks, selftest scenarios, seeding",
   "notes": [
     "Decision provenance: FJ-002 dogfood session — owner chose the full hardening package (statusHistory, attribution, role separation, workflow norm change) with execution after the phase-0 ladder; soft markers were rejected as theater.",
     "Absorbs FJ-050 bullets 3 (attribution) and 9 (lastVerification ordering) as execution scope; those bullets remain as findings records."
-  ]
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "coder",
+  "leaseOwner": "subagent/coder-1"
 }

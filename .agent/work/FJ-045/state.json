@@ -22,5 +22,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "Pick up once Go product code and go.mod exist.",
-  "notes": ["Tracking item for the stage.tooling_bootstrap_exempt exemption on G-H (gate-policy.json), scoped to product items."]
+  "notes": ["Tracking item for the stage.tooling_bootstrap_exempt exemption on G-H (gate-policy.json), scoped to product items."],
+  "statusHistory": ["planned"]
 }

@@ -127,6 +127,7 @@ check_code() {
     check_spec_present)        echo "spec.missing" ;;
     check_json_files)          echo "agent.json_malformed" ;;
     check_work_item_schema)    echo "agent.work_item_schema" ;;
+    check_recorded_report_coverage) echo "policy.last_verification_coverage" ;;
     check_role_packs)          echo "agent.role_pack_invalid" ;;
     check_go_test)             echo "go.test_failed" ;;
     check_go_vet)              echo "go.vet_failed" ;;
@@ -322,6 +323,18 @@ LISTS = ["specReferences", "relevantFiles", "allowedFiles", "acceptance",
 # Active execution must be leased: two agents sharing one tree need to know who
 # owns a work item. Verification fails closed on a missing or contended lease.
 LEASE_REQUIRED = {"implementing", "verifying"}
+# Design §8.4: the allowed status transitions, and the explicit §8.6 list of
+# items completed before the revision (they carry no history, attribution or
+# recorded-report coverage).
+GRANDFATHERED = {"FJ-001", "FJ-002", "FJ-003", "FJ-004", "FJ-043", "FJ-048",
+                 "FJ-053", "FJ-PRD-001"}
+ALLOWED_EDGES = {("planned", "ready"), ("ready", "implementing"),
+                 ("implementing", "verifying"), ("verifying", "implementing"),
+                 ("verifying", "review"), ("review", "complete"),
+                 ("review", "implementing"), ("planned", "blocked"),
+                 ("ready", "blocked"), ("implementing", "blocked"),
+                 ("verifying", "blocked"), ("review", "blocked"),
+                 ("blocked", "ready")}
 
 failed = False
 paths = sorted(pathlib.Path(".agent/work").glob("*/state.json"))
@@ -359,6 +372,28 @@ for p in paths:
         claims.setdefault(lease.strip(), []).append(p.parent.name)
     if data.get("status") in LEASE_REQUIRED and not (isinstance(lease, str) and lease.strip()):
         problems.append(f"status {data.get('status')!r} requires a non-empty leaseOwner")
+    # Design §8.4 status transition history; grandfathered items (§8.6) skip
+    # every rule below.
+    if data.get("id") not in GRANDFATHERED:
+        history = data.get("statusHistory")
+        if history is None:
+            problems.append("statusHistory missing")
+        elif not isinstance(history, list) or not history:
+            problems.append("statusHistory must be a non-empty list")
+        elif any(not isinstance(entry, str) or entry not in STATUSES
+                 for entry in history):
+            problems.append("statusHistory entries must be status-vocabulary strings")
+        else:
+            if history[0] not in ("planned", "ready"):
+                problems.append(f"statusHistory first entry {history[0]!r} must be "
+                                "'planned' or 'ready'")
+            for previous, current in zip(history, history[1:]):
+                if (previous, current) not in ALLOWED_EDGES:
+                    problems.append(f"statusHistory pair '{previous}->{current}' "
+                                    "not an allowed transition")
+            if history[-1] != data.get("status"):
+                problems.append(f"statusHistory ends {history[-1]!r} but status is "
+                                f"{data.get('status')!r}")
     if problems:
         failed = True
         print(f"{p}:")
@@ -374,7 +409,105 @@ for owner in sorted(claims):
 sys.exit(1 if failed else 0)
 PY
 }
+
+# Design §7 recorded-report coverage: a complete, non-grandfathered item's own
+# recorded lastVerification.report must show the evidence the completion rests
+# on (pass rows for every required stage's artifact/header/task_fingerprint,
+# chain after the first, and the last stage's terminal). The report's own
+# policy.requiredStages is the source of truth — nothing is recomputed here.
+check_recorded_report_coverage() {
+  python3 - <<'PY'
+import json, pathlib, sys
+
+GRANDFATHERED = {"FJ-001", "FJ-002", "FJ-003", "FJ-004", "FJ-043", "FJ-048",
+                 "FJ-053", "FJ-PRD-001"}
+
+
+def report_row_problems(report):
+    """Missing/non-pass coverage rows of one recorded report (§7)."""
+    problems = []
+    policy = report.get("policy")
+    stages = policy.get("requiredStages") if isinstance(policy, dict) else None
+    if not isinstance(stages, list) or not stages:
+        problems.append("recorded report policy.requiredStages missing or empty")
+        return problems
+    by_name = {}
+    checks = report.get("checks")
+    if isinstance(checks, list):
+        for row in checks:
+            if isinstance(row, dict) and isinstance(row.get("name"), str):
+                by_name[row["name"]] = row
+    for index, stage in enumerate(stages):
+        wanted = ["stage.%s.artifact" % stage,
+                  "stage.%s.header" % stage,
+                  "stage.%s.task_fingerprint" % stage]
+        if index > 0:
+            wanted.append("stage.%s.chain" % stage)
+        if index == len(stages) - 1:
+            wanted.append("stage.%s.terminal" % stage)
+        for name in wanted:
+            row = by_name.get(name)
+            if row is None:
+                problems.append(f"missing report row {name}")
+            elif row.get("result") != "pass":
+                problems.append(f"report row {name} result "
+                                f"{row.get('result')!r} is not pass")
+    return problems
+
+
+failed = False
+checked = 0
+grandfathered = 0
+for p in sorted(pathlib.Path(".agent/work").glob("*/state.json")):
+    try:
+        data = json.loads(p.read_text())
+    except Exception as exc:
+        print(f"{p}: malformed: {exc}")
+        failed = True
+        continue
+    if data.get("status") != "complete":
+        continue
+    if data.get("id") in GRANDFATHERED:
+        grandfathered += 1
+        continue
+    checked += 1
+    problems = []
+    last = data.get("lastVerification")
+    report_rel = None
+    if not isinstance(last, dict):
+        problems.append("lastVerification missing")
+    else:
+        report_rel = last.get("report")
+        if not isinstance(report_rel, str) or not report_rel.strip():
+            problems.append("lastVerification.report missing or empty")
+            report_rel = None
+    if report_rel is not None:
+        path = pathlib.Path(report_rel)
+        if not path.is_file():
+            problems.append(f"recorded report {report_rel} does not exist")
+        else:
+            try:
+                report = json.loads(path.read_text())
+            except Exception as exc:
+                report = None
+                problems.append(f"recorded report {report_rel} unparseable: {exc}")
+            if report is not None:
+                problems.extend(report_row_problems(report))
+    if problems:
+        failed = True
+        print(f"{p}:")
+        for problem in problems:
+            print(f"  - {problem}")
+    else:
+        print(f"{p}: recorded report covers every required stage row")
+if checked == 0:
+    print(f"no non-grandfathered complete items "
+          f"({grandfathered} complete item(s) grandfathered)")
+sys.exit(1 if failed else 0)
+PY
+}
 run_check "work items match the state.json schema" check_work_item_schema
+run_check "complete items have recorded-report coverage" check_recorded_report_coverage
 
 check_role_packs() {
   python3 - <<'PY'
@@ -559,6 +692,9 @@ TOOLING_REASONS = {
     "qa": "public-surface/system test harness not implemented yet",
 }
 GATE_IDS = set(STAGE_GATES.values())
+# Design §8.6: pre-revision completions carry no author attribution (§8.5).
+GRANDFATHERED = {"FJ-001", "FJ-002", "FJ-003", "FJ-004", "FJ-043", "FJ-048",
+                 "FJ-053", "FJ-PRD-001"}
 
 out = open(OUT_PATH, "w", encoding="utf-8")
 
@@ -782,6 +918,10 @@ def stage_applicability_rows():
 
 ARTIFACT_KEYS = ("stage", "task", "inputFingerprint", "outputFingerprint",
                  "taskFingerprint", "gitHead", "generatedAt")
+# Optional §5 header keys: allowed on any artifact, never required by parsing
+# (grandfathered/pre-revision artifacts carry none, §8.6); presence rules live
+# in evidence_rows() where the item's grandfathered status is known.
+OPTIONAL_ARTIFACT_KEYS = ("author",)
 HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
 
 
@@ -806,7 +946,9 @@ def parse_artifact(path, stage):
         header[key] = value.strip()
     problems = []
     missing = [key for key in ARTIFACT_KEYS if key not in header]
-    unknown = sorted(key for key in header if key not in ARTIFACT_KEYS)
+    unknown = sorted(key for key in header
+                     if key not in ARTIFACT_KEYS
+                     and key not in OPTIONAL_ARTIFACT_KEYS)
     if missing:
         problems.append("missing keys: " + ", ".join(missing))
     if unknown:
@@ -820,7 +962,7 @@ def parse_artifact(path, stage):
     for key in ("inputFingerprint", "outputFingerprint", "taskFingerprint"):
         if key in header and not HEX64.match(header[key]):
             problems.append("%s is not a 64-hex digest" % key)
-    for key in ("gitHead", "generatedAt"):
+    for key in ("gitHead", "generatedAt") + OPTIONAL_ARTIFACT_KEYS:
         if key in header and not header[key]:
             problems.append("%s must be non-empty" % key)
     if problems:
@@ -884,6 +1026,19 @@ def evidence_rows():
                  "stage %s task fingerprint" % stage,
                  "recorded task fingerprint %s does not match current %s"
                  % (header["taskFingerprint"], tfp))
+        # §8.5 attribution: every due artifact of a non-grandfathered item
+        # carries a non-empty author (§8.6 exempts the frozen list).
+        if TASK_ID not in GRANDFATHERED:
+            author = header.get("author")
+            if isinstance(author, str) and author.strip():
+                emit("stage.%s.author" % stage, STAGE_GATES[stage], True,
+                     "pass", 0, "stage.evidence_invalid",
+                     "stage %s author" % stage, "")
+            else:
+                emit("stage.%s.author" % stage, STAGE_GATES[stage], True,
+                     "fail", 1, "stage.evidence_invalid",
+                     "stage %s author" % stage,
+                     "missing or empty author in %s" % path)
 
     # Chain link of stage B against the immediately preceding required stage A
     # (§7). Due sets are prefixes of required (§8.1), so a due stage's
@@ -906,6 +1061,21 @@ def evidence_rows():
                  "outputFingerprint %s"
                  % (stage, header["inputFingerprint"],
                     previous, prior["outputFingerprint"]))
+
+    # §8.5 role separation: producing and accepting are different workers, so
+    # with both coder and qa artifacts parsed their authors must differ.
+    if TASK_ID not in GRANDFATHERED and "coder" in parsed and "qa" in parsed:
+        coder_author = parsed["coder"][0].get("author")
+        qa_author = parsed["qa"][0].get("author")
+        if qa_author != coder_author:
+            emit("policy.author_overlap", "G-C", True, "pass", 0,
+                 "policy.author_overlap", "qa author differs from coder author",
+                 "coder=%s qa=%s" % (coder_author, qa_author))
+        else:
+            emit("policy.author_overlap", "G-C", True, "fail", 1,
+                 "policy.author_overlap", "qa author differs from coder author",
+                 "coder author %r equals qa author %r"
+                 % (coder_author, qa_author))
 
     # Traces (specifier only): every id under "## Traces" must exist in the
     # acceptance catalog (§9.3, G-S). An absent section means no claims.

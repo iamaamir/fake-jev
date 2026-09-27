@@ -47,5 +47,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement encoding, models, and raw responses with golden tests",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }

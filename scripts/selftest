@@ -201,6 +201,20 @@ def assert_exit(proc, want_zero, context=""):
                              % (context, proc.returncode, want_zero, proc.stdout))
 
 
+# Design §8.4: a compliant statusHistory path ending in each status — first
+# entry planned/ready, every consecutive pair an allowed edge.
+HISTORY_PATHS = {
+    "planned": ["planned"],
+    "ready": ["ready"],
+    "implementing": ["planned", "ready", "implementing"],
+    "verifying": ["planned", "ready", "implementing", "verifying"],
+    "review": ["planned", "ready", "implementing", "verifying", "review"],
+    "complete": ["planned", "ready", "implementing", "verifying", "review",
+                 "complete"],
+    "blocked": ["planned", "blocked"],
+}
+
+
 def base_item(task_id="FJ-900", **overrides):
     """Minimal valid work item; override any field per scenario."""
     state = {
@@ -226,31 +240,88 @@ def base_item(task_id="FJ-900", **overrides):
         "notes": [],
     }
     state.update(overrides)
+    # §8.4 history must end at the current status; scenarios that test the
+    # history rules themselves pass an explicit (invalid) list instead.
+    state.setdefault("statusHistory", list(HISTORY_PATHS[state["status"]]))
     return state
 
 
 def write_artifact(repo, task_id, stage, inp, out, tfp, body="staged evidence",
-                   header=None, git_head="0000000"):
-    front = header if header is not None else (
-        "---\n"
-        "stage: %s\n"
-        "task: %s\n"
-        "inputFingerprint: %s\n"
-        "outputFingerprint: %s\n"
-        "taskFingerprint: %s\n"
-        "gitHead: %s\n"
-        "generatedAt: 2026-09-25T00:00:00Z\n"
-        "---\n" % (stage, task_id, inp, out, tfp, git_head))
+                   header=None, git_head="0000000", author=True):
+    # Default headers carry a per-stage author (§5/§8.5): attribution rows pass
+    # for non-grandfathered fixtures, and coder/qa authors never collide.
+    if header is None:
+        front = (
+            "---\n"
+            "stage: %s\n"
+            "task: %s\n"
+            "inputFingerprint: %s\n"
+            "outputFingerprint: %s\n"
+            "taskFingerprint: %s\n"
+            "gitHead: %s\n"
+            "generatedAt: 2026-09-25T00:00:00Z\n"
+            % (stage, task_id, inp, out, tfp, git_head))
+        if author:
+            front += "author: selftest/%s\n" % stage
+        front += "---\n"
+    else:
+        front = header
     work = repo / ".agent" / "work" / task_id
     work.mkdir(parents=True, exist_ok=True)
     (work / ("%s.md" % stage)).write_text(front + "\n" + body + "\n",
                                           encoding="utf-8")
 
 
-def write_chain(repo, task_id, stages, fp, tfp, body="staged evidence"):
+def write_chain(repo, task_id, stages, fp, tfp, body="staged evidence",
+                author=True):
     """Chain-consistent artifacts: every input == output == fp (valid links + terminal)."""
     for stage in stages:
-        write_artifact(repo, task_id, stage, fp, fp, tfp, body=body)
+        write_artifact(repo, task_id, stage, fp, fp, tfp, body=body,
+                       author=author)
+
+
+def write_fixture_report(repo, task_id, required_stages, omit=()):
+    """Recorded report carrying the §7 coverage rows for its own recorded
+    policy.requiredStages — minus any names in `omit` (for the coverage-failure
+    scenario)."""
+    rows = []
+    for index, stage in enumerate(required_stages):
+        names = ["stage.%s.artifact" % stage,
+                 "stage.%s.header" % stage,
+                 "stage.%s.task_fingerprint" % stage]
+        if index > 0:
+            names.append("stage.%s.chain" % stage)
+        if index == len(required_stages) - 1:
+            names.append("stage.%s.terminal" % stage)
+        for name in names:
+            if name in omit:
+                continue
+            rows.append({"name": name, "gate": "G-C", "required": True,
+                         "result": "pass", "exitCode": 0,
+                         "code": "verify.check_failed", "exempted": False,
+                         "command": name})
+    rel = ".agent/reports/%s/report-fixture.json" % task_id
+    path = repo / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    report = {"taskId": task_id, "status": "passed",
+              "policy": {"class": "metadata",
+                         "requiredStages": list(required_stages),
+                         "source": "derived"},
+              "checks": rows}
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return rel
+
+
+def attach_last_verification(repo, task_id, report_rel):
+    """Point an item's lastVerification at a recorded report file (§7)."""
+    state_path = repo / ".agent" / "work" / task_id / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["lastVerification"] = {"status": "passed", "report": report_rel,
+                                 "summary": "fixture report",
+                                 "finishedAt": "2026-09-25T00:00:00Z",
+                                 "revision": "0000000"}
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
@@ -784,16 +855,27 @@ def exemption_unknown_trackedby():
 @scenario("exemption_stale_trackedby")
 def exemption_stale_trackedby():
     def complete_tracker(repo):
+        # Compliant completion fixture: history ending `complete` (§8.4) and a
+        # recorded report covering every required stage row (§7), so the run
+        # fails on the stale exemption alone.
         path = repo / ".agent" / "work" / "FJ-044" / "state.json"
         state = json.loads(path.read_text(encoding="utf-8"))
         state["status"] = "complete"
+        state["statusHistory"] = list(HISTORY_PATHS["complete"])
         path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n",
                         encoding="utf-8")
+        rel = write_fixture_report(repo, "FJ-044",
+                                   ["specifier", "coder", "cleaner", "qa"])
+        attach_last_verification(repo, "FJ-044", rel)
+
     repo = fixture("ex-stale", items={"FJ-900": base_item()}, mutate=complete_tracker)
     proc, report = run_verify(repo, task="FJ-900")
     assert_exit(proc, False)
     expect(report, "policy.exemptions.stale", code="policy.exemption_stale",
            result="fail", required=True)
+    expect(report, "check_work_item_schema", result="pass", required=True)
+    expect(report, "check_recorded_report_coverage", result="pass",
+           required=True)
 
 
 # --------------------------------------------------------------------------
@@ -1287,6 +1369,104 @@ def verification_commands_never_recurse():
             if not isinstance(entry, str) or "scripts/verify-candidate" in entry:
                 bad.append("%s: %r" % (path.parent.name, entry))
     assert not bad, "pointer entries must be re-seeded to []: %s" % bad
+
+
+# --------------------------------------------------------------------------
+# FJ-052 scenarios: status history, recorded-report coverage, author
+# attribution and role separation (design §7, §8.4, §8.5; §12 matrix rows)
+# --------------------------------------------------------------------------
+
+
+@scenario("history_missing_or_edge_violation")
+def history_missing_or_edge_violation():
+    # (a) a non-grandfathered item without statusHistory fails the repo-scoped
+    # schema check on a task-less run.
+    missing = base_item()
+    missing.pop("statusHistory")
+    repo = fixture("hist-missing", items={"FJ-900": missing})
+    proc = sh("./scripts/verify-candidate", repo, check=False)
+    assert_exit(proc, False)
+    assert "statusHistory missing" in proc.stdout, proc.stdout
+    assert "agent.work_item_schema" in proc.stdout, proc.stdout
+
+    # (b) acceptance canary: a recorded implementing -> complete jump skips
+    # verifying/review, which the §8.4 edge table never permits.
+    bad = base_item(status="complete",
+                    statusHistory=["planned", "ready", "implementing",
+                                   "complete"])
+    repo = fixture("hist-bad-edge", items={"FJ-900": bad})
+    # Valid recorded coverage so this run fails on the history rule alone.
+    rel = write_fixture_report(repo, "FJ-900",
+                               ["specifier", "coder", "cleaner", "qa"])
+    attach_last_verification(repo, "FJ-900", rel)
+    proc = sh("./scripts/verify-candidate", repo, check=False)
+    assert_exit(proc, False)
+    assert ("statusHistory pair 'implementing->complete' not an allowed "
+            "transition") in proc.stdout, proc.stdout
+    assert "agent.work_item_schema" in proc.stdout, proc.stdout
+    assert "policy.last_verification_coverage" not in proc.stdout, proc.stdout
+
+
+@scenario("coverage_missing_terminal_row")
+def coverage_missing_terminal_row():
+    # A complete non-grandfathered item whose recorded report lacks the last
+    # required stage's terminal row fails the coverage check (§7).
+    item = base_item(status="complete")
+    repo = fixture("cov-terminal", items={"FJ-900": item})
+    rel = write_fixture_report(repo, "FJ-900",
+                               ["specifier", "coder", "cleaner", "qa"],
+                               omit={"stage.qa.terminal"})
+    attach_last_verification(repo, "FJ-900", rel)
+    proc = sh("./scripts/verify-candidate", repo, check=False)
+    assert_exit(proc, False)
+    assert "policy.last_verification_coverage" in proc.stdout, proc.stdout
+    assert "missing report row stage.qa.terminal" in proc.stdout, proc.stdout
+    assert "agent.work_item_schema" not in proc.stdout, proc.stdout
+
+
+@scenario("author_missing_on_due_artifact")
+def author_missing_on_due_artifact():
+    item = base_item(status="implementing", stage="coder",
+                     leaseOwner="selftest-agent")
+    repo = fixture("auth-missing", items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    spec = repo / ".agent" / "work" / "FJ-900" / "specifier.md"
+    spec.write_text(spec.read_text(encoding="utf-8")
+                    .replace("author: selftest/specifier\n", ""),
+                    encoding="utf-8")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "stage.specifier.author", code="stage.evidence_invalid",
+                 result="fail", required=True, gate="G-S")
+    assert "author" in (row["reason"] or ""), row
+    # Attribution is the only defect: the remaining evidence rows pass.
+    expect(report, "stage.specifier.header", result="pass")
+    expect(report, "stage.specifier.task_fingerprint", result="pass")
+
+
+@scenario("author_overlap_qa_equals_coder")
+def author_overlap_qa_equals_coder():
+    item = base_item(status="review", stage="qa")
+    repo = fixture("auth-overlap", items={"FJ-900": item})
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp, info["taskFingerprint"])
+    for stage in ("coder", "qa"):
+        path = repo / ".agent" / "work" / "FJ-900" / ("%s.md" % stage)
+        text = path.read_text(encoding="utf-8")
+        needle = "author: selftest/%s\n" % stage
+        assert needle in text, text
+        path.write_text(text.replace(needle, "author: selftest/shared\n"),
+                        encoding="utf-8")
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "policy.author_overlap", code="policy.author_overlap",
+           result="fail", required=True, gate="G-C")
+    expect(report, "stage.coder.author", result="pass", required=True)
+    expect(report, "stage.qa.author", result="pass", required=True)
+    expect(report, "stage.qa.terminal", result="pass")
 
 
 # --- runner ---

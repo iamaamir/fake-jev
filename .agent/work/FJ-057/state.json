@@ -47,5 +47,6 @@
     "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; depends on FJ-056 (handlers registry and verify row scaffolding)."
   ],
   "stage": null,
-  "leaseOwner": null
+  "leaseOwner": null,
+  "statusHistory": ["planned"]
 }

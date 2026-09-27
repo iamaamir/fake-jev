@@ -56,5 +56,6 @@
   "notes": [
     "Umbrella backlog carried out of the FJ-043 close-out session; sub-items may be split into their own work items when picked up.",
     "Original detail for T4 minors 2-9, T5 nits 3-8 and T6 minors 3-5 existed only in chat and was compacted; re-review those stages' findings or record them as dropped."
-  ]
+  ],
+  "statusHistory": ["planned"]
 }

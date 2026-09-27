@@ -47,5 +47,6 @@
   "lastVerification": null,
   "blockers": [],
   "nextAction": "implement registry, matcher, and ordering with table-driven tests from §44.5/§44.6",
-  "notes": []
+  "notes": [],
+  "statusHistory": ["planned"]
 }
