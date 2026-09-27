@@ -3,7 +3,7 @@
   "title": "Harden: pin the offline module posture in the verifier, and constrain module-graph directives",
   "phase": "phase-0",
   "objective": "Make the offline, standard-library-only module posture fail closed in ./scripts/verify-candidate and locally, not only inside the CI workflow, and record a repository policy that module-graph directives (replace, exclude, retract) are not used without review.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": null,
   "candidateRevision": null,
   "assignedRole": null,
@@ -36,14 +36,22 @@
     "do not relax any existing check"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "result": "passed",
+    "report": ".agent/reports/FJ-054/report-20260927T220729Z.json",
+    "revision": "5e9b098",
+    "candidateFingerprint": "0495abf349c5eaa9c0ca1a59a6c6a9f68e139bc9cbcf6a3a8c22581f94357147",
+    "taskFingerprint": "ea17d10b719f94a62eb9a5c68f66391a466e7cf325961bf5cd5f8082ea8db881",
+    "finishedAt": "2026-09-27T22:07:29Z",
+    "summary": "36 passed, 0 failed, 2 skipped, 4 not_applicable"
+  },
   "blockers": [
     {
       "type": "spec-gap",
       "description": "go.work/vendor fail-closed detection and the replace/exclude/retract prohibition are defined neither in the specification (it never mentions verify-candidate; per spec/README it governs public product behavior) nor in any design document. Resolution owned by FJ-054: adjudicated as non-public behavior enforced against §17.2, §31, §2 and §23, and recorded via new acceptance-catalog rows C-QUAL-007..009 — the amendment vehicle already in this item's allowedFiles — following the FJ-050/FJ-052 pattern (gap recorded first, amendment by the owning item, then execution)."
     }
   ],
-  "nextAction": "review gate: verify at review with all stages due, then qa commit, recorded verify, complete flip, close",
+  "nextAction": "none - FJ-054 closed; guard stack FJ-056/057/058 handoff follows (plan lifecycle fixed at 6f78a3b)",
   "notes": [
     "PM 2026-09-26: opened from the FJ-053 hardener stage. Verified there: an undeclared import fails closed even with a warm cache and the proxy on, but four conditions bypass it — GOFLAGS=-mod=mod with a warm cache and GOPROXY=off, -mod=mod with a reachable proxy and GONOSUMDB, a parent-directory go.work, and a committed vendor/. Today the only offline enforcement is GOPROXY=off inside .github/workflows/ci.yml; scripts/verify-candidate contains no GOPROXY, GOFLAGS, go.sum or go mod reference at all."
   ],
@@ -58,6 +66,7 @@
     "verifying",
     "implementing",
     "verifying",
-    "review"
+    "review",
+    "complete"
   ]
 }
