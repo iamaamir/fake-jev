@@ -3,9 +3,9 @@
   "title": "Phase 1: engine sequences, invocation counts, and expectations",
   "phase": "phase-1",
   "objective": "Implement zero-based response-sequence consumption, invocation counting at selection time, sequence-exhausted outcomes, and expect evaluation.",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": "f866a06",
-  "candidateRevision": "73ea74b",
+  "candidateRevision": "4c18396",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -42,9 +42,9 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "leaseOwner": "pm-fj012-pickup",
+  "leaseOwner": null,
   "stage": "qa",
   "nextAction": "refresh scope evidence for matcher integration, then cleaner, hardener, and QA",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
 }
