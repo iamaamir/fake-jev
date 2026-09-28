@@ -3,9 +3,9 @@
   "title": "Phase 1: configuration loader and validator",
   "phase": "phase-1",
   "objective": "Load YAML or JSON configuration into a validated model, rejecting unknown keys, invalid expect forms, duplicate static IDs, non-strict modes, and unknown profiles, while applying the §12.2 defaults.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "3a8aea7",
-  "candidateRevision": "6a2d136",
+  "candidateRevision": "80bb467",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -44,11 +44,19 @@
     "no profile-specific answer validation beyond envelope shape"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775",
+    "finishedAt": "2026-09-28T15:46:17Z",
+    "report": ".agent/reports/FJ-010/report-20260928T154617Z.json",
+    "result": "passed",
+    "revision": "80bb467",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "ca4c08f959e903a8b93b1b11560b371a8079733d4442f2c030e42f0529ce2885"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "refresh specifier after PM allowedFiles resolution, then coder stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
