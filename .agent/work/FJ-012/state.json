@@ -3,11 +3,11 @@
   "title": "Phase 1: engine sequences, invocation counts, and expectations",
   "phase": "phase-1",
   "objective": "Implement zero-based response-sequence consumption, invocation counting at selection time, sequence-exhausted outcomes, and expect evaluation.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "f866a06",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§40.6 invocation count",
     "§40.7 response sequences",
@@ -22,6 +22,7 @@
     "internal/engine/sequence.go",
     "internal/engine/stub.go",
     "internal/engine/engine.go",
+    "internal/engine/matcher.go",
     "internal/engine/sequence_test.go"
   ],
   "acceptance": [
@@ -41,7 +42,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement sequence consumption and counters, then encode §44.7 as a test",
+  "leaseOwner": "pm-fj012-pickup",
+  "nextAction": "refresh scope evidence for matcher integration, then cleaner, hardener, and QA",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }

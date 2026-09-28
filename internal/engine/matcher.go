@@ -71,19 +71,15 @@ func questionTypesEqual(want, got map[string]string) bool {
 }
 
 // Select returns the first matching stub in the total order required by the
-// specification: priority descending, then registration index ascending.
-// Profile filtering is performed before matcher evaluation.
+// specification and commits one invocation. The returned Response is the
+// selected action; use SelectInvocation when sequence exhaustion must be
+// distinguished from an ordinary nil action.
 func (r *Registry) Select(exchange Exchange) *Stub {
-	if r == nil {
+	selection := r.SelectInvocation(exchange)
+	if selection == nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	candidates := r.matching(exchange)
-	if len(candidates) == 0 {
-		return nil
-	}
-	return &candidates[0]
+	return selection.asStub()
 }
 
 // Matching returns all matching candidates in selection order. It is useful to
@@ -129,6 +125,27 @@ func valuePresent(value Value) bool {
 
 func cloneStub(stub Stub) Stub {
 	stub.Matcher = cloneMatcher(stub.Matcher)
+	if stub.Sequence != nil {
+		sequence := make([]ResponseAction, len(stub.Sequence))
+		copy(sequence, stub.Sequence)
+		stub.Sequence = sequence
+	}
+	if stub.Expect != nil {
+		expectation := *stub.Expect
+		if expectation.Exactly != nil {
+			value := *expectation.Exactly
+			expectation.Exactly = &value
+		}
+		if expectation.AtLeast != nil {
+			value := *expectation.AtLeast
+			expectation.AtLeast = &value
+		}
+		if expectation.AtMost != nil {
+			value := *expectation.AtMost
+			expectation.AtMost = &value
+		}
+		stub.Expect = &expectation
+	}
 	return stub
 }
 

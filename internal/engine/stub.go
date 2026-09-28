@@ -30,6 +30,10 @@ type Stub struct {
 	Priority          int
 	Matcher           Matcher
 	Response          ResponseAction
+	Sequence          []ResponseAction
+	Expect            *InvocationExpectation
+	InvocationCount   uint64
+	SequencePosition  uint64
 	RegistrationIndex uint64
 	Source            StubSource
 }
@@ -80,12 +84,19 @@ func (r *Registry) register(stub Stub, source StubSource) error {
 	if stub.Profile == "" {
 		return fmt.Errorf("stub profile must not be empty")
 	}
+	if stub.Expect != nil {
+		if err := stub.Expect.Validate(); err != nil {
+			return fmt.Errorf("invalid invocation expectation: %w", err)
+		}
+	}
 	if r.nextRegistrationIndex == 0 {
 		// Preserve the documented one-based contract for a zero-value Registry.
 		r.nextRegistrationIndex = 1
 	}
 	stub.Source = source
 	stub.RegistrationIndex = r.nextRegistrationIndex
+	stub.InvocationCount = 0
+	stub.SequencePosition = 0
 	if r.nextRegistrationIndex == ^uint64(0) {
 		r.registrationIndexExhausted = true
 	} else {
