@@ -33,6 +33,12 @@ and golden contract vectors. Details live in the specification, not here.
 - Tests must be deterministic (no sleeps-as-sync, no network, no randomness without seeds).
 - Strict behavior must fail closed.
 - Do not implement deferred features unless the specification is intentionally changed.
+- Prefer the simplest implementation that satisfies the current requirement.
+- Do not introduce abstractions, indirection, configuration, or extension points without a concrete current need.
+- Avoid duplicating non-trivial business logic, but do not extract shared code solely to eliminate small or incidental duplication.
+- Keep responsibilities focused and dependencies explicit.
+- Prefer extending existing project patterns over introducing new architectural patterns.
+- Make the smallest change necessary to solve the task correctly.
 
 ## Change discipline
 
