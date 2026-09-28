@@ -3,9 +3,9 @@
   "title": "Phase 1: engine stub registry, ordering, and matching",
   "phase": "phase-1",
   "objective": "Implement the provider-neutral stub registry with static/dynamic provenance, registration indices, the AND-combined matcher with wildcard omissions, and the total ordering priority DESC then registrationIndex ASC.",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": "4d6dff0",
-  "candidateRevision": "79cd3b8",
+  "candidateRevision": "c5f72e1",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -46,9 +46,9 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "leaseOwner": "pm-fj011-pickup",
+  "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
 }
