@@ -3,11 +3,11 @@
   "title": "Phase 1: engine stub registry, ordering, and matching",
   "phase": "phase-1",
   "objective": "Implement the provider-neutral stub registry with static/dynamic provenance, registration indices, the AND-combined matcher with wildcard omissions, and the total ordering priority DESC then registrationIndex ASC.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "4d6dff0",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§40 normative matching, ordering, sequences, and state",
     "§8 core domain model",
@@ -46,7 +46,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement registry, matcher, and ordering with table-driven tests from §44.5/§44.6",
+  "leaseOwner": "pm-fj011-pickup",
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }
