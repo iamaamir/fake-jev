@@ -1,12 +1,12 @@
 ---
 stage: hardener
 task: FJ-058
-inputFingerprint: 5a1823c357476214dff1127b3f690202be37d0ab33c5b6c1ea28447c35966e94
-outputFingerprint: 5a1823c357476214dff1127b3f690202be37d0ab33c5b6c1ea28447c35966e94
+inputFingerprint: 824082323515413a3dae3e1db663cb399e00af2891fefa137ad63b7b936cff55
+outputFingerprint: 20531f37f909385810f6a49c231229f57bb43a864d5438e64b93905b8e8e1c58
 taskFingerprint: 0aebbe106e52df5a069737102f0395e084481d4f0ab9c2b6f3aac15711a1db22
-gitHead: 74df501e06370b7a2e4bbab87379196b864c1205
-generatedAt: 2026-09-28T14:16:03Z
-author: subagent/worker-FJ-058-hardener
+gitHead: cfe0e4563009ced4e01690773efbf17399ff4858
+generatedAt: 2026-09-28T14:22:46Z
+author: subagent/worker-FJ-058-hardener-artifact-correction
 ---
 
 ## Hardening actions
