@@ -818,7 +818,7 @@ def policy_additive_without_justification():
 @scenario("go_required_for_product")
 def go_required_for_product():
     item = base_item(allowedFiles=["testdata/golden.json"])
-    repo = fixture("go-product", items={"FJ-900": item}, mutate=with_go_module)
+    repo = fixture("go-product", items={"FJ-900": item}, mutate=guard_fixture)
     proc, report = run_verify(repo, task="FJ-900")
     assert_exit(proc, True)
     assert report["policy"]["class"] == "product", report["policy"]
@@ -916,6 +916,10 @@ def go_product_zero_packages_skip():
            code="go.test_failed")
     expect(report, "check_go_build", result="skipped", required=False,
            code="go.build_failed")
+    expect(report, "check_guard_arch", result="skipped", required=False,
+           code="guard.arch.failed", gate="G-L")
+    expect(report, "check_guard_lint", result="skipped", required=False,
+           code="guard.lint.failed", gate="G-L")
     reason = rows(report, "check_go_test")["reason"]
     assert "no repository Go packages yet" in reason, reason
 
@@ -1467,6 +1471,227 @@ def author_overlap_qa_equals_coder():
     expect(report, "stage.coder.author", result="pass", required=True)
     expect(report, "stage.qa.author", result="pass", required=True)
     expect(report, "stage.qa.terminal", result="pass")
+
+# --------------------------------------------------------------------------
+# Guard stack scenarios: FJ-056 arch+lint rows (design §4, §3.2, §3.5)
+# --------------------------------------------------------------------------
+
+
+def with_guard_tool(repo):
+    """Copy the real cmd/guard (non-test .go only), go.mod when absent, and
+    .agent/guards.json into a fixture. Non-test files keep fixture-side C-ID
+    markers out of any future scan; go.mod is skipped when a prior mutate
+    already placed one (interpretation note 11)."""
+    if not (repo / "go.mod").is_file():
+        shutil.copy2(REAL / "go.mod", repo / "go.mod")
+    src = REAL / "cmd" / "guard"
+    if not src.is_dir():
+        raise AssertionError("with_guard_tool: cmd/guard missing in %s" % REAL)
+    dest = repo / "cmd" / "guard"
+    dest.mkdir(parents=True, exist_ok=True)
+    for path in sorted(src.glob("*.go")):
+        if path.name.endswith("_test.go"):
+            continue
+        shutil.copy2(path, dest / path.name)
+    shutil.copy2(REAL / ".agent" / "guards.json",
+                 repo / ".agent" / "guards.json")
+
+
+def guard_fixture(repo, sabotage=None):
+    """Standard guard scenario: go module + guard tool, optional sabotage.
+    with_go_module runs first so its module fixture.example go.mod wins and
+    arch rules only need their stdlib forbidExact entries to fire."""
+    with_go_module(repo)
+    with_guard_tool(repo)
+    if sabotage:
+        sabotage(repo)
+
+
+@scenario("guard_arch_violation")
+def guard_arch_violation():
+    def mutate(repo):
+        guard_fixture(repo)
+        engine = repo / "internal" / "engine"
+        engine.mkdir(parents=True)
+        (engine / "engine.go").write_text(
+            'package engine\n\nimport _ "net/http"\n', encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-arch", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    assert report["status"] == "failed", report["status"]
+    expect(report, "check_guard_arch", code="guard.arch.forbidden_import",
+           result="fail", required=True, gate="G-L")
+    expect(report, "check_guard_lint", result="pass", required=True,
+           gate="G-L")
+    # Task-less runs enforce too: the gauntlet CI job executes without a task.
+    proc_tless, _ = run_verify(repo)
+    assert_exit(proc_tless, False, context="task-less guard run: ")
+
+
+@scenario("guard_lint_violation")
+def guard_lint_violation():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / "internal" / "sample" / "lintbad.go").write_text(
+            "package sample\n"
+            "\n"
+            "import \"errors\"\n"
+            "\n"
+            "func failing() error { return errors.New(\"boom\") }\n"
+            "\n"
+            "func Bad() {\n"
+            "\tfailing()\n"
+            "\tvar i any = \"s\"\n"
+            "\t_ = i.(string)\n"
+            "}\n", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-lint", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_lint",
+                 code="guard.lint.err_discarded", result="fail",
+                 required=True, gate="G-L")
+    # findings sort by (path, line, code): the statement discard on line 8
+    # precedes the assertion on line 10, and the reason carries both.
+    assert "lintbad.go:8" in row["reason"], row["reason"]
+    assert "(+1 more finding(s))" in row["reason"], row["reason"]
+    expect(report, "check_guard_arch", result="pass", required=True)
+    # The fixture compiles (both findings are legal Go), so go rows stay green.
+    expect(report, "check_go_test", result="pass", required=True)
+    # L2 asserted as the row code (both codes asserted across the two runs):
+    # an added unsafe single-value assertion — outside comma-ok, alongside
+    # the discarded error — in a file sorting before lintbad.go becomes
+    # findings[0] under emitReport's (path, line, code) sort, so the second
+    # run records guard.lint.unsafe_type_assert with the three-finding token.
+    (repo / "internal" / "sample" / "aunsafe.go").write_text(
+        "package sample\n"
+        "\n"
+        "func Unsafe(v any) string {\n"
+        "\treturn v.(string)\n"
+        "}\n", encoding="utf-8")
+    proc2, report2 = run_verify(repo, task="FJ-900")
+    assert_exit(proc2, False)
+    row2 = expect(report2, "check_guard_lint",
+                  code="guard.lint.unsafe_type_assert", result="fail",
+                  required=True, gate="G-L")
+    assert "(+2 more finding(s))" in row2["reason"], row2["reason"]
+
+
+@scenario("guard_clean_pass")
+def guard_clean_pass():
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-clean", items={"FJ-900": item}, mutate=guard_fixture)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    expect(report, "check_guard_arch", result="pass", required=True,
+           gate="G-L")
+    expect(report, "check_guard_lint", result="pass", required=True,
+           gate="G-L")
+
+
+@scenario("guard_metadata_na")
+def guard_metadata_na():
+    repo = fixture("guard-meta", items={"FJ-900": base_item()},
+                   mutate=guard_fixture)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    expect(report, "check_guard_arch", result="not_applicable",
+           required=False, code="stage.not_required", gate="G-L")
+    expect(report, "check_guard_lint", result="not_applicable",
+           required=False, code="stage.not_required", gate="G-L")
+    assert report["policy"]["class"] == "metadata", report["policy"]
+
+
+@scenario("guard_tool_broken")
+def guard_tool_broken():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / "cmd" / "guard" / "main.go").write_text(
+            "package main\n\nfunc broken {\n", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-broken", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_arch", code="guard.tool.failed",
+                 result="fail", required=True, gate="G-L")
+    assert "does not build" in row["reason"], row["reason"]
+
+
+@scenario("guard_thresholds_missing")
+def guard_thresholds_missing():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / ".agent" / "guards.json").unlink()
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-no-thr", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_arch", code="guard.tool.failed",
+                 result="fail", required=True, gate="G-L")
+    assert "guards.json" in row["reason"], row["reason"]
+
+
+@scenario("guard_thresholds_malformed")
+def guard_thresholds_malformed():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / ".agent" / "guards.json").write_text("{", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-bad-thr", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_lint", code="guard.tool.failed",
+                 result="fail", required=True, gate="G-L")
+    assert "guards.json" in row["reason"], row["reason"]
+
+
+@scenario("guard_bootstrap_skip")
+def guard_bootstrap_skip():
+    # Pristine fixture: no go.mod — note-1 nothing-to-guard skip,
+    # never blocking (a required skip would deadlock the foundation phase).
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-bootstrap", items={"FJ-900": item})
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    row = expect(report, "check_guard_arch", result="skipped",
+                 required=False, code="guard.arch.failed", gate="G-L")
+    assert "no go.mod" in row["reason"], row["reason"]
+    expect(report, "check_guard_lint", result="skipped", required=False,
+           code="guard.lint.failed", gate="G-L")
+
+
+@scenario("guard_stdout_not_json")
+def guard_stdout_not_json():
+    def mutate(repo):
+        guard_fixture(repo)
+        # Replace only main.go: the copied siblings still compile alongside
+        # it (they reference nothing the original main.go defined), so the
+        # build succeeds and the tool emits plain garbage on stdout with
+        # exit 0 — rc stays in {0,1}, so guard_row's JSON validator (not the
+        # exit-code branch) must record the guard.tool.failed rows.
+        (repo / "cmd" / "guard" / "main.go").write_text(
+            "package main\n"
+            "\n"
+            "import \"fmt\"\n"
+            "\n"
+            "func main() {\n"
+            "\tfmt.Println(\"not json\")\n"
+            "}\n", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("guard-not-json", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    assert report["status"] == "failed", report["status"]
+    row = expect(report, "check_guard_arch", result="fail",
+                 code="guard.tool.failed", required=True, gate="G-L")
+    # Only the json.loads invalid branch emits this token; the exit-code
+    # branch would read "exit N: ..." instead.
+    assert "stdout is not JSON" in row["reason"], row["reason"]
+    expect(report, "check_guard_lint", result="fail",
+           code="guard.tool.failed", required=True, gate="G-L")
 
 
 # --- runner ---

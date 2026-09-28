@@ -132,6 +132,8 @@ check_code() {
     check_go_test)             echo "go.test_failed" ;;
     check_go_vet)              echo "go.vet_failed" ;;
     check_go_build)            echo "go.build_failed" ;;
+    check_guard_arch)          echo "guard.arch.failed" ;;
+    check_guard_lint)          echo "guard.lint.failed" ;;
     *)                         echo "verify.check_failed" ;;
   esac
 }
@@ -1379,6 +1381,164 @@ case "$CLASS" in
     fi
     ;;
 esac
+
+# --- guard rows (design §4 fail-closed; interpretation notes 1-3) -----------
+# One block for all guard helpers and rows: rows land together with their
+# subcommand (arch+lint now; trace in FJ-057, fuzz+race in FJ-058), so a row
+# never exists without its tool.
+# Nothing-to-guard detection (interpretation note 1): skip only when there is
+# nothing to scan — no go.mod (foundation phase) or zero repository Go
+# packages. A module with packages and a missing or unbuildable cmd/guard
+# reaches guard_build below and fails closed as guard.tool.failed instead
+# (note 2); cmd/guard's absence is never a skip key.
+GUARD_SKIP=""
+if [ ! -f go.mod ]; then
+  GUARD_SKIP="no go.mod yet (foundation phase)"
+elif [ -z "${ALL_PKGS//[$'\n\t ']/}" ]; then
+  GUARD_SKIP="no repository Go packages yet"
+fi
+
+GUARD_BIN=""
+GUARD_BUILD_STATE=""
+GUARD_ERRFILE="$(mktemp)"
+
+guard_build() {
+  if [ -n "$GUARD_BUILD_STATE" ]; then
+    [ "$GUARD_BUILD_STATE" = "ok" ]
+    return
+  fi
+  local tmp rc
+  tmp="$(mktemp -d)"
+  set +e
+  go build -o "$tmp/guard" ./cmd/guard 2>"$tmp/err"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    GUARD_BUILD_STATE="err:$(tr '\n' ' ' < "$tmp/err" | cut -c1-300)"
+    rm -rf "$tmp"
+    return 1
+  fi
+  GUARD_BIN="$tmp/guard"
+  GUARD_BUILD_STATE="ok"
+  return 0
+}
+
+# guard_row <display> <sub> <required 0/1> <gate>
+# Runs the subcommand once, validates the JSON contract (note 6) and records
+# exactly one four-valued row: pass / fail(finding code) / fail(tool.failed)
+# / fail(contract violation as tool.failed).
+guard_row() {
+  local display="$1" sub="$2" required="$3" gate="$4"
+  local out rc verdict rest code reason tag
+  printf '==> %s\n' "$display"
+  if ! guard_build; then
+    printf '    FAIL (exit -1, code guard.tool.failed)\n\n'
+    record_row "check_guard_$sub" "$display" "$gate" "$required" "fail" "-1" \
+      "guard.tool.failed" "cmd/guard does not build: ${GUARD_BUILD_STATE#err:}"
+    return 0
+  fi
+  set +e
+  out="$("$GUARD_BIN" "$sub" 2>"$GUARD_ERRFILE")"
+  rc=$?
+  set -e
+  verdict="$(printf '%s' "$out" | python3 -c '
+import json, sys
+sub, rc, err = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+raw = sys.stdin.read()
+if rc not in (0, 1):
+    reason = "exit %d: %s" % (rc, (err.strip() or "no stderr")[:300])
+    print("fail\tguard.tool.failed\tguard %s: %s" % (sub, reason))
+    raise SystemExit
+try:
+    doc = json.loads(raw)
+except Exception as exc:
+    print("invalid\tguard %s: stdout is not JSON: %s" % (sub, exc))
+    raise SystemExit
+if not isinstance(doc, dict) or doc.get("check") != sub:
+    print("invalid\tguard %s: report must be an object with check=%s" % (sub, sub))
+    raise SystemExit
+findings = doc.get("findings")
+if not isinstance(findings, list):
+    print("invalid\tguard %s: findings is not a list" % sub)
+    raise SystemExit
+if rc == 0 and findings:
+    print("invalid\tguard %s: exit 0 with %d finding(s)" % (sub, len(findings)))
+    raise SystemExit
+if rc == 1 and not findings:
+    print("invalid\tguard %s: exit 1 with no findings" % sub)
+    raise SystemExit
+if rc == 0:
+    print("pass")
+    raise SystemExit
+first = findings[0] if findings and isinstance(findings[0], dict) else {}
+if not isinstance(first.get("code"), str) or not isinstance(first.get("path"), str):
+    print("invalid\tguard %s: findings[0] lacks code/path" % sub)
+    raise SystemExit
+line = first.get("line", 0)
+if not isinstance(line, int) or isinstance(line, bool):
+    print("invalid\tguard %s: findings[0].line is not an int" % sub)
+    raise SystemExit
+reason = "%s:%d: %s" % (first["path"], line, str(first.get("message", ""))[:300])
+if len(findings) > 1:
+    reason += " (+%d more finding(s))" % (len(findings) - 1)
+print("fail\t%s\t%s" % (first["code"], reason))
+' "$sub" "$rc" "$(tr '\n' ' ' < "$GUARD_ERRFILE" | cut -c1-300)")" \
+    || verdict="invalid	guard $sub: verdict parser failed"
+  tag="${verdict%%$'\t'*}"
+  if [ "$tag" = "pass" ]; then
+    printf '    PASS\n\n'
+    record_row "check_guard_$sub" "$display" "$gate" "$required" "pass" "$rc" \
+      "$(check_code "check_guard_$sub")" ""
+  elif [ "$tag" = "fail" ]; then
+    rest="${verdict#*$'\t'}"
+    code="${rest%%$'\t'*}"
+    reason="${rest#*$'\t'}"
+    printf '    FAIL (exit %s, code %s)\n\n' "$rc" "$code"
+    record_row "check_guard_$sub" "$display" "$gate" "$required" "fail" "$rc" \
+      "$code" "$reason"
+  else
+    reason="${verdict#*$'\t'}"
+    printf '    FAIL (exit %s, code guard.tool.failed)\n\n' "$rc"
+    record_row "check_guard_$sub" "$display" "$gate" "$required" "fail" "$rc" \
+      "guard.tool.failed" "$reason"
+  fi
+}
+
+if [ "$CLASS" = "metadata" ]; then
+  na_check "guard arch (forbidden imports)" check_guard_arch \
+    "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
+  na_check "guard lint (err_discarded, unsafe_type_assert)" check_guard_lint \
+    "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
+  # Task 5 inserts the trace na row here (gate G-Q).
+  # Task 6 inserts the fuzz na row here (gate G-H).
+else
+  # Task-less (CI) and product runs enforce; an unparseable class runs
+  # non-required (interpretation note 3, row 5).
+  GUARD_REQ=1
+  if [ -n "$TASK_ID" ] && [ "$CLASS" != "product" ]; then
+    GUARD_REQ=0
+  fi
+  if [ -z "$GUARD_SKIP" ]; then
+    guard_row "guard arch (forbidden imports)" arch "$GUARD_REQ" "G-L"
+    guard_row "guard lint (err_discarded, unsafe_type_assert)" lint "$GUARD_REQ" "G-L"
+    # Task 5 inserts the trace guard_row here (gate G-Q).
+    # Task 6 inserts the fuzz guard_row here (gate G-H).
+  else
+    skip_check "guard arch (forbidden imports)" check_guard_arch \
+      "$GUARD_SKIP" "" 0 "G-L"
+    skip_check "guard lint (err_discarded, unsafe_type_assert)" check_guard_lint \
+      "$GUARD_SKIP" "" 0 "G-L"
+    # Task 5 inserts the trace skip here (gate G-Q).
+    # Task 6 inserts the fuzz skip here (gate G-H).
+  fi
+  # Task 6 adds the race row after this fi (no guard tool needed; note 3).
+fi
+
+# Guard artifacts: the stderr capture exists on every path (mktemp above);
+# the build dir only when guard_build succeeded — GUARD_BIN must be non-empty
+# before dirname, since dirname "" is "." (rm -rf would delete the repo).
+rm -f "$GUARD_ERRFILE"
+if [ -n "$GUARD_BIN" ]; then rm -rf "$(dirname "$GUARD_BIN")"; fi
 
 # --- aggregate: status + report ----------------------------------------------
 

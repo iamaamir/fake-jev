@@ -62,3 +62,22 @@ jobs:
           CGO_ENABLED: "0"
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+
+  # Additive gauntlet gates (design §5): the verifier itself is the enforcer,
+  # run task-less exactly as the local workflow runs it. Guard rows enforce
+  # with CI requiredness here (arch and lint now; trace lands with task 5,
+  # fuzz with task 6). The test job above already owns go test -race per 23,
+  # and the task-less race row stays visible and non-required once task 6
+  # inserts it (interpretation note 3).
+  gauntlet:
+    name: gauntlet gates
+    runs-on: ubuntu-latest
+    env:
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: ./scripts/verify-candidate
+        run: ./scripts/verify-candidate

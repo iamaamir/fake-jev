@@ -19,7 +19,7 @@ const (
 // Run executes one fake-jev invocation and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprint(stderr, usage)
+		writef(stderr, "%s", usage)
 		return exitFailure
 	}
 
@@ -31,7 +31,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		}
 		return runVersion(stdout)
 	case "help", "-h", "--help":
-		fmt.Fprint(stdout, usage)
+		writef(stdout, "%s", usage)
 		return exitOK
 	default:
 		return usageError(stderr, "unknown command %q", command)
@@ -41,9 +41,19 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // usageError reports a CLI usage failure on stderr and returns the usage exit
 // code (§42.1).
 func usageError(stderr io.Writer, format string, args ...any) int {
-	fmt.Fprintf(stderr, "fake-jev: "+format+"\n", args...)
-	fmt.Fprint(stderr, usage)
+	writef(stderr, "fake-jev: "+format+"\n", args...)
+	writef(stderr, "%s", usage)
 	return exitFailure
+}
+
+// writef writes formatted output and consumes the write error in one checked
+// place: a failed write already lost the message and the caller's exit code
+// does not change, but lint L1 (zero tolerance, interpretation note 7)
+// forbids discarding an error-returning call at the call site.
+func writef(w io.Writer, format string, a ...any) {
+	if _, err := fmt.Fprintf(w, format, a...); err != nil {
+		return
+	}
 }
 
 const usage = `usage: fake-jev <command> [flags]
