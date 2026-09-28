@@ -3,9 +3,9 @@
   "title": "Phase 1: engine sequences, invocation counts, and expectations",
   "phase": "phase-1",
   "objective": "Implement zero-based response-sequence consumption, invocation counting at selection time, sequence-exhausted outcomes, and expect evaluation.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "f866a06",
-  "candidateRevision": "4c18396",
+  "candidateRevision": "021e1ca",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -40,11 +40,19 @@
     "no reset endpoint (that is FJ-021)"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "06d1e29f3bf779c3f69c2067ce6251da6491a25f787824aa019becac9c440e47",
+    "finishedAt": "2026-09-28T21:08:01Z",
+    "report": ".agent/reports/FJ-012/report-20260928T210801Z.json",
+    "result": "passed",
+    "revision": "021e1ca",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "ab72443cf7b377355d104172139b3a0b07decb20252a42b978316e820ed86f2c"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "refresh scope evidence for matcher integration, then cleaner, hardener, and QA",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
