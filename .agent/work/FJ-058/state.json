@@ -3,9 +3,9 @@
   "title": "Guard race + fuzz: G-H race row and bounded fuzz runner with crash-input preservation",
   "phase": "foundation",
   "objective": "Add the G-H verify rows: a repository go test -race row following the existing na_check/run_check pattern, and the guard fuzz runner (Fuzz target discovery, positive fuzztime enforcement, 0-target pass, crash failure with the failing input preserved under testdata/fuzz/), dueness- and class-gated per interpretation note 3, with matching selftest scenarios (design §5, FJ-058 row).",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "74df501",
-  "candidateRevision": "eefdbf6",
+  "candidateRevision": "c05eada",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -42,7 +42,15 @@
     "do not edit the specification"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "20531f37f909385810f6a49c231229f57bb43a864d5438e64b93905b8e8e1c58",
+    "finishedAt": "2026-09-28T14:31:47Z",
+    "report": ".agent/reports/FJ-058/report-20260928T143147Z.json",
+    "result": "passed",
+    "revision": "c05eada",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "0aebbe106e52df5a069737102f0395e084481d4f0ab9c2b6f3aac15711a1db22"
+  },
   "blockers": [],
   "nextAction": "run fresh specifier against existing WIP, then coder adoption and full gauntlet",
   "notes": [
@@ -57,6 +65,7 @@
     "verifying",
     "implementing",
     "verifying",
-    "review"
+    "review",
+    "complete"
   ]
 }
