@@ -1,25 +1,51 @@
 ---
 stage: coder
 task: FJ-010
-inputFingerprint: 20531f37f909385810f6a49c231229f57bb43a864d5438e64b93905b8e8e1c58
-outputFingerprint: 0cc77d3196d28952449e6dd6a270840edbb327066975c9ac0977895d8efef007
-taskFingerprint: ca4c08f959e903a8b93b1b11560b371a8079733d4442f2c030e42f0529ce2885
-gitHead: 3a8aea7f914924e63c28346323bf68bc6ec7fc43
-generatedAt: 2026-09-28T15:25:01Z
+inputFingerprint: dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775
+outputFingerprint: dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775
+taskFingerprint: 3d07518a90863c5c849f81709c5ec1d04e4a3a37d6e754a76cdee53f7700df3a
+gitHead: 50fc652cb7b6b30b16b9d4e9e92b015ebd88facf
+generatedAt: 2026-09-28T18:23:08Z
 author: subagent/worker-FJ-010-coder
 ---
 
 ## Changes
 
-Implemented the configuration model and loader in `internal/config`: strict JSON decoding, YAML-to-JSON normalization using `gopkg.in/yaml.v3`, duplicate JSON-key rejection, defaults, profile alias normalization, fail-closed project-owned envelopes, open JSON containers, model and limit checks, duplicate stub IDs, response-form checks, and invocation expectation validation. Added focused loader and validator tests covering defaults, YAML/JSON equivalence, unknown keys, profiles, duplicate IDs, response forms, and expectation forms.
+This corrective evidence refresh makes no production-file changes. The existing
+`internal/config` implementation remains the configuration loader and validator
+for the scoped criteria.
 
 ## Evidence
 
-- `gofmt -w internal/config/*.go`
-- `go test ./...` — passed
-- `go vet ./...` — passed
-- `./scripts/verify-candidate FJ-010` — repository, Go, build, guard, and race checks executed; report: `.agent/reports/FJ-010/report-20260928T152717Z.json`
+- **C-CFG-001:** Requires integer `schemaVersion: 1` and rejects missing,
+  non-integer, or other values.
+- **C-CFG-002:** Strict decoding rejects unknown keys in project-owned
+  configuration envelopes, including nested server, limits, stub, response,
+  and expectation objects.
+- **C-CFG-003:** `state`, question content, and `then.raw.body` remain open JSON
+  containers while project-owned envelopes stay fail-closed.
+- **C-CFG-004:** Normalizes `jev` to `jev/v1` before duplicate/profile checks
+  and rejects unknown profiles.
+- **C-CFG-005:** Rejects duplicate static stub IDs.
+- **C-CFG-006:** Requires exactly one of `then.answers`, `then.sequence`, or
+  `then.raw`.
+- **C-CFG-007:** Applies the §12.2 defaults for omitted server, mode,
+  compatibility, limits, models, and stubs.
+- **C-CFG-008:** Accepts only `strict` mode.
+- **C-CFG-009:** Loads equivalent JSON and YAML documents into the same logical
+  configuration model, including YAML document-boundary checks.
+- **C-CFG-010:** Enforces limit ranges, exact model fields, unique model names,
+  and at least one model after defaults.
+- **C-SEQ-007:** Accepts valid exact and bounded expectation forms and rejects
+  mixed, negative, missing, or inverted forms.
 
-## Remaining
+## Validation evidence
 
-Cleaner, hardener, and QA artifacts/review remain. No verdict claimed.
+- `go test ./internal/config` — passed.
+- `go test -race ./internal/config` — passed.
+- `go vet ./internal/config` — passed.
+- `./scripts/candidate-fingerprint candidate .` —
+  `dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775`.
+- `go test ./...` was also attempted; the repository-wide command is blocked by
+  pre-existing missing dependencies in `agent/skills/golang-cli/assets/examples`,
+  while the configuration package checks above pass.

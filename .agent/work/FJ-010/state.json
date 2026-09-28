@@ -35,7 +35,6 @@
     "C-CFG-008",
     "C-CFG-009",
     "C-CFG-010",
-    "C-CFG-011",
     "C-SEQ-007"
   ],
   "nonGoals": [
@@ -57,6 +56,8 @@
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "refresh specifier after PM allowedFiles resolution, then coder stages",
-  "notes": [],
+  "notes": [
+    "PM correction 2026-09-28: C-CFG-011 CLI/file/default precedence is owned by FJ-031, which owns CLI flag handling. Removed from this loader-only ticket without weakening the normative contract; FJ-031 acceptance now carries C-CFG-011."
+  ],
   "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }

@@ -3,73 +3,76 @@ stage: qa
 task: FJ-010
 inputFingerprint: dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775
 outputFingerprint: dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775
-taskFingerprint: ca4c08f959e903a8b93b1b11560b371a8079733d4442f2c030e42f0529ce2885
-gitHead: 3a8aea7f914924e63c28346323bf68bc6ec7fc43
-generatedAt: 2026-09-28T15:41:58Z
-author: subagent/worker-FJ-010-qa
+taskFingerprint: 3d07518a90863c5c849f81709c5ec1d04e4a3a37d6e754a76cdee53f7700df3a
+gitHead: 50fc652cb7b6b30b16b9d4e9e92b015ebd88facf
+generatedAt: 2026-09-28T18:29:59Z
+author: subagent/worker-FJ-010-qa-refresh
 ---
 
 # QA — FJ-010
 
 ## Scope and method
 
-Exercised the configuration loader and validator independently against every
-listed configuration/expectation criterion. The focused probe was transient
-(`internal/config/qa_probe_test.go`), removed after execution; no production
-file or persistent test file was changed. Existing configuration tests and the
-hardener predecessor artifact were also reviewed. The normative references were
-§§12 and 38 and the acceptance catalog entries C-CFG-001..011 and C-SEQ-007.
+Reviewed the current state, refreshed specifier/coder/cleaner/hardener artifacts,
+acceptance catalog, §§12 and 38, and the `internal/config` loader, schema,
+validator, and tests. Exercised only this ticket's acceptance set:
+C-CFG-001 through C-CFG-010 and C-SEQ-007. No production files or persistent
+tests were changed.
+
+C-CFG-011 (CLI flag > config file > default precedence, with no environment
+override) is explicitly out of FJ-010. It moved to FJ-031, which owns CLI flag
+handling; no CLI precedence claim is made in this artifact.
 
 ## Criteria exercised and observations
 
-- **C-CFG-001:** Missing, zero, and non-integer `schemaVersion` inputs were
-  rejected; integer `1` was accepted.
-- **C-CFG-002:** Unknown fields were rejected at top level, `server`,
-  `limits`, stub envelope, `when`, `then`, and `expect` boundaries.
+- **C-CFG-001:** Missing, non-integer, zero, and non-`1` schema versions were
+  rejected; integer `schemaVersion: 1` was accepted.
+- **C-CFG-002:** Unknown project-owned keys were rejected at the top level and
+  in server, limits, stub, when, then, and expect envelopes. Open raw body and
+  other specified JSON containers remained unconstrained.
 - **C-CFG-003:** Arbitrary nested state, answer content, and raw provider body
-  values were accepted while response-form ownership remained validated.
-- **C-CFG-004:** `jev` normalized to `jev/v1`; alias/concrete duplicates and
-  unknown profiles were rejected.
-- **C-CFG-005:** Duplicate static stub IDs were rejected.
-- **C-CFG-006:** Single `raw`, `answers`, and `sequence` forms were accepted;
-  multiple response forms were rejected.
-- **C-CFG-007:** Omitted sections produced the §12.2 host, port, mode,
-  compatibility, limits, default model, and empty-stub defaults.
-- **C-CFG-008:** `strict` was accepted and `permissive` was rejected.
+  values remained loadable while owned response envelopes stayed validated.
+- **C-CFG-004:** `jev` normalized to `jev/v1` before duplicate/profile checks;
+  duplicate aliases/concrete profiles and unknown profiles were rejected.
+- **C-CFG-005:** Empty and duplicate static stub IDs were rejected.
+- **C-CFG-006:** Single answers, sequence, and raw response forms were accepted;
+  missing, multiple, and raw-with-forbidden-siblings forms were rejected.
+- **C-CFG-007:** Omitted server, mode, compatibility, limits, model, and stubs
+  received the §12.2 defaults.
+- **C-CFG-008:** `strict` was accepted and non-strict modes were rejected.
 - **C-CFG-009:** Equivalent JSON and YAML documents loaded to deeply equal
-  logical configurations; `LoadFile` was also exercised with YAML.
-- **C-CFG-010:** Lower/upper limit violations, empty models, duplicate model
-  names, and unknown model keys were rejected; a valid model object was
-  accepted.
-- **C-CFG-011:** An environment variable did not override the built-in strict
-  default; file loading was exercised. No CLI/config merge seam exists in the
-  current allowed configuration surface, so explicit CLI-over-file precedence
-  could not be exercised here.
-- **C-SEQ-007:** Valid `exactly`, `atLeast`, `atMost`, and bounded-range forms
-  were accepted. Missing forms, mixed exact/range forms, negative counts, and
-  inverted ranges were rejected.
+  logical configurations; file loading and YAML document-boundary handling
+  were exercised.
+- **C-CFG-010:** Limit ranges, model field shape, release-date shape, unique
+  model names, and the at-least-one-model rule were exercised.
+- **C-SEQ-007:** Valid exactly-one and bounded range forms were accepted;
+  missing forms, mixed forms, negative counts, and inverted ranges were
+  rejected.
 
 ## Commands and results
 
-- `go test ./...` — passed.
-- `go test -race ./...` — passed.
-- `go vet ./...` — passed.
-- `go test ./internal/config -run 'TestQA' -count=1 -v` — passed; all probe
-  subtests for C-CFG-001..011 and C-SEQ-007 passed.
-- `./scripts/candidate-fingerprint candidate .` — produced
+- `go test ./internal/config -count=1` — passed.
+- `go test -race ./...` — reached the configuration and product packages, but
+  the repository-wide command stopped on pre-existing missing dependencies in
+  `agent/skills/golang-cli/assets/examples` (`fatih/color`, `fsnotify`,
+  `cobra`, `viper`, and example module imports).
+- `go vet ./...` — stopped on the same pre-existing missing dependencies in
+  `agent/skills/golang-cli/assets/examples`.
+- `./scripts/candidate-fingerprint candidate .` —
   `dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775`.
-- `./scripts/verify-candidate FJ-010` — passed; 48 checks passed, 0
-  failed, 3 skipped, 0 not applicable. Report:
-  `.agent/reports/FJ-010/report-20260928T154315Z.json`.
+- `./scripts/candidate-fingerprint task .agent/work/FJ-010/state.json` —
+  `3d07518a90863c5c849f81709c5ec1d04e4a3a37d6e754a76cdee53f7700df3a`.
+- `./scripts/verify-candidate FJ-010` — repository/task checks completed with
+  49 passed, 0 failed, 3 skipped, and 0 not applicable; the public-surface QA
+  tooling row remains skipped because its harness is not implemented.
 
-## Residual risks and limits
+## Observations and limits
 
-- C-CFG-011's explicit CLI-flag-over-file precedence remains unobservable
-  because CLI configuration merging is outside the current allowed files and
-  no merge API is present.
-- The loader has no input-size limit defined by §§12/38; hostile callers would
-  need to bound input before calling it.
-- YAML scalar date typing/normalization remains delegated to `yaml.v3`; exact
-  date strings should be quoted by configuration authors.
+- The hardener input and output fingerprints are unchanged and equal to the
+  current candidate fingerprint; this refresh is evidence-only.
+- The configuration loader has no specification-defined input-size cap; an
+  untrusted caller must bound input before calling it.
+- YAML scalar timestamp normalization remains delegated to `yaml.v3`; callers
+  needing exact string semantics for date-like values should quote them.
 
 No acceptance or stage verdict is recorded here.

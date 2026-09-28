@@ -29,7 +29,8 @@
     "C-CLI-006",
     "C-CLI-007",
     "C-CLI-010",
-    "C-ARCH-006"
+    "C-ARCH-006",
+    "C-CFG-011"
   ],
   "nonGoals": [
     "no run orchestration",
@@ -39,7 +40,7 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement serve, ready-file atomicity, and signal handling",
+  "nextAction": "implement serve, ready-file atomicity, signal handling, and verify C-CFG-011 precedence",
   "notes": [],
   "statusHistory": ["planned"]
 }
