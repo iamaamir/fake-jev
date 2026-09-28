@@ -5,7 +5,7 @@
   "objective": "Load YAML or JSON configuration into a validated model, rejecting unknown keys, invalid expect forms, duplicate static IDs, non-strict modes, and unknown profiles, while applying the §12.2 defaults.",
   "status": "complete",
   "baseRevision": "3a8aea7",
-  "candidateRevision": "80bb467",
+  "candidateRevision": "212219c",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -45,17 +45,17 @@
   "verificationCommands": [],
   "lastVerification": {
     "candidateFingerprint": "dfbe154ac2a066ce29e4e356e521685ab5e42f972a5bda3b1f1c64cf1e7d7775",
-    "finishedAt": "2026-09-28T15:46:17Z",
-    "report": ".agent/reports/FJ-010/report-20260928T154617Z.json",
+    "finishedAt": "2026-09-28T18:31:56Z",
+    "report": ".agent/reports/FJ-010/report-20260928T183156Z.json",
     "result": "passed",
-    "revision": "80bb467",
+    "revision": "212219c",
     "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
-    "taskFingerprint": "ca4c08f959e903a8b93b1b11560b371a8079733d4442f2c030e42f0529ce2885"
+    "taskFingerprint": "3d07518a90863c5c849f81709c5ec1d04e4a3a37d6e754a76cdee53f7700df3a"
   },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
-  "nextAction": "refresh specifier after PM allowedFiles resolution, then coder stages",
+  "nextAction": "FJ-031 must verify C-CFG-011 CLI/file/default precedence",
   "notes": [
     "PM correction 2026-09-28: C-CFG-011 CLI/file/default precedence is owned by FJ-031, which owns CLI flag handling. Removed from this loader-only ticket without weakening the normative contract; FJ-031 acceptance now carries C-CFG-011."
   ],
