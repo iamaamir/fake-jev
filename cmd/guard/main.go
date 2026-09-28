@@ -12,7 +12,7 @@ const usage = "usage: guard <arch|lint|trace|fuzz|complexity|mutation>\n"
 // same task that adds the implementation and its verify row (interpretation
 // note 4); complexity/mutation stay unimplemented until FJ-044/FJ-045.
 var handlers = map[string]func(*Guards) ([]Finding, map[string]int, error){
-	// Task 2:   "arch": runArch,
+	"arch": runArch,
 	// Task 3:   "lint": runLint,
 	// Task 5:  "trace": runTrace,
 	// Task 6:   "fuzz": runFuzz,

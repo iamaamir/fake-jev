@@ -1,0 +1,23 @@
+{
+  "skipDirs": ["agent", ".agents", ".claude", ".pi", ".scratch"],
+  "arch": {
+    "forbidden": [
+      {
+        "pkg": "internal/engine",
+        "forbidExact": ["net/http", "os/exec"],
+        "forbidPrefix": [
+          "fake-jev/internal/compat/jev",
+          "fake-jev/internal/cli",
+          "fake-jev/internal/control"
+        ]
+      }
+    ]
+  },
+  "lint": {
+    "rules": ["err_discarded", "unsafe_type_assert"]
+  },
+  "complexity": {"cyclomaticMax": 15, "crapMax": 50},
+  "mutation": {"overallMinPct": 75, "perPackageMinPct": 60, "mutantTimeoutSeconds": 60},
+  "trace": {"active": [], "catalog": "docs/development/acceptance-catalog.md"},
+  "fuzz": {"fuzztime": "30s"}
+}
