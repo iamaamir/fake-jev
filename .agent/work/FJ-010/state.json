@@ -3,11 +3,11 @@
   "title": "Phase 1: configuration loader and validator",
   "phase": "phase-1",
   "objective": "Load YAML or JSON configuration into a validated model, rejecting unknown keys, invalid expect forms, duplicate static IDs, non-strict modes, and unknown profiles, while applying the §12.2 defaults.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "3a8aea7",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§12 configuration and fixture format",
     "§38 normative configuration contract"
@@ -20,7 +20,9 @@
     "internal/config/load.go",
     "internal/config/schema.go",
     "internal/config/validate.go",
-    "internal/config/validate_test.go"
+    "internal/config/validate_test.go",
+    "go.mod",
+    "go.sum"
   ],
   "acceptance": [
     "C-CFG-001",
@@ -44,7 +46,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement parsing, alias normalization, unknown-key rejection, and defaults",
+  "leaseOwner": "pm-fj010-pickup",
+  "nextAction": "refresh specifier after PM allowedFiles resolution, then coder stages",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }
