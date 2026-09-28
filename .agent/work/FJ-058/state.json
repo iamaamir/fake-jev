@@ -3,9 +3,9 @@
   "title": "Guard race + fuzz: G-H race row and bounded fuzz runner with crash-input preservation",
   "phase": "foundation",
   "objective": "Add the G-H verify rows: a repository go test -race row following the existing na_check/run_check pattern, and the guard fuzz runner (Fuzz target discovery, positive fuzztime enforcement, 0-target pass, crash failure with the failing input preserved under testdata/fuzz/), dueness- and class-gated per interpretation note 3, with matching selftest scenarios (design §5, FJ-058 row).",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": "74df501",
-  "candidateRevision": "cfe0e45",
+  "candidateRevision": "eefdbf6",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -49,13 +49,14 @@
     "PM 2026-09-26: opened with the approved guard design (357d74b) and its implementation plan; depends on FJ-057; ownership pin: this item ships the fuzz runner only, FJ-040 ships targets."
   ],
   "stage": "qa",
-  "leaseOwner": "pm-fj058-pickup",
+  "leaseOwner": null,
   "statusHistory": [
     "planned",
     "ready",
     "implementing",
     "verifying",
     "implementing",
-    "verifying"
+    "verifying",
+    "review"
   ]
 }
