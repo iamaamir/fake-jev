@@ -135,6 +135,8 @@ check_code() {
     check_guard_arch)          echo "guard.arch.failed" ;;
     check_guard_lint)          echo "guard.lint.failed" ;;
     check_guard_trace)         echo "guard.trace.failed" ;;
+    check_guard_fuzz)          echo "guard.fuzz.failed" ;;
+    check_go_race)             echo "guard.race.failed" ;;
     *)                         echo "verify.check_failed" ;;
   esac
 }
@@ -1462,6 +1464,28 @@ findings = doc.get("findings")
 if not isinstance(findings, list):
     print("invalid\tguard %s: findings is not a list" % sub)
     raise SystemExit
+stats = doc.get("stats")
+if not isinstance(stats, dict):
+    print("invalid\tguard %s: stats is not an object" % sub)
+    raise SystemExit
+for key, value in stats.items():
+    if not isinstance(key, str) or not isinstance(value, int) or isinstance(value, bool):
+        print("invalid\tguard %s: stats must map strings to integers" % sub)
+        raise SystemExit
+for index, finding in enumerate(findings):
+    if not isinstance(finding, dict):
+        print("invalid\tguard %s: findings[%d] is not an object" % (sub, index))
+        raise SystemExit
+    if not isinstance(finding.get("code"), str) or not isinstance(finding.get("path"), str):
+        print("invalid\tguard %s: findings[%d] lacks code/path" % (sub, index))
+        raise SystemExit
+    line = finding.get("line", 0)
+    if not isinstance(line, int) or isinstance(line, bool):
+        print("invalid\tguard %s: findings[%d].line is not an int" % (sub, index))
+        raise SystemExit
+    if not isinstance(finding.get("message", ""), str):
+        print("invalid\tguard %s: findings[%d].message is not a string" % (sub, index))
+        raise SystemExit
 if rc == 0 and findings:
     print("invalid\tguard %s: exit 0 with %d finding(s)" % (sub, len(findings)))
     raise SystemExit
@@ -1505,6 +1529,20 @@ print("fail\t%s\t%s" % (first["code"], reason))
   fi
 }
 
+# check_go_race — the design §3.3 G-H test-execution row (the existing
+# na_check/run_check pattern; guard is analysis-only). Empty package set is
+# a failure here even though the ladder above skips it first: a required row
+# may never silently run over nothing.
+check_go_race() {
+  local pkgs
+  pkgs="$(repo_packages | tr '\n' ' ')"
+  if [ -z "${pkgs// /}" ]; then
+    echo "no repository Go packages discovered"
+    return 1
+  fi
+  go test -race $pkgs
+}
+
 if [ "$CLASS" = "metadata" ]; then
   na_check "guard arch (forbidden imports)" check_guard_arch \
     "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
@@ -1512,7 +1550,10 @@ if [ "$CLASS" = "metadata" ]; then
     "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
   na_check "guard trace (active C-ID coverage)" check_guard_trace \
     "stage.not_required" "class metadata (design §9.3)" 0 "G-Q"
-  # Task 6 inserts the fuzz na row here (gate G-H).
+  na_check "guard fuzz (bounded crash scan)" check_guard_fuzz \
+    "stage.not_required" "class metadata (design §9.3)" 0 "G-H"
+  na_check "go test -race (repository packages)" check_go_race \
+    "stage.not_required" "class metadata (design §9.3)" 0 "G-H"
 else
   # Task-less (CI) and product runs enforce; an unparseable class runs
   # non-required (interpretation note 3, row 5).
@@ -1524,7 +1565,6 @@ else
     guard_row "guard arch (forbidden imports)" arch "$GUARD_REQ" "G-L"
     guard_row "guard lint (err_discarded, unsafe_type_assert)" lint "$GUARD_REQ" "G-L"
     guard_row "guard trace (active C-ID coverage)" trace "$GUARD_REQ" "G-Q"
-    # Task 6 inserts the fuzz guard_row here (gate G-H).
   else
     skip_check "guard arch (forbidden imports)" check_guard_arch \
       "$GUARD_SKIP" "" 0 "G-L"
@@ -1532,9 +1572,50 @@ else
       "$GUARD_SKIP" "" 0 "G-L"
     skip_check "guard trace (active C-ID coverage)" check_guard_trace \
       "$GUARD_SKIP" "" 0 "G-Q"
-    # Task 6 inserts the fuzz skip here (gate G-H).
   fi
-  # Task 6 adds the race row after this fi (no guard tool needed; note 3).
+  # fuzz + race (G-H): class decides na, the hardener gate decides when a
+  # product row binds (design §2: bounded fuzz runs at the hardener gate and
+  # in CI, never on every verify), task-less CI enforces fuzz while race
+  # stays visible non-required (§23's own job enforces it - note 3).
+  HARDENER_DUE=0
+  if [ -n "$TASK_ID" ]; then
+    HARDENER_DUE="$(printf '%s' "$TASK_JSON" | python3 -c '
+import json, sys
+try:
+    doc = json.load(sys.stdin)
+except Exception:
+    doc = {}
+print(1 if "hardener" in (doc.get("due") or []) else 0)' 2>/dev/null || echo 0)"
+  fi
+  if [ -n "$TASK_ID" ] && [ "$CLASS" = "product" ] && [ "$HARDENER_DUE" != "1" ]; then
+    # Pending under gauntlet §8.3 (note 3, row 4): no check entry, no
+    # verdict — while the hardener stage is not due, the fuzz and race rows
+    # are simply not emitted. A pending row is neither na nor skipped.
+    :
+  elif [ -n "$TASK_ID" ] && [ "$CLASS" != "product" ]; then
+    na_check "guard fuzz (bounded crash scan)" check_guard_fuzz \
+      "stage.not_required" "class not product (design §4.4)" 0 "G-H"
+    na_check "go test -race (repository packages)" check_go_race \
+      "stage.not_required" "class not product (design §4.4)" 0 "G-H"
+  else
+    if [ -z "$GUARD_SKIP" ]; then
+      guard_row "guard fuzz (bounded crash scan)" fuzz 1 "G-H"
+    else
+      skip_check "guard fuzz (bounded crash scan)" check_guard_fuzz \
+        "$GUARD_SKIP" "" 0 "G-H"
+    fi
+    if [ ! -f go.mod ]; then
+      skip_check "go test -race (repository packages)" check_go_race \
+        "no go.mod yet (foundation phase)" "" 0 "G-H"
+    elif [ -z "${ALL_PKGS//[$'\n\t ']/}" ]; then
+      skip_check "go test -race (repository packages)" check_go_race \
+        "no repository Go packages yet" "" 0 "G-H"
+    elif [ -n "$TASK_ID" ]; then
+      run_check "go test -race (repository packages)" check_go_race 1 "G-H"
+    else
+      run_check "go test -race (repository packages)" check_go_race 0 "G-H"
+    fi
+  fi
 fi
 
 # Guard artifacts: the stderr capture exists on every path (mktemp above);

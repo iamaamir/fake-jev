@@ -15,7 +15,7 @@ var handlers = map[string]func(*Guards) ([]Finding, map[string]int, error){
 	"arch":  runArch,
 	"lint":  runLint,
 	"trace": runTrace,
-	// Task 6:   "fuzz": runFuzz,
+	"fuzz":  runFuzz,
 }
 
 func main() {

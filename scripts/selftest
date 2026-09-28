@@ -1751,6 +1751,170 @@ def trace_empty_active_pass():
     expect(report, "check_guard_arch", result="pass", required=True)
 
 
+# --------------------------------------------------------------------------
+# Guard stack scenarios: FJ-058 race+fuzz rows (design §3.3, §5 G-H)
+# --------------------------------------------------------------------------
+
+
+@scenario("race_product_due_pass")
+def race_product_due_pass():
+    def mutate(repo):
+        guard_fixture(repo)
+    item = base_item(status="review", stage="qa",
+                     allowedFiles=["testdata/golden.json"])
+    repo = fixture("race-due", items={"FJ-900": item}, mutate=mutate)
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp,
+                info["taskFingerprint"])
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    expect(report, "check_go_race", result="pass", required=True,
+           gate="G-H")
+    # guard_fixture supplies cmd/guard: fuzz runs its zero-target vacuous
+    # pass (note 9) — a required pass, never a skip.
+    expect(report, "check_guard_fuzz", result="pass", required=True,
+           gate="G-H")
+
+
+@scenario("race_product_due_fail")
+def race_product_due_fail():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / "internal" / "sample" / "sample_test.go").write_text(
+            "package sample\n"
+            "\n"
+            "import \"testing\"\n"
+            "\n"
+            "func TestAlwaysFails(t *testing.T) {\n"
+            "\tt.Fatal(\"race probe\")\n"
+            "}\n", encoding="utf-8")
+    item = base_item(status="review", stage="qa",
+                     allowedFiles=["testdata/golden.json"])
+    repo = fixture("race-fail", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    expect(report, "check_go_race", code="guard.race.failed",
+           result="fail", required=True, gate="G-H")
+    # The failing unit test does not make fuzz crash: zero targets, so the
+    # fuzz row is a required pass (note 9; `-run '^$'` never executes tests).
+    expect(report, "check_guard_fuzz", result="pass", required=True)
+
+
+@scenario("race_metadata_na")
+def race_metadata_na():
+    repo = fixture("race-meta", items={"FJ-900": base_item()},
+                   mutate=guard_fixture)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    expect(report, "check_go_race", result="not_applicable",
+           required=False, code="stage.not_required", gate="G-H")
+    expect(report, "check_guard_fuzz", result="not_applicable",
+           required=False, code="stage.not_required", gate="G-H")
+    assert report["policy"]["class"] == "metadata", report["policy"]
+
+
+@scenario("fuzz_zero_targets")
+def fuzz_zero_targets():
+    # Task-less (the gauntlet CI shape): no report JSON is written, so the
+    # rows are asserted from stdout; fuzz must block here (note 3) and race
+    # must run visible but non-required.
+    repo = fixture("fuzz-zero", mutate=guard_fixture)
+    proc, _ = run_verify(repo)
+    assert_exit(proc, True, context="task-less fuzz/race run: ")
+    out = proc.stdout
+    assert "==> guard fuzz (bounded crash scan)\n    PASS" in out, out
+    # go test prints its per-package lines between the header and the
+    # verdict, and race is required=0 at task-less (note 3) — RESULT: PASS
+    # alone would not prove the row passed, so read the verdict from the
+    # race block itself.
+    assert "==> go test -race (repository packages)" in out, out
+    race_block = out.split("==> go test -race (repository packages)", 1)[1]
+    race_block = race_block.split("summary:", 1)[0]
+    assert race_block.rstrip().endswith("PASS"), out
+    assert "RESULT: PASS" in out, out
+
+
+@scenario("fuzz_stage_na")
+def fuzz_stage_na():
+    # product, status ready: hardener is not due yet, so note 3's row 4
+    # applies — no fuzz/race row at all (pending under gauntlet §8.3, neither
+    # na nor skipped) while arch/lint/trace still bind. The name is kept for
+    # the tracker; the assertions prove absence through the row list.
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("fuzz-na", items={"FJ-900": item}, mutate=guard_fixture)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert not any(c["name"] == "check_guard_fuzz" for c in report["checks"]), \
+        "fuzz must emit no row while the hardener stage is not due"
+    assert not any(c["name"] == "check_go_race" for c in report["checks"]), \
+        "race must emit no row while the hardener stage is not due"
+    expect(report, "check_guard_arch", result="pass", required=True,
+           gate="G-L")
+
+
+@scenario("fuzz_crash")
+def fuzz_crash():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / "internal" / "sample" / "fuzz_crash_test.go").write_text(
+            "package sample\n"
+            "\n"
+            "import \"testing\"\n"
+            "\n"
+            "func FuzzBoom(f *testing.F) {\n"
+            "\tf.Add(\"boom\")\n"
+            "\tf.Fuzz(func(t *testing.T, s string) {\n"
+            "\t\tif s == \"boom\" {\n\t\t\tpanic(\"boom\")\n\t\t}\n"
+            "\t})\n"
+            "}\n", encoding="utf-8")
+    item = base_item(status="review", stage="qa",
+                     allowedFiles=["testdata/golden.json"])
+    repo = fixture("fuzz-crash", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_fuzz", code="guard.fuzz.crash",
+                 result="fail", required=True, gate="G-H")
+    assert "fuzz_crash_test.go:5" in row["reason"], row["reason"]
+    assert "FuzzBoom" in row["reason"], row["reason"]
+    # Seed replay also fails ordinary go.test/go.test -race here; per
+    # interpretation note 9 the fuzz scenarios assert only the fuzz row.
+
+
+@scenario("fuzz_live_pass")
+def fuzz_live_pass():
+    def mutate(repo):
+        guard_fixture(repo)
+        gpath = repo / ".agent" / "guards.json"
+        doc = json.loads(gpath.read_text(encoding="utf-8"))
+        doc["fuzz"]["fuzztime"] = "1s"
+        gpath.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        (repo / "internal" / "sample" / "fuzz_live_test.go").write_text(
+            "package sample\n"
+            "\n"
+            "import \"testing\"\n"
+            "\n"
+            "func FuzzLive(f *testing.F) {\n"
+            "\tf.Add(\"x\")\n"
+            "\tf.Fuzz(func(t *testing.T, s string) {})\n"
+            "}\n", encoding="utf-8")
+    item = base_item(status="review", stage="qa",
+                     allowedFiles=["testdata/golden.json"])
+    repo = fixture("fuzz-live", items={"FJ-900": item}, mutate=mutate)
+    fp = candidate_fp(repo)
+    info = task_info_json(repo, "FJ-900")
+    write_chain(repo, "FJ-900", info["requiredStages"], fp,
+                info["taskFingerprint"])
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    expect(report, "check_guard_fuzz", result="pass", required=True,
+           gate="G-H")
+    expect(report, "check_go_race", result="pass", required=True,
+           gate="G-H")
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.
