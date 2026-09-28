@@ -134,6 +134,7 @@ check_code() {
     check_go_build)            echo "go.build_failed" ;;
     check_guard_arch)          echo "guard.arch.failed" ;;
     check_guard_lint)          echo "guard.lint.failed" ;;
+    check_guard_trace)         echo "guard.trace.failed" ;;
     *)                         echo "verify.check_failed" ;;
   esac
 }
@@ -1509,7 +1510,8 @@ if [ "$CLASS" = "metadata" ]; then
     "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
   na_check "guard lint (err_discarded, unsafe_type_assert)" check_guard_lint \
     "stage.not_required" "class metadata (design §9.3)" 0 "G-L"
-  # Task 5 inserts the trace na row here (gate G-Q).
+  na_check "guard trace (active C-ID coverage)" check_guard_trace \
+    "stage.not_required" "class metadata (design §9.3)" 0 "G-Q"
   # Task 6 inserts the fuzz na row here (gate G-H).
 else
   # Task-less (CI) and product runs enforce; an unparseable class runs
@@ -1521,14 +1523,15 @@ else
   if [ -z "$GUARD_SKIP" ]; then
     guard_row "guard arch (forbidden imports)" arch "$GUARD_REQ" "G-L"
     guard_row "guard lint (err_discarded, unsafe_type_assert)" lint "$GUARD_REQ" "G-L"
-    # Task 5 inserts the trace guard_row here (gate G-Q).
+    guard_row "guard trace (active C-ID coverage)" trace "$GUARD_REQ" "G-Q"
     # Task 6 inserts the fuzz guard_row here (gate G-H).
   else
     skip_check "guard arch (forbidden imports)" check_guard_arch \
       "$GUARD_SKIP" "" 0 "G-L"
     skip_check "guard lint (err_discarded, unsafe_type_assert)" check_guard_lint \
       "$GUARD_SKIP" "" 0 "G-L"
-    # Task 5 inserts the trace skip here (gate G-Q).
+    skip_check "guard trace (active C-ID coverage)" check_guard_trace \
+      "$GUARD_SKIP" "" 0 "G-Q"
     # Task 6 inserts the fuzz skip here (gate G-H).
   fi
   # Task 6 adds the race row after this fi (no guard tool needed; note 3).

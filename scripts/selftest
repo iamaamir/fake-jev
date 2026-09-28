@@ -1694,6 +1694,63 @@ def guard_stdout_not_json():
            code="guard.tool.failed", required=True, gate="G-L")
 
 
+# --------------------------------------------------------------------------
+# Guard stack scenarios: FJ-057 trace row (design §3.1, §5 G-Q)
+# --------------------------------------------------------------------------
+
+
+@scenario("trace_untraced_active")
+def trace_untraced_active():
+    def mutate(repo):
+        guard_fixture(repo)
+        gpath = repo / ".agent" / "guards.json"
+        doc = json.loads(gpath.read_text(encoding="utf-8"))
+        doc["trace"]["active"] = ["C-GOLD-001"]
+        gpath.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("trace-untraced", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_trace", code="guard.trace.untraced",
+                 result="fail", required=True, gate="G-Q")
+    assert ".agent/guards.json" in row["reason"], row["reason"]
+    assert "C-GOLD-001" in row["reason"], row["reason"]
+
+
+@scenario("trace_unknown_id")
+def trace_unknown_id():
+    def mutate(repo):
+        guard_fixture(repo)
+        (repo / "internal" / "sample" / "sample_test.go").write_text(
+            "package sample\n"
+            "\n"
+            "import \"testing\"\n"
+            "\n"
+            "func TestMarker(t *testing.T) {\n"
+            "\tt.Run(\"C-ZZZZ-999/never\", func(t *testing.T) {})\n"
+            "}\n", encoding="utf-8")
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("trace-unknown", items={"FJ-900": item}, mutate=mutate)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, False)
+    row = expect(report, "check_guard_trace", code="guard.trace.unknown_id",
+                 result="fail", required=True, gate="G-Q")
+    assert "sample_test.go:6" in row["reason"], row["reason"]
+    assert "C-ZZZZ-999" in row["reason"], row["reason"]
+
+
+@scenario("trace_empty_active_pass")
+def trace_empty_active_pass():
+    item = base_item(allowedFiles=["testdata/golden.json"])
+    repo = fixture("trace-pass", items={"FJ-900": item}, mutate=guard_fixture)
+    proc, report = run_verify(repo, task="FJ-900")
+    assert_exit(proc, True)
+    assert report["status"] == "passed", report["status"]
+    expect(report, "check_guard_trace", result="pass", required=True,
+           gate="G-Q")
+    expect(report, "check_guard_arch", result="pass", required=True)
+
+
 # --- runner ---
 # Scenario groups from later tasks are inserted ABOVE this line so they are
 # registered before the run starts.
