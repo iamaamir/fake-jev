@@ -3,9 +3,9 @@
   "title": "Phase 1: configuration loader and validator",
   "phase": "phase-1",
   "objective": "Load YAML or JSON configuration into a validated model, rejecting unknown keys, invalid expect forms, duplicate static IDs, non-strict modes, and unknown profiles, while applying the §12.2 defaults.",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": "3a8aea7",
-  "candidateRevision": "8e0f291",
+  "candidateRevision": "6a2d136",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -46,9 +46,9 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "leaseOwner": "pm-fj010-pickup",
+  "leaseOwner": null,
   "stage": "qa",
   "nextAction": "refresh specifier after PM allowedFiles resolution, then coder stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
 }
