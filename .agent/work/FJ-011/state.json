@@ -3,9 +3,9 @@
   "title": "Phase 1: engine stub registry, ordering, and matching",
   "phase": "phase-1",
   "objective": "Implement the provider-neutral stub registry with static/dynamic provenance, registration indices, the AND-combined matcher with wildcard omissions, and the total ordering priority DESC then registrationIndex ASC.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "4d6dff0",
-  "candidateRevision": "c5f72e1",
+  "candidateRevision": "088eecc",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -44,11 +44,19 @@
     "no specificity scoring"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "5253a8d6677849329dd077262fd8385b6130864268f26d4d2928c5ebd624953f",
+    "finishedAt": "2026-09-28T20:04:34Z",
+    "report": ".agent/reports/FJ-011/report-20260928T200434Z.json",
+    "result": "passed",
+    "revision": "088eecc",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "b788644f51a266d22e3a0d6efc84fe854e22b1fba53fbc99cc44c97f32ab94bb"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
