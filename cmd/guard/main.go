@@ -13,7 +13,7 @@ const usage = "usage: guard <arch|lint|trace|fuzz|complexity|mutation>\n"
 // note 4); complexity/mutation stay unimplemented until FJ-044/FJ-045.
 var handlers = map[string]func(*Guards) ([]Finding, map[string]int, error){
 	"arch": runArch,
-	// Task 3:   "lint": runLint,
+	"lint": runLint,
 	// Task 5:  "trace": runTrace,
 	// Task 6:   "fuzz": runFuzz,
 }
