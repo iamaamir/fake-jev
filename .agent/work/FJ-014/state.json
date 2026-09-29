@@ -3,9 +3,9 @@
   "title": "Phase 1: jev/v1 routing and request validation",
   "phase": "phase-1",
   "objective": "Implement exact data-plane route recognition and the frozen request validation order returning the deterministic 422 detail envelope.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "2944771",
-  "candidateRevision": "4c6f315",
+  "candidateRevision": "426872d",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -40,11 +40,19 @@
     "no exact upstream framework prose emulation (§39.3)"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "e4dcbb3aa2b0fc4eb88b39ce09fd65c349311014a1ba7afa29d2a26371c2fba7",
+    "finishedAt": "2026-09-29T07:11:25Z",
+    "report": ".agent/reports/FJ-014/report-20260929T071125Z.json",
+    "result": "passed",
+    "revision": "426872d",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "1df19a608667d96667c2059da5f0a35005334f81ca89b7ab6c1307c5440d2021"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
