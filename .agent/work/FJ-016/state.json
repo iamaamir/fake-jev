@@ -3,11 +3,11 @@
   "title": "Phase 1: jev/v1 response encoding, models endpoint, and raw responses",
   "phase": "phase-1",
   "objective": "Encode engine results into the §39.4 response shape with model/usage defaults, serve GET /v1/models, encode then.raw responses, and accept auth without validation or logging.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "c182855",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§39.1 GET /v1/models",
     "§39.4 successful response",
@@ -46,7 +46,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement encoding, models, and raw responses with golden tests",
+  "leaseOwner": "pm-fj016-pickup",
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }
