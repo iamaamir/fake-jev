@@ -3,9 +3,9 @@
   "title": "Phase 2: request history, reset, and verification",
   "phase": "phase-2",
   "objective": "Implement request history read/clear, the atomic full reset, and the verify endpoint with its fixed failure shape, codes, and ordering.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "a76d577",
-  "candidateRevision": null,
+  "candidateRevision": "6fcb87e",
   "assignedRole": "coder",
   "attempts": 1,
   "specReferences": [
@@ -43,12 +43,13 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "report": ".agent/reports/FJ-021/report-20260929T163211Z.json",
-    "revision": "a76d577",
-    "candidateFingerprint": "59598e94499eea493d9aff2662f2a91689a2a461b2e3202fd0070fc60a13b79e",
-    "taskFingerprint": "44caf21dca360d2cfe46347601c2250e25a6181e2015b36830e535f50e95c0a5",
+    "report": ".agent/reports/FJ-021/report-20260929T171540Z.json",
+    "revision": "6fcb87e",
+    "candidateFingerprint": "4acd6dd6c828af008d216a52f543aa571806355cf45bac0e71937bf5588d49ab",
+    "taskFingerprint": "4559c4633576304d61378f9e05d4fd68a8a1d9db7fddfed3188c00e4a9adc84e",
     "result": "passed",
-    "summary": "20 passed, 0 failed, 0 skipped, 0 not_applicable"
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-29T17:15:40Z"
   },
   "blockers": [
     {
@@ -59,7 +60,7 @@
       "owner": "repo owner"
     }
   ],
-  "nextAction": "refresh the five stage artifacts onto the new task fingerprint, then verify and close",
+  "nextAction": "merge FJ-021 into main and re-verify the combined state",
   "notes": [
     "scope amendment 2026-09-29 (PM): \u00a741.7 requires method/path on every request-history record; the engine journal has no source. Approved host-populated exchange.Metadata keys \"method\" and \"target\" (precedent: host already writes Metadata[\"error\"]), adding internal/host/http/server.go to allowedFiles. Engine core and its journal type stay untouched. Host control-plane routing (/__fake/ delegation) remains a separate recorded gap, out of scope for FJ-021.",
     "scope amendment 2, 2026-09-29 (PM): Option B is unworkable as written because internal/engine/journal.go cloneExchange reassigns exchange.Metadata to a fresh map before ranging over it, so every recorded exchange loses Metadata (the host's Metadata[\"error\"] is already silently dropped). Approved a minimal correctness fix inside cloneExchange (copy into a local map, then assign) plus a regression test, and added internal/engine/journal.go to allowedFiles. No new engine fields; journal record type unchanged; defensive-copy semantics must be preserved.",
@@ -71,8 +72,11 @@
     "implementing",
     "blocked",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": null,
-  "leaseOwner": "pm-fj021-rebind"
+  "stage": "qa",
+  "leaseOwner": null
 }
