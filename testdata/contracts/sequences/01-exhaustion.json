@@ -85,7 +85,15 @@
           "matchedStubId": "retry-flow",
           "status": 200,
           "error": null,
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "retry": {
+                "type": "noul"
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }
@@ -129,7 +137,15 @@
           "matchedStubId": "retry-flow",
           "status": 200,
           "error": null,
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "retry": {
+                "type": "noul"
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }
@@ -165,7 +181,15 @@
           "matchedStubId": "retry-flow",
           "status": 409,
           "error": "fake_jev_sequence_exhausted",
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "retry": {
+                "type": "noul"
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }

@@ -144,7 +144,15 @@
           "matchedStubId": "B",
           "status": 200,
           "error": null,
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "q": {
+                "type": "noul"
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }

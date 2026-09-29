@@ -226,10 +226,11 @@ func cloneExchange(exchange Exchange) Exchange {
 		exchange.Questions = cloneStringMap(exchange.Questions)
 	}
 	if exchange.Metadata != nil {
-		exchange.Metadata = make(map[string]Value, len(exchange.Metadata))
+		metadata := make(map[string]Value, len(exchange.Metadata))
 		for key, value := range exchange.Metadata {
-			exchange.Metadata[key] = cloneValue(value)
+			metadata[key] = cloneValue(value)
 		}
+		exchange.Metadata = metadata
 	}
 	exchange.State = cloneValue(exchange.State)
 	exchange.Payload = cloneValue(exchange.Payload)

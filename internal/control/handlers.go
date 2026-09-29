@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"fake-jev/internal/config"
@@ -15,6 +16,15 @@ import (
 )
 
 var errRegisteredStubMissing = errors.New("registered stub disappeared outside control mutation boundary")
+
+// Engine-exchange metadata keys recorded by the HTTP host on every data-plane
+// interaction. The provider-neutral journal carries no HTTP details (§8.6), so
+// §41.7's method and path travel through Exchange.Metadata. internal/host/http
+// writes the same keys.
+const (
+	requestMethodMetadataKey = "method"
+	requestTargetMetadataKey = "target"
+)
 
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r == nil || r.URL == nil || !strings.HasPrefix(r.URL.Path, "/__fake/") {
@@ -55,6 +65,33 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			a.methodNotAllowed(w)
 		}
+		return
+	}
+	if r.URL.Path == "/__fake/v1/requests" {
+		switch r.Method {
+		case http.MethodGet:
+			a.listRequests(w)
+		case http.MethodDelete:
+			a.clearRequests(w)
+		default:
+			a.methodNotAllowed(w)
+		}
+		return
+	}
+	if r.URL.Path == "/__fake/v1/verify" {
+		if r.Method != http.MethodGet {
+			a.methodNotAllowed(w)
+			return
+		}
+		a.verify(w)
+		return
+	}
+	if r.URL.Path == "/__fake/v1/reset" {
+		if r.Method != http.MethodPost {
+			a.methodNotAllowed(w)
+			return
+		}
+		a.reset(w)
 		return
 	}
 	writeJSON(w, http.StatusNotFound, controlError{"fake_jev_control_not_found", "Unknown control endpoint.", ""})
@@ -110,6 +147,123 @@ func (a *API) clearStubs(w http.ResponseWriter) {
 	}
 	stubMutations.Unlock()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// requestRecord is the exact §41.7 interaction record shape. Nullable string
+// members use pointers so absence renders as JSON null rather than "".
+type requestRecord struct {
+	Sequence      uint64  `json:"sequence"`
+	Timestamp     string  `json:"timestamp"`
+	Method        string  `json:"method"`
+	Path          string  `json:"path"`
+	Profile       *string `json:"profile"`
+	Operation     *string `json:"operation"`
+	Outcome       string  `json:"outcome"`
+	MatchedStubID *string `json:"matchedStubId"`
+	Status        int     `json:"status"`
+	Error         *string `json:"error"`
+	RequestBody   any     `json:"requestBody"`
+}
+
+func (a *API) listRequests(w http.ResponseWriter) {
+	records := a.engine.Interactions()
+	items := make([]requestRecord, 0, len(records))
+	for _, record := range records {
+		items = append(items, newRequestRecord(record))
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Requests []requestRecord `json:"requests"`
+	}{items})
+}
+
+func newRequestRecord(record engine.InteractionRecord) requestRecord {
+	item := requestRecord{
+		Sequence:    record.Sequence,
+		Timestamp:   record.Received.UTC().Format(time.RFC3339Nano),
+		Method:      metadataString(record.Request.Metadata, requestMethodMetadataKey),
+		Path:        metadataString(record.Request.Metadata, requestTargetMetadataKey),
+		Outcome:     record.Outcome,
+		Status:      record.ResponseStatus,
+		RequestBody: requestBodyValue(record.RawBody),
+	}
+	item.Profile = stringPointer(record.Profile)
+	item.Operation = stringPointer(record.Operation)
+	if record.MatchedStubID != "" {
+		stubID := record.MatchedStubID
+		item.MatchedStubID = &stubID
+	}
+	if record.Outcome != "matched" {
+		code := failureCodeForOutcome(record.Outcome)
+		item.Error = &code
+	}
+	return item
+}
+
+// failureCodeForOutcome maps an interaction outcome to the §43 fake failure
+// code recorded in the §41.7 error member. Only a matched request, including an
+// intentionally configured raw non-2xx response, carries a null error.
+func failureCodeForOutcome(outcome string) string {
+	if outcome == "unmatched" {
+		return "fake_jev_unmatched_request"
+	}
+	return "fake_jev_" + outcome
+}
+
+// clearRequests clears the interaction journal and interaction-derived
+// verification failures and restarts the interaction sequence at 1. It leaves
+// stub invocation counts and response-sequence positions untouched (§41.8).
+func (a *API) clearRequests(w http.ResponseWriter) {
+	if a.engine != nil {
+		a.engine.ClearRequestHistory()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// reset performs the six atomic §41.10 effects through the engine's reset
+// boundary and serializes with control-plane stub mutations so a concurrent
+// registration cannot capture an index across the reset.
+func (a *API) reset(w http.ResponseWriter) {
+	stubMutations.Lock()
+	if a.engine != nil {
+		a.engine.Reset()
+	}
+	stubMutations.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func metadataString(metadata map[string]engine.Value, key string) string {
+	if value, ok := metadata[key].(string); ok {
+		return value
+	}
+	return ""
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// requestBodyValue applies the §41.7 rule: the parsed JSON value for a valid
+// body, the UTF-8-decoded raw string (invalid sequences replaced) for a
+// malformed body, and null for a request with no body or an intentionally
+// unretained oversized body.
+func requestBodyValue(raw []byte) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return strings.ToValidUTF8(string(raw), "\uFFFD")
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return strings.ToValidUTF8(string(raw), "\uFFFD")
+	}
+	return value
 }
 
 func (a *API) createStub(w http.ResponseWriter, r *http.Request) {

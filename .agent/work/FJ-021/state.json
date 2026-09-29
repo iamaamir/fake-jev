@@ -3,17 +3,17 @@
   "title": "Phase 2: request history, reset, and verification",
   "phase": "phase-2",
   "objective": "Implement request history read/clear, the atomic full reset, and the verify endpoint with its fixed failure shape, codes, and ordering.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "a76d577",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "coder",
+  "attempts": 1,
   "specReferences": [
-    "§41.7 request history",
-    "§41.8 clear request history",
-    "§41.9 verify",
-    "§41.10 full reset",
-    "§11.4 verification"
+    "\u00a741.7 request history",
+    "\u00a741.8 clear request history",
+    "\u00a741.9 verify",
+    "\u00a741.10 full reset",
+    "\u00a711.4 verification"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -22,8 +22,11 @@
   "allowedFiles": [
     "internal/control/api.go",
     "internal/control/handlers.go",
+    "internal/control/handlers_test.go",
     "internal/control/verify.go",
-    "internal/control/handlers_test.go"
+    "internal/engine/journal.go",
+    "internal/host/http/server.go",
+    "testdata/contracts/"
   ],
   "acceptance": [
     "C-CTRL-006",
@@ -36,12 +39,40 @@
   ],
   "nonGoals": [
     "no CLI verify command (FJ-032)",
-    "no interaction-derived failure not covered by §41.9"
+    "no interaction-derived failure not covered by \u00a741.9"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
-  "blockers": [],
-  "nextAction": "implement history, reset, and verify with the §44.8 reset vector as a test",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "lastVerification": {
+    "report": ".agent/reports/FJ-021/report-20260929T163211Z.json",
+    "revision": "a76d577",
+    "candidateFingerprint": "59598e94499eea493d9aff2662f2a91689a2a461b2e3202fd0070fc60a13b79e",
+    "taskFingerprint": "44caf21dca360d2cfe46347601c2250e25a6181e2015b36830e535f50e95c0a5",
+    "result": "passed",
+    "summary": "20 passed, 0 failed, 0 skipped, 0 not_applicable"
+  },
+  "blockers": [
+    {
+      "type": "spec-gap",
+      "summary": "\u00a741.9 does not define where a null-requestSequence interaction-derived failure (e.g. journal_full) sorts.",
+      "detail": "\u00a741.9 fixes group ordering: interaction-derived failures by request sequence ascending, then expectation failures by registration index ascending; it separately allows sticky failures with requestSequence: null. It does not say where those null-sequence interaction-derived failures belong within group 1. Implementation and its doc comment place them after all sequenced interaction-derived failures and before expectation failures; no vector discriminates.",
+      "recommendation": "Resolved by owner ruling + system_one second opinion (0.95): null-sequence interaction-derived failures sort after sequenced ones and before expectation failures. Recommend writing this sentence into \u00a741.9.",
+      "owner": "repo owner"
+    }
+  ],
+  "nextAction": "refresh the five stage artifacts onto the new task fingerprint, then verify and close",
+  "notes": [
+    "scope amendment 2026-09-29 (PM): \u00a741.7 requires method/path on every request-history record; the engine journal has no source. Approved host-populated exchange.Metadata keys \"method\" and \"target\" (precedent: host already writes Metadata[\"error\"]), adding internal/host/http/server.go to allowedFiles. Engine core and its journal type stay untouched. Host control-plane routing (/__fake/ delegation) remains a separate recorded gap, out of scope for FJ-021.",
+    "scope amendment 2, 2026-09-29 (PM): Option B is unworkable as written because internal/engine/journal.go cloneExchange reassigns exchange.Metadata to a fresh map before ranging over it, so every recorded exchange loses Metadata (the host's Metadata[\"error\"] is already silently dropped). Approved a minimal correctness fix inside cloneExchange (copy into a local map, then assign) plus a regression test, and added internal/engine/journal.go to allowedFiles. No new engine fields; journal record type unchanged; defensive-copy semantics must be preserved.",
+    "scope amendment 3, 2026-09-29 (PM, owner ruling + system_one second opinion 0.97): \u00a741.7 is authoritative, so the derived golden vectors were corrected rather than the specification. 15 journal assertions in 13 vectors under testdata/contracts/ that asserted requestBody:null for valid-JSON bodies now assert the parsed request body. testdata/contracts/ added to allowedFiles. Separate defect recorded, NOT patched: verification/03-payload-too-large asserts 413 for an 88-byte body against dataPlaneBodyBytes 1024 (a PAGING placeholder was never expanded), so that vector cannot produce its own expected status; it needs a dedicated vector-audit ticket."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing",
+    "blocked",
+    "ready",
+    "implementing"
+  ],
+  "stage": null,
+  "leaseOwner": "pm-fj021-rebind"
 }

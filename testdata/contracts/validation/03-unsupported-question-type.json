@@ -56,7 +56,15 @@
           "matchedStubId": null,
           "status": 422,
           "error": "fake_jev_validation_error",
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "x": {
+                "type": "unsupported"
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }

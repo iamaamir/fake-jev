@@ -68,7 +68,18 @@
           "matchedStubId": "wrong-choice",
           "status": 500,
           "error": "fake_jev_invalid_stub_response",
-          "requestBody": null,
+          "requestBody": {
+            "state": "x",
+            "model": "jev-latest",
+            "questions": {
+              "route": {
+                "type": "choice",
+                "criteria": {
+                  "backend": "API"
+                }
+              }
+            }
+          },
           "_timestampOmitted": "timestamp is diagnostic only (§8.6, §41.7) and is not asserted"
         }
       }

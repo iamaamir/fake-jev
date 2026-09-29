@@ -23,6 +23,15 @@ const (
 	DefaultGracefulShutdown      = 5
 )
 
+// Engine-exchange metadata keys shared with the control API's request-history
+// endpoint. The provider-neutral journal carries no HTTP details (§8.6), so
+// §41.7's method and path are recorded here. Keep in sync with
+// internal/control.
+const (
+	requestMethodMetadataKey = "method"
+	requestTargetMetadataKey = "target"
+)
+
 // Limits are the host resource limits. A zero value is filled with the
 // specification defaults by NewServer.
 type Limits struct {
@@ -180,7 +189,7 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 	}
 	var decoded v1.Request
 	var decodeErr error
-	record, selection, err := s.router.engine.Transition(requestInfo, func(sequence uint64) engine.InteractionDecision {
+	decide := func(sequence uint64) engine.InteractionDecision {
 		_ = sequence
 		if tooLarge {
 			return engine.InteractionDecision{
@@ -223,6 +232,11 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 			}
 		}
 		return engine.InteractionDecision{Exchange: exchange, Valid: true, Outcome: "matched"}
+	}
+	record, selection, err := s.router.engine.Transition(requestInfo, func(sequence uint64) engine.InteractionDecision {
+		decision := decide(sequence)
+		stampRequestMetadata(&decision.Exchange, request)
+		return decision
 	})
 	if err != nil {
 		if errors.Is(err, engine.ErrJournalFull) {
@@ -289,6 +303,25 @@ func requestTarget(request *nethttp.Request) string {
 		return ""
 	}
 	return request.URL.RequestURI()
+}
+
+// stampRequestMetadata records the HTTP method and the URL path (query string
+// excluded, §41.7 / §39.8) on the exchange so the control API can render the
+// request-history record. Every data-plane transition passes through here,
+// including route, validation, payload, and internal failures.
+func stampRequestMetadata(exchange *engine.Exchange, request *nethttp.Request) {
+	if exchange == nil || request == nil {
+		return
+	}
+	if exchange.Metadata == nil {
+		exchange.Metadata = make(map[string]engine.Value, 2)
+	}
+	exchange.Metadata[requestMethodMetadataKey] = request.Method
+	path := ""
+	if request.URL != nil {
+		path = request.URL.Path
+	}
+	exchange.Metadata[requestTargetMetadataKey] = path
 }
 
 func readBody(request *nethttp.Request, limit int) ([]byte, bool, error) {
