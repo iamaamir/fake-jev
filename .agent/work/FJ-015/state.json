@@ -3,9 +3,9 @@
   "title": "Phase 1: jev/v1 noul, choice, and score fixture helpers",
   "phase": "phase-1",
   "objective": "Implement deterministic answer generation for the three frozen question types, including one-hot generation, fractional interpolation, legend derivation, explicit-probability validation, and exact answer-map coverage.",
-  "status": "implementing",
+  "status": "verifying",
   "baseRevision": "4515668",
-  "candidateRevision": null,
+  "candidateRevision": "3bb79e8",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -41,7 +41,8 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": "pm-fj015-pickup",
+  "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying"]
 }
