@@ -3,11 +3,11 @@
   "title": "Phase 1: jev/v1 noul, choice, and score fixture helpers",
   "phase": "phase-1",
   "objective": "Implement deterministic answer generation for the three frozen question types, including one-hot generation, fractional interpolation, legend derivation, explicit-probability validation, and exact answer-map coverage.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "4515668",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§13 Jev v1 fixture helpers",
     "§13.5 partial answers prohibited"
@@ -40,7 +40,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement the three helpers with tolerance and mismatch tests from §13",
+  "leaseOwner": "pm-fj015-pickup",
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }
