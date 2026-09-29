@@ -3,9 +3,9 @@
   "title": "Phase 1 gate: data-plane golden contracts through real HTTP",
   "phase": "phase-1",
   "objective": "Wire configuration, engine, compatibility profile, and host together and run every data-plane §44 vector through an ephemeral-port HTTP client with no model, API key, or network.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "25e53aa",
-  "candidateRevision": "f2db38a",
+  "candidateRevision": "ffe118c",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -50,11 +50,19 @@
     "no deferred §33 features"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "4f811c765e1cf47c069ff957b82979f307f7376776475789c31e8183d700b178",
+    "finishedAt": "2026-09-29T09:46:14Z",
+    "report": ".agent/reports/FJ-018/report-20260929T094614Z.json",
+    "result": "passed",
+    "revision": "ffe118c",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "aa19104f2114a6952c92e7fff2055c9f448e3079a3d2e8f317f7f4ca63eb48f8"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
