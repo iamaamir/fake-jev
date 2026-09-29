@@ -3,9 +3,9 @@
   "title": "Phase 1: jev/v1 noul, choice, and score fixture helpers",
   "phase": "phase-1",
   "objective": "Implement deterministic answer generation for the three frozen question types, including one-hot generation, fractional interpolation, legend derivation, explicit-probability validation, and exact answer-map coverage.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "4515668",
-  "candidateRevision": "2f98c75",
+  "candidateRevision": "e46825e",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -38,11 +38,19 @@
     "no partial answer fallback"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "66f35765afb2948730b0bac0c54bc1b08852900e356f16423d15d9ad2690710e",
+    "finishedAt": "2026-09-29T07:59:41Z",
+    "report": ".agent/reports/FJ-015/report-20260929T075941Z.json",
+    "result": "passed",
+    "revision": "e46825e",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "c4409d7a1fbba4b732c5b1d9cc70c922f2a2f717e6b47adce19907a99d646528"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
