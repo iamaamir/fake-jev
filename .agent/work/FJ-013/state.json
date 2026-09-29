@@ -3,9 +3,9 @@
   "title": "Phase 1: engine interaction journal and atomic transitions",
   "phase": "phase-1",
   "objective": "Implement monotonic interaction sequencing assigned before routing, the bounded journal, serialized state transitions, sticky failures for states the journal cannot represent, and reset/clear primitives.",
-  "status": "implementing",
+  "status": "verifying",
   "baseRevision": "734ff6f",
-  "candidateRevision": null,
+  "candidateRevision": "5c02837",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -38,7 +38,8 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": "pm-fj013-pickup",
+  "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying"]
 }
