@@ -3,9 +3,9 @@
   "title": "Phase 1: HTTP host dispatch, limits, and failure mapping",
   "phase": "phase-1",
   "objective": "Serve the data plane over HTTP with per-plane body limits, journal capacity enforcement, unknown-route handling, and the exact §43 fake-failure bodies.",
-  "status": "verifying",
+  "status": "review",
   "baseRevision": "49263a2",
-  "candidateRevision": "a0bdfd4",
+  "candidateRevision": "25d0634",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -40,9 +40,9 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "leaseOwner": "pm-fj017-pickup",
+  "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
 }
