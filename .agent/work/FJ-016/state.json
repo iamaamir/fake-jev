@@ -3,9 +3,9 @@
   "title": "Phase 1: jev/v1 response encoding, models endpoint, and raw responses",
   "phase": "phase-1",
   "objective": "Encode engine results into the §39.4 response shape with model/usage defaults, serve GET /v1/models, encode then.raw responses, and accept auth without validation or logging.",
-  "status": "review",
+  "status": "complete",
   "baseRevision": "c182855",
-  "candidateRevision": "445d297",
+  "candidateRevision": "6a0816e",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -44,11 +44,19 @@
     "no auth enforcement of any kind"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "candidateFingerprint": "b36ecf5e1da6ff235dbfb96eab8ac7959c74e72db5e7034edc9f7056ff04c954",
+    "finishedAt": "2026-09-29T08:27:08Z",
+    "report": ".agent/reports/FJ-016/report-20260929T082708Z.json",
+    "result": "passed",
+    "revision": "6a0816e",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "taskFingerprint": "fe3ad8fed06766d931689414827eac15a4dfd515b391587f6f1a2bc1f7ffb72e"
+  },
   "blockers": [],
   "leaseOwner": null,
   "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying", "review"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying", "review", "complete"]
 }
