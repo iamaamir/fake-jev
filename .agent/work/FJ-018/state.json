@@ -3,9 +3,9 @@
   "title": "Phase 1 gate: data-plane golden contracts through real HTTP",
   "phase": "phase-1",
   "objective": "Wire configuration, engine, compatibility profile, and host together and run every data-plane §44 vector through an ephemeral-port HTTP client with no model, API key, or network.",
-  "status": "implementing",
+  "status": "verifying",
   "baseRevision": "25e53aa",
-  "candidateRevision": null,
+  "candidateRevision": "27fdab0",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -53,7 +53,8 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": "pm-fj018-pickup",
+  "stage": "qa",
   "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying"]
 }
