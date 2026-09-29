@@ -3,11 +3,12 @@
   "title": "Phase 2: control API health, meta, and stub management",
   "phase": "phase-2",
   "objective": "Implement health, meta, dynamic stub creation with duplicate rejection, stub listing, dynamic-only clearing, and the 400 control error contract.",
-  "status": "planned",
-  "baseRevision": null,
-  "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "status": "verifying",
+  "stage": "qa",
+  "baseRevision": "b198957",
+  "candidateRevision": "8dacde273d16cf959da358666963b3afdbec066ac5dd4ebea125c094c4796740",
+  "assignedRole": "qa",
+  "attempts": 1,
   "specReferences": [
     "§41.1 general rules",
     "§41.2 health",
@@ -46,7 +47,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement the stub and meta endpoints against the engine",
+  "leaseOwner": "pm-fj020-pickup",
+  "nextAction": "record verifying-stage verification, then advance to review and complete",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing", "verifying"]
 }
