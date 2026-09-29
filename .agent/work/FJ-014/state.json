@@ -3,11 +3,11 @@
   "title": "Phase 1: jev/v1 routing and request validation",
   "phase": "phase-1",
   "objective": "Implement exact data-plane route recognition and the frozen request validation order returning the deterministic 422 detail envelope.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "2944771",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "§39.2 request validation",
     "§39.3 deterministic 422 envelope",
@@ -42,7 +42,8 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement route matching and first-error validation with golden 422 tests",
+  "leaseOwner": "pm-fj014-pickup",
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
   "notes": [],
-  "statusHistory": ["planned"]
+  "statusHistory": ["planned", "ready", "implementing"]
 }
