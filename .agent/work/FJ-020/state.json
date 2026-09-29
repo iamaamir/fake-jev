@@ -3,20 +3,20 @@
   "title": "Phase 2: control API health, meta, and stub management",
   "phase": "phase-2",
   "objective": "Implement health, meta, dynamic stub creation with duplicate rejection, stub listing, dynamic-only clearing, and the 400 control error contract.",
-  "status": "verifying",
+  "status": "complete",
   "stage": "qa",
   "baseRevision": "b198957",
-  "candidateRevision": "8dacde273d16cf959da358666963b3afdbec066ac5dd4ebea125c094c4796740",
-  "assignedRole": "qa",
+  "candidateRevision": "595d90a",
+  "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
-    "§41.1 general rules",
-    "§41.2 health",
-    "§41.3 metadata",
-    "§41.4 create dynamic stub",
-    "§41.5 list stubs",
-    "§41.6 clear dynamic stubs",
-    "§11.2 static and dynamic stubs"
+    "\u00a741.1 general rules",
+    "\u00a741.2 health",
+    "\u00a741.3 metadata",
+    "\u00a741.4 create dynamic stub",
+    "\u00a741.5 list stubs",
+    "\u00a741.6 clear dynamic stubs",
+    "\u00a711.2 static and dynamic stubs"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -45,10 +45,25 @@
     "no journal-visible control requests"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-020/report-20260929T154007Z.json",
+    "revision": "595d90a",
+    "candidateFingerprint": "8dacde273d16cf959da358666963b3afdbec066ac5dd4ebea125c094c4796740",
+    "taskFingerprint": "bf0432ef36830af414bf83f372280b27549851174ee9ee40d083af3e9fb25d42",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-29T15:40:07Z"
+  },
   "blockers": [],
-  "leaseOwner": "pm-fj020-pickup",
-  "nextAction": "record verifying-stage verification, then advance to review and complete",
+  "leaseOwner": null,
+  "nextAction": "merge FJ-020 into main and re-verify the combined state",
   "notes": [],
-  "statusHistory": ["planned", "ready", "implementing", "verifying"]
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ]
 }
