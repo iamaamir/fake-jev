@@ -207,6 +207,13 @@ func TestServerClosesRequestBodiesAndHandlesChunkedLimits(t *testing.T) {
 }
 
 func TestServerNilURLAndListenerAreSafe(t *testing.T) {
+	if server := NewServer(nil, Limits{}); server != nil {
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+		if recorder.Code != http.StatusInternalServerError || recorder.Body.String() != `{"error":"fake_jev_internal_error","message":"Internal fake-jev error."}` {
+			t.Fatalf("nil router response = %d %s", recorder.Code, recorder.Body.String())
+		}
+	}
 	state, err := engine.NewEngineWithJournal(nil, 1)
 	if err != nil {
 		t.Fatal(err)

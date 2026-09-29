@@ -18,7 +18,7 @@ import (
 const (
 	DefaultDataPlaneBodyBytes    = 8 * 1024 * 1024
 	DefaultControlPlaneBodyBytes = 2 * 1024 * 1024
-	DefaultMaxInteractions       = 10000
+	DefaultMaxInteractions       = engine.DefaultMaxInteractions
 	DefaultLogBodyBytes          = 4096
 	DefaultGracefulShutdown      = 5
 )
@@ -111,6 +111,15 @@ func NewServerFromConfig(cfg *config.Config) (*Server, error) {
 // NewServerWithConfig is an explicit alias for NewServerFromConfig.
 func NewServerWithConfig(cfg *config.Config) (*Server, error) { return NewServerFromConfig(cfg) }
 
+// Engine exposes the host's state for deterministic in-process verification
+// and diagnostics. It does not add an HTTP control surface.
+func (s *Server) Engine() *engine.Engine {
+	if s == nil || s.router == nil {
+		return nil
+	}
+	return s.router.engine
+}
+
 // Serve serves requests from a real net/http listener.
 func (s *Server) Serve(listener net.Listener) error {
 	if s == nil {
@@ -127,7 +136,7 @@ func (s *Server) ServeHTTP(writer nethttp.ResponseWriter, request *nethttp.Reque
 	if request != nil && request.Body != nil {
 		defer request.Body.Close()
 	}
-	if s == nil || s.router == nil || request == nil {
+	if s == nil || s.router == nil || !s.router.active() || request == nil {
 		writeJSON(writer, nethttp.StatusInternalServerError, internalErrorBody{})
 		return
 	}
@@ -177,12 +186,14 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 			return engine.InteractionDecision{
 				Exchange: errorExchange(s.router.profileID(), operation, "fake_jev_payload_too_large"),
 				Valid:    false, Outcome: "payload_too_large", ResponseStatus: nethttp.StatusRequestEntityTooLarge,
+				Failure: &engine.VerificationFailure{Code: "payload_too_large", Message: "Request exceeded the configured payload limit."},
 			}
 		}
 		if route == v1.UnknownRoute {
 			return engine.InteractionDecision{
 				Exchange: errorExchange(s.router.profileID(), "", "fake_jev_unknown_route"),
 				Valid:    false, Outcome: "unknown_route", ResponseStatus: nethttp.StatusNotFound,
+				Failure: &engine.VerificationFailure{Code: "unknown_route", Message: "Request used an unknown route."},
 			}
 		}
 		exchange, err := s.router.profile.Decode(v1.HostRequest{
@@ -194,7 +205,8 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 			if validation, ok := decodeErr.(*v1.ValidationError); ok {
 				status = validation.StatusCode()
 			}
-			return engine.InteractionDecision{Exchange: errorExchange(s.router.profileID(), operation, "validation_error"), Valid: false, Outcome: "invalid", ResponseStatus: status}
+			return engine.InteractionDecision{Exchange: errorExchange(s.router.profileID(), operation, "validation_error"), Valid: false, Outcome: "validation_error", ResponseStatus: status,
+				Failure: &engine.VerificationFailure{Code: "validation_error", Message: "Request failed validation."}}
 		}
 		if operation == "models" {
 			return engine.InteractionDecision{Exchange: exchange, Valid: true, Outcome: "matched", ResponseStatus: nethttp.StatusOK}
@@ -206,7 +218,8 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 				return engine.InteractionDecision{Exchange: errorExchange(s.router.profileID(), operation, "fake_jev_internal_error"), Valid: false, Outcome: "internal_error", ResponseStatus: nethttp.StatusInternalServerError}
 			}
 			if len(s.router.engine.Registry.Matching(exchange)) == 0 {
-				return engine.InteractionDecision{Exchange: exchange, Valid: true, Outcome: "unmatched", ResponseStatus: nethttp.StatusNotImplemented}
+				return engine.InteractionDecision{Exchange: exchange, Valid: true, Outcome: "unmatched", ResponseStatus: nethttp.StatusNotImplemented,
+					Failure: &engine.VerificationFailure{Code: "unmatched_request", Message: "Request did not match any configured stub."}}
 			}
 		}
 		return engine.InteractionDecision{Exchange: exchange, Valid: true, Outcome: "matched"}
@@ -263,9 +276,11 @@ func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Reque
 	}
 	response, encodeErr := s.router.profile.Encode(v1.ResponseResult{Request: decoded, Response: responseConfig})
 	if encodeErr != nil {
+		s.router.engine.RecordFailure(record.Sequence, "invalid_stub_response", "Configured stub cannot produce a valid response for this request.", selection.Stub.ID, nethttp.StatusInternalServerError)
 		writeJSON(writer, nethttp.StatusInternalServerError, failureWithStub("fake_jev_invalid_stub_response", "Configured stub cannot produce a valid response for this request.", selection.Stub.ID))
 		return
 	}
+	s.router.engine.UpdateInteraction(record.Sequence, "matched", response.Status)
 	writeEncoded(writer, response)
 }
 

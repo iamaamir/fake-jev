@@ -30,6 +30,7 @@ type InteractionDecision struct {
 	Valid          bool
 	Outcome        string
 	ResponseStatus int
+	Failure        *VerificationFailure
 }
 
 // InteractionRecord is the bounded, diagnostic interaction journal entry.
@@ -138,6 +139,49 @@ func (j *interactionJournal) records() []InteractionRecord {
 		result[i] = cloneInteractionRecord(j.entries[i])
 	}
 	return result
+}
+
+func (j *interactionJournal) addFailure(failure VerificationFailure) {
+	if j == nil {
+		return
+	}
+	for _, existing := range j.failures {
+		if existing.Code == failure.Code && sameSequence(existing.RequestSequence, failure.RequestSequence) && sameStub(existing.StubID, failure.StubID) {
+			return
+		}
+	}
+	j.failures = append(j.failures, failure)
+}
+
+func (j *interactionJournal) update(sequence uint64, outcome string, status int) {
+	if j == nil {
+		return
+	}
+	for index := range j.entries {
+		if j.entries[index].Sequence == sequence {
+			if outcome != "" {
+				j.entries[index].Outcome = outcome
+			}
+			if status != 0 {
+				j.entries[index].ResponseStatus = status
+			}
+			return
+		}
+	}
+}
+
+func sameSequence(left, right *uint64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func sameStub(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func (j *interactionJournal) verificationFailures() []VerificationFailure {

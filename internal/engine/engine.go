@@ -164,6 +164,18 @@ func (e *Engine) transition(request InteractionRequest, handler func(uint64) (In
 		return nil, err
 	}
 	decision, selection := handler(sequence)
+	if selection != nil && selection.SequenceExhausted {
+		decision.Outcome = "sequence_exhausted"
+		decision.ResponseStatus = 409
+		if decision.Failure == nil {
+			stubID := selection.Stub.ID
+			decision.Failure = &VerificationFailure{
+				Code:    "sequence_exhausted",
+				Message: "Configured response sequence is exhausted.",
+				StubID:  &stubID,
+			}
+		}
+	}
 	if decision.Outcome == "" {
 		if decision.Valid {
 			decision.Outcome = "unmatched"
@@ -213,7 +225,46 @@ func (e *Engine) transition(request InteractionRequest, handler func(uint64) (In
 		}
 	}
 	e.journal.append(record)
+	if decision.Failure != nil {
+		failure := cloneVerificationFailure(*decision.Failure)
+		if failure.RequestSequence == nil {
+			failure.RequestSequence = uint64Pointer(sequence)
+		}
+		e.journal.addFailure(failure)
+	}
 	return &record, nil
+}
+
+// UpdateInteraction completes diagnostic fields that are only known after the
+// compatibility profile has encoded the selected response.
+func (e *Engine) UpdateInteraction(sequence uint64, outcome string, status int) {
+	if e == nil || e.journal == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.journal.update(sequence, outcome, status)
+}
+
+// RecordFailure records a fake-server failure discovered after a transition,
+// such as an invalid configured response. The interaction remains retained
+// while its outcome and status are updated atomically with the failure state.
+func (e *Engine) RecordFailure(sequence uint64, code, message, stubID string, status int) {
+	if e == nil || e.journal == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	outcome := code
+	if len("fake_jev_") <= len(outcome) && outcome[:len("fake_jev_")] == "fake_jev_" {
+		outcome = outcome[len("fake_jev_"):]
+	}
+	e.journal.update(sequence, outcome, status)
+	failure := VerificationFailure{Code: outcome, Message: message, RequestSequence: uint64Pointer(sequence)}
+	if stubID != "" {
+		failure.StubID = &stubID
+	}
+	e.journal.addFailure(failure)
 }
 
 // ClearRequestHistory atomically clears retained interactions and all
