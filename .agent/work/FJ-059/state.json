@@ -1,0 +1,52 @@
+{
+  "id": "FJ-059",
+  "title": "Phase 3: static jev/v1 fixture validation for `fake-jev validate`",
+  "phase": "phase-3",
+  "objective": "Implement the statically provable jev/v1 fixture-data consistency checks required by specification \u00a715.2, so that `fake-jev validate` validates all enabled profile-specific fixture data and performs all statically possible consistency checks, without starting a server or making any network request.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a715.2 validate",
+    "\u00a738.6 jev/v1 when object",
+    "\u00a738.7 jev/v1 then object",
+    "\u00a740.2-40.6 fixture answer rules",
+    "\u00a712.7 expect"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "docs/development/acceptance-catalog.md"
+  ],
+  "allowedFiles": [
+    "internal/compat/jev/v1/fixture.go",
+    "internal/compat/jev/v1/fixture_test.go",
+    "internal/cli/validate.go",
+    "internal/cli/validate_test.go"
+  ],
+  "acceptance": [
+    "C-CLI-005"
+  ],
+  "nonGoals": [
+    "no change to runtime request validation",
+    "no change to response generation at serve time",
+    "no server startup and no network access",
+    "no new wire-visible behavior"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "implement the static answers/helper validation and the when.questions to then.answers cross-check, call it from validate, and cover it with tests",
+  "notes": [
+    "Opened 2026-09-29 by PM as the explicit owner of the clause in C-CLI-005 and \u00a715.2 that FJ-030 could not satisfy inside its allowedFiles.",
+    "G1: inner jev/v1 then.answers payloads are not validated at load time today; probability ranges, finite values, and maps summing to 1.0 within 1e-6 are only enforced later in internal/compat/jev/v1/fixture.go at response-generation time.",
+    "G2: the stub's when.questions key set is not cross-checked against then.answers keys, although both are statically known from the configuration file.",
+    "Design constraint: internal/config is provider-neutral and must not import internal/compat/jev/v1 (enforced by cmd/guard arch); the static validator belongs in the compat layer and must be invoked from the CLI composition root.",
+    "Not statically decidable: choice/score criterion key-set equality, because criteria come from the incoming client request, not from the configuration."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
