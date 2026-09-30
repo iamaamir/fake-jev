@@ -3,20 +3,21 @@
   "title": "Phase 3: validate command",
   "phase": "phase-3",
   "objective": "Implement `fake-jev validate <path>` so every statically checkable configuration rule runs without starting a server or touching the network.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "abba008",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§15.2 validate",
-    "§42.1 process exit codes"
+    "\u00a715.2 validate",
+    "\u00a742.1 process exit codes"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
     "docs/development/acceptance-catalog.md"
   ],
   "allowedFiles": [
+    "internal/cli/dispatch.go",
     "internal/cli/validate.go",
     "internal/cli/validate_test.go"
   ],
@@ -33,7 +34,16 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement validate on top of the configuration validator",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "notes": [
+    "scope amendment 2026-09-29 (PM): \u00a715.2 requires a `fake-jev validate <path>` command, but the CLI routes commands in internal/cli/dispatch.go, which was not in allowedFiles. Added internal/cli/dispatch.go (and its usage text) so the command is actually reachable. No new public behavior beyond \u00a715.2/\u00a742.1.",
+    "ownership split 2026-09-29 (PM, owner-approved option 2): C-CLI-005's \"all static checks\" is delivered in two parts. FJ-030 owns the configuration/schema surface (top-level schema, unknown fields, duplicate ids, expect rules, response-form exactness) via the shared internal/config validator. FJ-059 owns the statically provable jev/v1 fixture-data checks: the inner then.answers payload rules (finite probabilities, ranges, maps summing to 1.0 within 1e-6) and the when.questions to then.answers key-set cross-check. Reason for the split: those checks live in the jev/v1 compat layer, and internal/config must stay provider-neutral (cmd/guard arch forbids the import), so they cannot be implemented inside FJ-030's allowedFiles without forking the semantics. Choice/score criterion key-set equality is not statically decidable because criteria come from the request. FJ-030 records these two gaps explicitly rather than accepting them silently."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier",
+  "leaseOwner": "pm-fj030-pickup"
 }
