@@ -3,9 +3,9 @@
   "title": "Phase 3: serve command, ready file, signals, and logging",
   "phase": "phase-3",
   "objective": "Implement `fake-jev serve` with flag precedence, loopback default bind, ephemeral port support, atomic ready file, graceful shutdown on SIGINT/SIGTERM, and stderr logging with Authorization redaction.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "6094965",
-  "candidateRevision": null,
+  "candidateRevision": "4dc7c87",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -39,17 +39,28 @@
     "no control-plane authentication"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-031/report-20260930T161232Z.json",
+    "revision": "4dc7c87",
+    "candidateFingerprint": "c8ee98ed15771f58cb8cecedd751633ac6c7bc4414a294da0db14807fda43338",
+    "taskFingerprint": "703164b4cd18ba33de0272b4065a7861e596afa85da13bcc16fd751fda500e6a",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-30T16:12:32Z"
+  },
   "blockers": [],
-  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "nextAction": "merge FJ-031 into main and re-verify the combined state",
   "notes": [
     "scope amendment 2026-09-29 (PM): added internal/cli/dispatch.go so the serve command is routable, matching the FJ-030 precedent. internal/host/http/server.go is already allowed, so the /__fake/ control-plane delegation is in scope here."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier",
-  "leaseOwner": "pm-fj031-pickup"
+  "stage": "qa",
+  "leaseOwner": null
 }
