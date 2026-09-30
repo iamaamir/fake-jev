@@ -216,62 +216,128 @@ func redactAuthorization(value string) string {
 	return redactedHeaderValue
 }
 
-// serve runs the server lifecycle: bind, publish readiness, serve both planes
-// over one listener, and shut down gracefully on SIGINT/SIGTERM (§42.3).
-func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) {
-	logger := log.New(stderr, "fake-jev: ", 0)
+// serverHandle is one running in-process fake server: the engine-backed HTTP
+// host and the start/stop operations that `serve` and `run` share so neither
+// command forks the lifecycle. startServer returns only after the listener is
+// bound and the control API attached, so a caller holding a handle has a server
+// whose next connection is already accepted from the listen backlog (§15.1,
+// §15.4 step 3).
+type serverHandle struct {
+	cfg      *config.Config
+	logger   *log.Logger
+	http     *nethttp.Server
+	url      string
+	port     int
+	serveErr chan error
+}
 
+// startServer compiles the configuration into the engine-backed host, attaches
+// the control API, and binds the configured authority. Everything that can fail
+// before serving is reported here, so a caller never holds a handle for a
+// server that is not listening (§42.1, §4.6).
+func startServer(cfg *config.Config, logger *log.Logger) (*serverHandle, error) {
 	server, err := hosthttp.NewServerFromConfig(cfg)
 	if err != nil {
-		writef(stderr, "fake-jev: %v\n", err)
-		return exitFailure
+		return nil, err
 	}
+	// The control API is attached before the listener is opened, so a bound
+	// listener implies a ready control API (§15.4 step 3).
 	server.AttachControl(control.NewAPI(server.Engine(), cfg))
 	authority := net.JoinHostPort(cfg.Server.Host, strconv.Itoa(cfg.Server.Port))
 	listener, err := net.Listen("tcp", authority)
 	if err != nil {
-		writef(stderr, "fake-jev: listen on %s: %v\n", authority, err)
-		return exitFailure
+		return nil, fmt.Errorf("listen on %s: %w", authority, err)
 	}
 	bound, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
 		addressErr := fmt.Errorf("listener address %v is not a TCP address", listener.Addr())
-		if err := listener.Close(); err != nil {
-			writef(stderr, "fake-jev: %v; close listener: %v\n", addressErr, err)
-			return exitFailure
+		if closeErr := listener.Close(); closeErr != nil {
+			return nil, fmt.Errorf("%v; close listener: %w", addressErr, closeErr)
 		}
-		writef(stderr, "fake-jev: %v\n", addressErr)
+		return nil, addressErr
+	}
+	handle := &serverHandle{
+		cfg:      cfg,
+		logger:   logger,
+		http:     &nethttp.Server{Handler: logHandler{next: server, logger: logger}, ErrorLog: logger},
+		url:      "http://" + net.JoinHostPort(cfg.Server.Host, strconv.Itoa(bound.Port)),
+		port:     bound.Port,
+		serveErr: make(chan error, 1),
+	}
+	go func() { handle.serveErr <- handle.http.Serve(listener) }()
+	return handle, nil
+}
+
+// URL is the base URL of the live server. When the configuration asked for an
+// ephemeral port it carries the port the listener actually bound.
+func (handle *serverHandle) URL() string { return handle.url }
+
+// Port is the port the listener actually bound.
+func (handle *serverHandle) Port() int { return handle.port }
+
+// forceClose abandons the server without draining. It is the failure path for a
+// start that could not publish readiness, which must leave no listener behind
+// (§42.1).
+func (handle *serverHandle) forceClose() error { return handle.http.Close() }
+
+// serveFailure reports a Serve failure that has already been recorded, without
+// blocking. http.ErrServerClosed is the normal result of the graceful shutdown
+// and is not a failure. It lets `run` name the server error on stderr instead of
+// discarding it, while leaving the §42.2 exit precedence untouched (§42.5).
+func (handle *serverHandle) serveFailure() error {
+	select {
+	case err := <-handle.serveErr:
+		if err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
+			return err
+		}
+	default:
+	}
+	return nil
+}
+
+// stop shuts the server down gracefully: new accepts stop, in-flight requests
+// drain for up to gracefulShutdownSeconds, and whatever remains is force closed
+// (§42.3). Shutdown errors are logged rather than returned: the command's exit
+// code already reports whether the work it was asked to do succeeded.
+func (handle *serverHandle) stop() {
+	timeout := time.Duration(handle.cfg.Limits.GracefulShutdownSeconds) * time.Second
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := handle.http.Shutdown(shutdownCtx); err != nil {
+		if closeErr := handle.http.Close(); closeErr != nil {
+			handle.logger.Printf("force close after %s: %v", timeout, closeErr)
+		}
+	}
+}
+
+// serve runs the server lifecycle: bind, publish readiness, serve both planes
+// over one listener, and shut down gracefully on SIGINT/SIGTERM (§42.3).
+func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) {
+	logger := log.New(stderr, "fake-jev: ", 0)
+	handle, err := startServer(cfg, logger)
+	if err != nil {
+		writef(stderr, "fake-jev: %v\n", err)
 		return exitFailure
 	}
-	url := "http://" + net.JoinHostPort(cfg.Server.Host, strconv.Itoa(bound.Port))
-
-	httpServer := &nethttp.Server{
-		Handler:  logHandler{next: server, logger: logger},
-		ErrorLog: logger,
-	}
-	// Signal handling is installed before readiness is published, so a
-	// signal observed immediately after the ready file appears is always
-	// handled by the graceful path (a buffered channel holds it until the
-	// select below).
+	// Signal handling is installed before readiness is published, so a signal
+	// observed immediately after the ready file appears is always handled by
+	// the graceful path (a buffered channel holds it until the select below).
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
 
-	serveErr := make(chan error, 1)
-	go func() { serveErr <- httpServer.Serve(listener) }()
-
 	if readyPath != "" {
 		document := readyDocument{
-			URL:               url,
+			URL:               handle.URL(),
 			Host:              cfg.Server.Host,
-			Port:              bound.Port,
+			Port:              handle.Port(),
 			PID:               os.Getpid(),
 			ControlAPIVersion: ControlAPIVersion,
 		}
 		if err := writeReadyFile(readyPath, document); err != nil {
 			// A startup failure must not disturb a pre-existing ready file
 			// (§42.4) and must leave no listener behind (§42.1).
-			if closeErr := httpServer.Close(); closeErr != nil {
+			if closeErr := handle.forceClose(); closeErr != nil {
 				writef(stderr, "fake-jev: %v; close listener: %v\n", err, closeErr)
 			} else {
 				writef(stderr, "fake-jev: %v\n", err)
@@ -290,26 +356,17 @@ func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) 
 			}
 		}()
 	}
-	logger.Printf("listening on %s", url)
+	logger.Printf("listening on %s", handle.URL())
 
 	select {
 	case received := <-signals:
 		logger.Printf("received %s; shutting down", received)
-	case err := <-serveErr:
+	case err := <-handle.serveErr:
 		writef(stderr, "fake-jev: serve: %v\n", err)
 		return exitFailure
 	}
 
-	// §42.3: stop accepting, drain in-flight requests up to
-	// gracefulShutdownSeconds, then force-close whatever remains.
-	timeout := time.Duration(cfg.Limits.GracefulShutdownSeconds) * time.Second
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		if closeErr := httpServer.Close(); closeErr != nil {
-			logger.Printf("force close after %s: %v", timeout, closeErr)
-		}
-	}
+	handle.stop()
 	return exitOK
 }
 

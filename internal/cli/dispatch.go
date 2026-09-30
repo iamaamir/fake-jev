@@ -34,6 +34,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runServe(rest, stdout, stderr)
 	case "validate":
 		return runValidate(rest, stdout, stderr)
+	case "verify":
+		return runVerify(rest, stdout, stderr)
+	case "run":
+		return runRun(rest, stdout, stderr)
 	case "help", "-h", "--help":
 		writef(stdout, "%s", usage)
 		return exitOK
@@ -63,10 +67,10 @@ func writef(w io.Writer, format string, a ...any) {
 const usage = `usage: fake-jev <command> [flags]
 
 commands:
-  version          print version, build, profile, and contract information
-  serve [flags]    start the local fake server
-  validate <path>  validate a configuration file without starting a server
-  help             print this message
-
-The run and verify subcommands land in later work items.
+  version                  print version, build, profile, and contract information
+  serve [flags]            start the local fake server
+  validate <path>          validate a configuration file without starting a server
+  verify --url <url>       call the server verify operation and report the result
+  run [flags] -- <command> run a command against a temporary fake server
+  help                     print this message
 `

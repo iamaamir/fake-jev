@@ -3,26 +3,30 @@
   "title": "Phase 3: verify and run commands with exit precedence",
   "phase": "phase-3",
   "objective": "Implement `fake-jev verify --url` as a thin control-API call and `fake-jev run -- <cmd>` with URL injection, ephemeral port, child lifecycle, post-run verification, and the exact exit-code precedence table.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "22c0704",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§15.3 verify",
-    "§15.4 run",
-    "§42.1 process exit codes",
-    "§42.2 run child exit precedence",
-    "§42.3 signals"
+    "\u00a715.3 verify",
+    "\u00a715.4 run",
+    "\u00a742.1 process exit codes",
+    "\u00a742.2 run child exit precedence",
+    "\u00a742.3 signals"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
     "docs/development/acceptance-catalog.md"
   ],
   "allowedFiles": [
+    "internal/cli/dispatch.go",
     "internal/cli/run.go",
+    "internal/cli/run_test.go",
+    "internal/cli/serve.go",
     "internal/cli/verify.go",
-    "internal/cli/run_test.go"
+    "internal/cli/verify_test.go",
+    "internal/host/http/server.go"
   ],
   "acceptance": [
     "C-CLI-001",
@@ -40,7 +44,15 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement run and verify, then encode the §44.13 precedence table as tests",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "notes": [
+    "scope amendment 2026-09-30 (PM): added internal/cli/dispatch.go so verify and run are routable; internal/cli/serve.go so `run` reuses the serve lifecycle (ephemeral port, ready file, graceful shutdown) instead of forking it; internal/cli/verify_test.go for verify-specific tests; internal/host/http/server.go because the hardener flagged that the FJ-032 run lifecycle may need an explicit host seam. Pre-empted from the FJ-031 hardener's recorded F5 rather than stalling a worker mid-flight."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier",
+  "leaseOwner": "pm-fj032-pickup"
 }
