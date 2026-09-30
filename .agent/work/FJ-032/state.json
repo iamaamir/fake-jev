@@ -3,9 +3,9 @@
   "title": "Phase 3: verify and run commands with exit precedence",
   "phase": "phase-3",
   "objective": "Implement `fake-jev verify --url` as a thin control-API call and `fake-jev run -- <cmd>` with URL injection, ephemeral port, child lifecycle, post-run verification, and the exact exit-code precedence table.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "22c0704",
-  "candidateRevision": null,
+  "candidateRevision": "1afd374",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -42,17 +42,28 @@
     "no interactive prompts"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-032/report-20260930T174148Z.json",
+    "revision": "1afd374",
+    "candidateFingerprint": "e520fc826889999e1e361d655d9a5f9fd80b6abf0e368376ab8390805481ca4b",
+    "taskFingerprint": "387ddaf6229fbab020186f256ec6fac2558180842ed9dbb9cac9f97728080a5d",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-30T17:41:48Z"
+  },
   "blockers": [],
-  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "nextAction": "merge FJ-032 into main and re-verify the combined state",
   "notes": [
     "scope amendment 2026-09-30 (PM): added internal/cli/dispatch.go so verify and run are routable; internal/cli/serve.go so `run` reuses the serve lifecycle (ephemeral port, ready file, graceful shutdown) instead of forking it; internal/cli/verify_test.go for verify-specific tests; internal/host/http/server.go because the hardener flagged that the FJ-032 run lifecycle may need an explicit host seam. Pre-empted from the FJ-031 hardener's recorded F5 rather than stalling a worker mid-flight."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier",
-  "leaseOwner": "pm-fj032-pickup"
+  "stage": "qa",
+  "leaseOwner": null
 }
