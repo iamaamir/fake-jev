@@ -30,6 +30,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			return usageError(stderr, "version takes no arguments")
 		}
 		return runVersion(stdout)
+	case "validate":
+		return runValidate(rest, stdout, stderr)
 	case "help", "-h", "--help":
 		writef(stdout, "%s", usage)
 		return exitOK
@@ -59,8 +61,9 @@ func writef(w io.Writer, format string, a ...any) {
 const usage = `usage: fake-jev <command> [flags]
 
 commands:
-  version    print version, build, profile, and contract information
-  help       print this message
+  version          print version, build, profile, and contract information
+  validate <path>  validate a configuration file without starting a server
+  help             print this message
 
-Further subcommands (serve, run, validate, verify) land in later work items.
+Further subcommands (serve, run, verify) land in later work items.
 `

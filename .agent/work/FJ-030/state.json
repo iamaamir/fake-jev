@@ -3,20 +3,21 @@
   "title": "Phase 3: validate command",
   "phase": "phase-3",
   "objective": "Implement `fake-jev validate <path>` so every statically checkable configuration rule runs without starting a server or touching the network.",
-  "status": "planned",
-  "baseRevision": null,
-  "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "status": "complete",
+  "baseRevision": "abba008",
+  "candidateRevision": "f609801",
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§15.2 validate",
-    "§42.1 process exit codes"
+    "\u00a715.2 validate",
+    "\u00a742.1 process exit codes"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
     "docs/development/acceptance-catalog.md"
   ],
   "allowedFiles": [
+    "internal/cli/dispatch.go",
     "internal/cli/validate.go",
     "internal/cli/validate_test.go"
   ],
@@ -31,9 +32,29 @@
     "no runtime matching checks"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-030/report-20260930T152015Z.json",
+    "revision": "f609801",
+    "candidateFingerprint": "bad76f7917d526d0978fb613aee212f2345ff06a717259788d4a04366f01ab19",
+    "taskFingerprint": "d37327aa23e2afc94bc9b8bbc7d4c9cd3a87d61e03dc2cc2605c258b8b6c34a7",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-09-30T15:20:15Z"
+  },
   "blockers": [],
-  "nextAction": "implement validate on top of the configuration validator",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "merge FJ-030 into main and re-verify the combined state",
+  "notes": [
+    "scope amendment 2026-09-29 (PM): \u00a715.2 requires a `fake-jev validate <path>` command, but the CLI routes commands in internal/cli/dispatch.go, which was not in allowedFiles. Added internal/cli/dispatch.go (and its usage text) so the command is actually reachable. No new public behavior beyond \u00a715.2/\u00a742.1.",
+    "ownership split 2026-09-29 (PM, owner-approved option 2): C-CLI-005's \"all static checks\" is delivered in two parts. FJ-030 owns the configuration/schema surface (top-level schema, unknown fields, duplicate ids, expect rules, response-form exactness) via the shared internal/config validator. FJ-059 owns the statically provable jev/v1 fixture-data checks: the inner then.answers payload rules (finite probabilities, ranges, maps summing to 1.0 within 1e-6) and the when.questions to then.answers key-set cross-check. Reason for the split: those checks live in the jev/v1 compat layer, and internal/config must stay provider-neutral (cmd/guard arch forbids the import), so they cannot be implemented inside FJ-030's allowedFiles without forking the semantics. Choice/score criterion key-set equality is not statically decidable because criteria come from the request. FJ-030 records these two gaps explicitly rather than accepting them silently."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ],
+  "stage": "qa",
+  "leaseOwner": null
 }
