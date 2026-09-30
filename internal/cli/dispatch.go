@@ -30,6 +30,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			return usageError(stderr, "version takes no arguments")
 		}
 		return runVersion(stdout)
+	case "serve":
+		return runServe(rest, stdout, stderr)
 	case "validate":
 		return runValidate(rest, stdout, stderr)
 	case "help", "-h", "--help":
@@ -62,8 +64,9 @@ const usage = `usage: fake-jev <command> [flags]
 
 commands:
   version          print version, build, profile, and contract information
+  serve [flags]    start the local fake server
   validate <path>  validate a configuration file without starting a server
   help             print this message
 
-Further subcommands (serve, run, verify) land in later work items.
+The run and verify subcommands land in later work items.
 `

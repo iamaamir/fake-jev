@@ -82,20 +82,38 @@ func applyLimitDefaults(limits Limits) Limits {
 	return limits
 }
 
-// Server is an HTTP handler and a listener-backed host. It deliberately does
-// not implement control endpoints; /__fake/ requests are only classified and
-// bounded here so a later control API can share the listener safely.
+// Server is an HTTP handler and a listener-backed host. Data-plane requests
+// are routed through the active compatibility profile; /__fake/ requests are
+// classified, bounded by the control-plane limit, and delegated to the
+// attached control API. Control traffic never enters the data-plane journal
+// (§11, §41.1).
 type Server struct {
-	router *Router
-	limits Limits
+	router  *Router
+	limits  Limits
+	control nethttp.Handler
 }
 
-// NewServer creates a host around an existing engine and router.
+// NewServer creates a host around an existing engine and router. A host
+// without a control API keeps the classification-only behavior for /__fake/.
 func NewServer(router *Router, limits Limits) *Server {
 	if router == nil {
 		router = NewDefaultRouter(nil)
 	}
 	return &Server{router: router, limits: applyLimitDefaults(limits)}
+}
+
+// AttachControl delegates /__fake/ requests to the supplied control handler
+// after applying the control-plane body limit. The host constructs no control
+// state itself: internal/control is attached by the command layer, which also
+// keeps internal/control free to test against this package without an import
+// cycle. The field is not synchronized, so AttachControl must be called before
+// the host starts serving (the command layer attaches it before the listener
+// is opened).
+func (s *Server) AttachControl(handler nethttp.Handler) {
+	if s == nil {
+		return
+	}
+	s.control = handler
 }
 
 // NewServerFromConfig compiles the static configuration into the engine and
@@ -170,12 +188,27 @@ func (s *Server) ServeHTTP(writer nethttp.ResponseWriter, request *nethttp.Reque
 		return
 	}
 	if control {
-		// The control API is implemented by a later host slice. Keep unsupported
-		// control traffic outside the data-plane journal and state.
-		writeJSON(writer, nethttp.StatusNotFound, failureBody{Error: "fake_jev_control_not_found", Message: "Unknown control endpoint."})
+		// Control requests never enter the data-plane journal. The classified,
+		// size-bounded request is delegated to the control API, which keeps
+		// unsupported control paths outside the journal and verification state.
+		s.serveControl(writer, request, body)
 		return
 	}
 	s.serveData(writer, request, body, false)
+}
+
+// serveControl forwards a classified control request to the attached control
+// API. The body was already read and bounded by the control-plane limit; it is
+// restored so the API can decode it. A host without a control API answers
+// exactly as a listener without a control plane did.
+func (s *Server) serveControl(writer nethttp.ResponseWriter, request *nethttp.Request, body []byte) {
+	if s.control == nil {
+		writeJSON(writer, nethttp.StatusNotFound, failureBody{Error: "fake_jev_control_not_found", Message: "Unknown control endpoint."})
+		return
+	}
+	request.Body = io.NopCloser(bytes.NewReader(body))
+	request.ContentLength = int64(len(body))
+	s.control.ServeHTTP(writer, request)
 }
 
 func (s *Server) serveData(writer nethttp.ResponseWriter, request *nethttp.Request, body []byte, tooLarge bool) {

@@ -3,23 +3,24 @@
   "title": "Phase 3: serve command, ready file, signals, and logging",
   "phase": "phase-3",
   "objective": "Implement `fake-jev serve` with flag precedence, loopback default bind, ephemeral port support, atomic ready file, graceful shutdown on SIGINT/SIGTERM, and stderr logging with Authorization redaction.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "6094965",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§15.1 serve",
-    "§42.3 signals",
-    "§42.4 ready file",
-    "§42.5 logging destinations",
-    "§20 observability and diagnostics"
+    "\u00a715.1 serve",
+    "\u00a742.3 signals",
+    "\u00a742.4 ready file",
+    "\u00a742.5 logging destinations",
+    "\u00a720 observability and diagnostics"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
     "docs/development/acceptance-catalog.md"
   ],
   "allowedFiles": [
+    "internal/cli/dispatch.go",
     "internal/cli/serve.go",
     "internal/cli/serve_test.go",
     "internal/host/http/server.go"
@@ -40,7 +41,15 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "implement serve, ready-file atomicity, signal handling, and verify C-CFG-011 precedence",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "notes": [
+    "scope amendment 2026-09-29 (PM): added internal/cli/dispatch.go so the serve command is routable, matching the FJ-030 precedent. internal/host/http/server.go is already allowed, so the /__fake/ control-plane delegation is in scope here."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier",
+  "leaseOwner": "pm-fj031-pickup"
 }
