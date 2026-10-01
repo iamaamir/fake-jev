@@ -3,26 +3,29 @@
   "title": "Phase 4: limits, redaction, and no-egress enforcement",
   "phase": "phase-4",
   "objective": "Harden the operational envelope: enforced default limits, log truncation, Authorization redaction, loopback default bind, and an offline runtime that cannot execute fixture code.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "e9be073",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§19 security model",
-    "§19.2 no network egress",
-    "§19.3 no arbitrary code execution in fixtures",
-    "§20 observability and diagnostics",
-    "§12.2 built-in defaults"
+    "\u00a719 security model",
+    "\u00a719.2 no network egress",
+    "\u00a719.3 no arbitrary code execution in fixtures",
+    "\u00a720 observability and diagnostics",
+    "\u00a712.2 built-in defaults"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
     "docs/development/acceptance-catalog.md"
   ],
   "allowedFiles": [
-    "internal/host/http/limits_test.go",
+    ".agent/guards.json",
     "internal/cli/logging.go",
-    "internal/cli/logging_test.go"
+    "internal/cli/logging_test.go",
+    "internal/cli/serve.go",
+    "internal/host/http/limits_test.go",
+    "internal/host/http/server.go"
   ],
   "acceptance": [
     "C-HOST-008",
@@ -40,7 +43,15 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "add limit, redaction, and egress assertions as deterministic tests",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "notes": [
+    "scope amendment 2026-09-30 (PM): added internal/cli/serve.go because the operational logger currently lives inside serve.go and C-CLI-010 needs it extracted/truncated; internal/host/http/server.go for the \u00a719.4/\u00a720 log body-preview truncation and limit wiring; and .agent/guards.json because C-ARCH-004 (no network egress) and C-ARCH-005 (fixtures are data, no code execution) are best enforced structurally by the existing arch guard, which already supports arbitrary per-package forbidExact/forbidPrefix rules, so no cmd/guard source change is needed."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier",
+  "leaseOwner": "pm-fj041-pickup"
 }

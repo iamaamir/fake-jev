@@ -179,43 +179,6 @@ type readyDocument struct {
 	ControlAPIVersion string `json:"controlApiVersion"`
 }
 
-// logHandler writes one operational line per request to the serve logger. Only
-// the method, path, and a redacted Authorization marker reach the stream; the
-// header value never does (§20, §42.5).
-type logHandler struct {
-	next   nethttp.Handler
-	logger *log.Logger
-}
-
-func (handler logHandler) ServeHTTP(writer nethttp.ResponseWriter, request *nethttp.Request) {
-	handler.next.ServeHTTP(writer, request)
-	if request == nil {
-		return
-	}
-	path := ""
-	if request.URL != nil {
-		path = request.URL.Path
-	}
-	line := request.Method + " " + path
-	if value := request.Header.Get("Authorization"); value != "" {
-		line += " authorization=" + redactAuthorization(value)
-	}
-	handler.logger.Print(line)
-}
-
-// redactedHeaderValue replaces a secret header value wherever diagnostics
-// would otherwise record it.
-const redactedHeaderValue = "[redacted]"
-
-// redactAuthorization returns the value recorded for an Authorization header.
-// §20/§42.5 forbid logging the value; only its presence is observable.
-func redactAuthorization(value string) string {
-	if value == "" {
-		return ""
-	}
-	return redactedHeaderValue
-}
-
 // serverHandle is one running in-process fake server: the engine-backed HTTP
 // host and the start/stop operations that `serve` and `run` share so neither
 // command forks the lifecycle. startServer returns only after the listener is
@@ -256,10 +219,14 @@ func startServer(cfg *config.Config, logger *log.Logger) (*serverHandle, error) 
 		}
 		return nil, addressErr
 	}
+	// The resolved limits.logBodyBytes the host enforces bounds every request
+	// body preview the operational logger emits (§19.4, §20). The host is the
+	// authority on the resolved value, so the logger does not re-derive it.
+	operational := newOperationalLogger(logger, server.Limits().LogBodyBytes)
 	handle := &serverHandle{
 		cfg:      cfg,
 		logger:   logger,
-		http:     &nethttp.Server{Handler: logHandler{next: server, logger: logger}, ErrorLog: logger},
+		http:     &nethttp.Server{Handler: logHandler{next: server, logger: operational}, ErrorLog: logger},
 		url:      "http://" + net.JoinHostPort(cfg.Server.Host, strconv.Itoa(bound.Port)),
 		port:     bound.Port,
 		serveErr: make(chan error, 1),
@@ -316,7 +283,7 @@ func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) 
 	logger := log.New(stderr, "fake-jev: ", 0)
 	handle, err := startServer(cfg, logger)
 	if err != nil {
-		writef(stderr, "fake-jev: %v\n", err)
+		logger.Printf("%v", err)
 		return exitFailure
 	}
 	// Signal handling is installed before readiness is published, so a signal
@@ -338,9 +305,9 @@ func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) 
 			// A startup failure must not disturb a pre-existing ready file
 			// (§42.4) and must leave no listener behind (§42.1).
 			if closeErr := handle.forceClose(); closeErr != nil {
-				writef(stderr, "fake-jev: %v; close listener: %v\n", err, closeErr)
+				logger.Printf("%v; close listener: %v", err, closeErr)
 			} else {
-				writef(stderr, "fake-jev: %v\n", err)
+				logger.Printf("%v", err)
 			}
 			return exitFailure
 		}
@@ -362,7 +329,7 @@ func serve(cfg *config.Config, readyPath string, stderr io.Writer) (status int) 
 	case received := <-signals:
 		logger.Printf("received %s; shutting down", received)
 	case err := <-handle.serveErr:
-		writef(stderr, "fake-jev: serve: %v\n", err)
+		logger.Printf("serve: %v", err)
 		return exitFailure
 	}
 

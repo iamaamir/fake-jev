@@ -147,6 +147,18 @@ func (s *Server) Engine() *engine.Engine {
 	return s.router.engine
 }
 
+// Limits reports the resource limits the host actually enforces: a zero field
+// supplied to NewServer has been filled with the §12.2 default, so the returned
+// value is the resolved limit rather than the raw argument (§12.2, §19.4). Like
+// Engine it is read-only access to host state for diagnostics, not a new
+// surface.
+func (s *Server) Limits() Limits {
+	if s == nil {
+		return Limits{}
+	}
+	return s.limits
+}
+
 // Serve serves requests from a real net/http listener.
 func (s *Server) Serve(listener net.Listener) error {
 	if s == nil {

@@ -4,12 +4,20 @@
     "forbidden": [
       {
         "pkg": "internal/engine",
-        "forbidExact": ["net/http", "os/exec"],
+        "forbidExact": ["net", "net/http", "os/exec", "text/template", "html/template", "plugin"],
         "forbidPrefix": [
           "fake-jev/internal/compat/jev",
           "fake-jev/internal/cli",
           "fake-jev/internal/control"
         ]
+      },
+      {
+        "pkg": "internal/compat/jev/v1",
+        "forbidExact": ["net", "net/http", "os/exec", "text/template", "html/template", "plugin"]
+      },
+      {
+        "pkg": "internal/config",
+        "forbidExact": ["net", "net/http", "os/exec", "text/template", "html/template", "plugin"]
       }
     ]
   },
