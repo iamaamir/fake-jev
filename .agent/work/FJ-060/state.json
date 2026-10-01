@@ -1,0 +1,45 @@
+{
+  "id": "FJ-060",
+  "title": "Fix cmd/guard fuzz-runner flake: worker start/finish failures misclassified as crashes",
+  "phase": "foundation",
+  "objective": "Make the cmd/guard fuzz check deterministic under resource pressure: a Go fuzz worker that fails to start, communicate, or terminate must not be classified as a target crash, while genuine crashes and timeouts must still be reported.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a723 quality gates",
+    "\u00a723.2 verification commands",
+    "docs/superpowers/specs/2026-09-26-deterministic-guard-stack-design.md \u00a73.3"
+  ],
+  "relevantFiles": [
+    "docs/development/acceptance-catalog.md",
+    ".agent/guards.json"
+  ],
+  "allowedFiles": [
+    "cmd/guard/fuzz.go",
+    "cmd/guard/fuzz_test.go"
+  ],
+  "acceptance": [
+    "C-QUAL-005"
+  ],
+  "nonGoals": [
+    "no change to the bounded fuzz budget or fuzztime default",
+    "no suppression of genuine crash or timeout findings",
+    "no new dependency"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "reproduce under ulimit -n 64, make the classifier distinguish worker infrastructure failure from a target crash, and pin both behaviours with tests",
+  "notes": [
+    "Opened 2026-10-01 by PM from the FJ-041 cleaner reproduction. The classifier treats any '--- FAIL: <Target>' line as a crash, which includes Go's own worker start/communication/termination failures under load, and fuzzOutput.truncated is never consulted.",
+    "Reproduction: bash -c 'ulimit -n 64; go test ./cmd/guard -run TestRunFuzzPass -count=1 -v' -> 'guard.fuzz.crash p/fuzz_p_test.go 5 fuzz target FuzzSafe failed'. 32 load-only invocations did not trigger it, so it is environment-triggered rather than constant.",
+    "Impact: a spurious guard.fuzz.failed row makes ./scripts/verify-candidate exit non-zero for an unrelated candidate, which blocks any ticket coincidentally verified under the same pressure."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
