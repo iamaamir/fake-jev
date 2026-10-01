@@ -3,9 +3,9 @@
   "title": "Phase 4: limits, redaction, and no-egress enforcement",
   "phase": "phase-4",
   "objective": "Harden the operational envelope: enforced default limits, log truncation, Authorization redaction, loopback default bind, and an offline runtime that cannot execute fixture code.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "e9be073",
-  "candidateRevision": null,
+  "candidateRevision": "0bc9baa",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -41,17 +41,28 @@
     "no metrics backend"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-041/report-20261001T080406Z.json",
+    "revision": "0bc9baa",
+    "candidateFingerprint": "3d896a0a7d7ae6bd6f347b4166a74c6d23bbf59a384869c2cc3c2697e96e9dcc",
+    "taskFingerprint": "a39d771c0c282b258d73a682eeabd71d7ad9022cd4f0ae5a8c87b6911d2cef61",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-01T08:04:06Z"
+  },
   "blockers": [],
-  "nextAction": "run fresh specifier, then coder, cleaner, hardener, and QA stages",
+  "nextAction": "merge FJ-041 into main and re-verify the combined state",
   "notes": [
     "scope amendment 2026-09-30 (PM): added internal/cli/serve.go because the operational logger currently lives inside serve.go and C-CLI-010 needs it extracted/truncated; internal/host/http/server.go for the \u00a719.4/\u00a720 log body-preview truncation and limit wiring; and .agent/guards.json because C-ARCH-004 (no network egress) and C-ARCH-005 (fixtures are data, no code execution) are best enforced structurally by the existing arch guard, which already supports arbitrary per-package forbidExact/forbidPrefix rules, so no cmd/guard source change is needed."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier",
-  "leaseOwner": "pm-fj041-pickup"
+  "stage": "qa",
+  "leaseOwner": null
 }
