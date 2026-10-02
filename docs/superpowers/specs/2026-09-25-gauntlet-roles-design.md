@@ -127,10 +127,14 @@ escalate:
 - **unknown front-matter keys fail** (a typo such as `expertice:` is an error,
   never ignored).
 
-Parsing: PyYAML when importable. When PyYAML is absent the check reports
-`skipped` with code `toolchain.pyyaml_missing` — visible, never silently green —
-and blocks completion only while that code is *not* waived by `gate-policy.json`
-(§9.2, where a matched exemption reports it as `toolchain.pyyaml_exempt`).
+Parsing: PyYAML, pinned to `PyYAML==6.0.3` in
+`scripts/requirements-verify.txt` — the artifact the verification environment is
+created from (`scripts/README.md` documents both the ordinary install and the
+`--no-index --find-links` offline one). The check is always required and has no
+conditional form: when the resolved `python3` cannot `import yaml` the row fails
+closed with code `toolchain.pyyaml_missing` and blocks completion. `gate-policy.json`
+can never waive that row (§9.2 matches `skipped` rows only), so a missing
+dependency can no longer be exempted.
 
 ### Stage → expertise mapping (frozen)
 
@@ -551,11 +555,12 @@ code under `G-H`. A matched check is reported `skipped` with the exemption's
 `code` — visibly non-green, never a `pass`, distinguishable from an unmet
 requirement by its code alone.
 
-v1 commits four exemptions: `G-L` (`product`+`metadata`), `G-H` (`product`),
-`G-Q` (`product`+`metadata`), and `G-C` with
-`blocks: ["toolchain.pyyaml_missing"]` (both classes, reported as
-`toolchain.pyyaml_exempt`). Their tracking work items are created before this
-file is first committed.
+v1 commits three exemptions: `G-L` (`product`+`metadata`), `G-H` (`product`),
+and `G-Q` (`product`+`metadata`). Their tracking work items are created before
+this file is first committed. A fourth entry, `G-C` blocking
+`toolchain.pyyaml_missing` (both classes, reported as `toolchain.pyyaml_exempt`),
+existed until FJ-047 made PyYAML a pinned verification dependency: the role-pack
+check now fails closed instead of being waived, and the entry is gone.
 
 - Every exemption requires `trackedBy`, the id of an existing work item.
   Verification fails with `policy.exemption_unknown` when no such item exists,
@@ -696,9 +701,12 @@ This applies the gauntlet to the gauntlet itself.
 - **Schema/validator parity is scenario-bound.** `scripts/selftest` proves
   parity only for the §12 scenarios; unexercised schema fields may drift
   without detection.
-- **PyYAML is conditional.** Role-pack validation is `skipped` (visible,
-  exempt while tracked) when PyYAML is missing; pin it when this becomes a
-  required CI gate.
+- **The verification interpreter is whichever `python3` resolves first on
+  `PATH`.** PyYAML is pinned in `scripts/requirements-verify.txt` and the
+  role-pack check is always required — a missing import fails closed with
+  `toolchain.pyyaml_missing` (FJ-047), never a visible-but-exempted skip — but
+  `PATH` still decides which interpreter is asked. A machine whose first
+  `python3` lacks the pin therefore fails verification until it is installed.
 - **Fingerprint excludes evidence directories by design.** Edits confined to
   `.agent/work|reports|logs` are not part of candidate identity;
   `state.json` semantic changes are caught by the task fingerprint (§6.2),

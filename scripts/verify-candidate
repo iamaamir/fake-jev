@@ -2,7 +2,10 @@
 # verify-candidate [task-id]
 #
 # Deterministic verification entry point for this repository. Offline: no network,
-# no model/provider calls, no services. Prints each check it runs.
+# no model/provider calls, no services, and no installation — the one pinned Python
+# dependency (PyYAML, scripts/requirements-verify.txt) must already be importable
+# by the resolved python3; when it is not, check_role_packs fails closed instead
+# of skipping.
 #
 # Every check is a row {name, gate, required, result, exitCode, code, exempted}
 # with result in {pass, fail, skipped, not_applicable} (design §9.1). The run is
@@ -276,12 +279,18 @@ check_shell_syntax() {
 }
 run_check "shell syntax: bash -n scripts/*" check_shell_syntax
 
+# The verification interpreter, resolved exactly once and reused by the checks
+# that shell out to it — the reported python3 in the toolchain row and the
+# interpreter the PyYAML probe interrogates are therefore always the same
+# process (FJ-047). Nothing hardcodes an interpreter path.
+VERIFY_PYTHON3="$(command -v python3 2>/dev/null || true)"
+
 check_toolchain_python3() {
-  if ! command -v python3 >/dev/null 2>&1; then
+  if [ -z "$VERIFY_PYTHON3" ]; then
     echo "python3 not found (required by scripts/agent-context)"
     return 1
   fi
-  echo "python3: $(command -v python3)"
+  echo "python3: $VERIFY_PYTHON3"
 }
 run_check "toolchain: python3 available" check_toolchain_python3
 
@@ -515,7 +524,7 @@ run_check "work items match the state.json schema" check_work_item_schema
 run_check "complete items have recorded-report coverage" check_recorded_report_coverage
 
 check_role_packs() {
-  python3 - <<'PY'
+  "$VERIFY_PYTHON3" - <<'PY'
 import pathlib
 import re
 import sys
@@ -664,11 +673,27 @@ for stage in STAGES:
 sys.exit(1 if failed else 0)
 PY
 }
-if python3 -c 'import yaml' >/dev/null 2>&1; then
-  run_check "role packs match the role-pack contract" check_role_packs
+# check_role_packs is a required check with no conditional form (FJ-047): PyYAML
+# is pinned in scripts/requirements-verify.txt. When the verification
+# interpreter cannot import it the row fails closed with
+# toolchain.pyyaml_missing — the code the removed gate-policy exemption used to
+# waive. The exemption engine only ever matches `skipped` rows (design §9.2),
+# so a `fail` carrying that code is unwaivable and a missing dependency can
+# never be softened back into a visible-but-non-blocking row.
+ROLE_PACK_DISPLAY="role packs match the role-pack contract"
+ROLE_PACK_REASON=""
+if [ -z "$VERIFY_PYTHON3" ]; then
+  ROLE_PACK_REASON="no python3 on PATH; role-pack parsing needs the PyYAML pinned in scripts/requirements-verify.txt"
+elif ! "$VERIFY_PYTHON3" -c 'import yaml' >/dev/null 2>&1; then
+  ROLE_PACK_REASON="PyYAML not importable by $VERIFY_PYTHON3 (pinned in scripts/requirements-verify.txt; install with: $VERIFY_PYTHON3 -m pip install -r scripts/requirements-verify.txt)"
+fi
+if [ -z "$ROLE_PACK_REASON" ]; then
+  run_check "$ROLE_PACK_DISPLAY" check_role_packs
 else
-  skip_check "role packs match the role-pack contract" check_role_packs \
-    "PyYAML not importable (design §4 conditional)" "toolchain.pyyaml_missing"
+  printf '==> %s\n    %s\n    FAIL (exit 1, code toolchain.pyyaml_missing)\n\n' \
+    "$ROLE_PACK_DISPLAY" "$ROLE_PACK_REASON"
+  record_row "check_role_packs" "$ROLE_PACK_DISPLAY" "G-C" 1 "fail" 1 \
+    "toolchain.pyyaml_missing" "$ROLE_PACK_REASON"
 fi
 
 # --- gauntlet engine: policy, evidence, applicability rows -------------------

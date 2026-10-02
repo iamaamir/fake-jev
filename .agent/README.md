@@ -177,14 +177,13 @@ revisions and document that policy here rather than guessing.
 ## Gate policy: `.agent/gate-policy.json`
 
 Reviewable bootstrap waivers for required checks whose tooling does not exist
-yet (design §9.2). v1 commits exactly four exemptions:
+yet (design §9.2). v1 commits exactly three exemptions:
 
 | gate | blocks | scope | code | trackedBy |
 |------|--------|-------|------|-----------|
 | `G-L` | `stage.tooling_absent` | product, metadata | `stage.tooling_bootstrap_exempt` | FJ-044 |
 | `G-H` | `stage.tooling_absent` | product | `stage.tooling_bootstrap_exempt` | FJ-045 |
 | `G-Q` | `stage.tooling_absent` | product, metadata | `stage.tooling_bootstrap_exempt` | FJ-046 |
-| `G-C` | `toolchain.pyyaml_missing` | product, metadata | `toolchain.pyyaml_exempt` | FJ-047 |
 
 Each entry is `{gate, blocks, scope, code, reason, trackedBy}`. A waiver
 matches a blocking check only when **all** of these hold: `gate` equals the

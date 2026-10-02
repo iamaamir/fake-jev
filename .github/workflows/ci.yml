@@ -1,8 +1,11 @@
 name: CI
 
 # Specification §23: normal PR CI requires no model, no provider API key and
-# no paid external service. The only network use here is fetching the Go
-# toolchain named in go.mod.
+# no paid external service. Network use is confined to job setup: the Go
+# toolchain named in go.mod, and — in the gauntlet job — the pinned Python
+# verification dependency (PyYAML==6.0.3; scripts/README.md names the pinned
+# artifact and the `--no-index --find-links` wheelhouse install for runners
+# without index access).
 on:
   push:
     branches: [main]
@@ -69,6 +72,10 @@ jobs:
   # fuzz with task 6). The test job above already owns go test -race per 23,
   # and the task-less race row stays visible and non-required once task 6
   # inserts it (interpretation note 3).
+  #
+  # check_role_packs is a required check, so the pinned PyYAML must be
+  # importable here: a missing import fails closed (FJ-047, design §4) rather
+  # than skipping. The gauntlet job is the only job that runs the verifier.
   gauntlet:
     name: gauntlet gates
     runs-on: ubuntu-latest
@@ -79,5 +86,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      # ubuntu-latest's system python3 is externally managed (PEP 668), so a
+      # bare `pip install` is refused there. A venv sidesteps that without
+      # weakening the interpreter: its bin directory is prepended to PATH, so
+      # the verifier's own `python3` (resolved once, design §4) is the
+      # interpreter that has the pin. The venv lives in $RUNNER_TEMP, outside
+      # the checkout, so it never becomes untracked workspace content in the
+      # candidate fingerprint.
+      - name: install pinned verification dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/verify-venv"
+          "$RUNNER_TEMP/verify-venv/bin/python" -m pip install \
+            -r scripts/requirements-verify.txt
+          echo "$RUNNER_TEMP/verify-venv/bin" >> "$GITHUB_PATH"
       - name: ./scripts/verify-candidate
         run: ./scripts/verify-candidate

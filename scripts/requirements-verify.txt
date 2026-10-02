@@ -1,0 +1,20 @@
+# Python dependencies of repository verification (scripts/verify-candidate).
+#
+# PyYAML is the only one: it parses the role-pack front matter that
+# check_role_packs validates (docs/agents/roles/*.md, design §4).
+#
+# The pin is exact on purpose. 6.0.3 is the release the verification
+# interpreter imports today and the current release on PyPI, so the environment
+# role packs are already parsed in is reproducible from this artifact on a
+# fresh machine; a range would let a different importable version satisfy
+# verification without being visible anywhere in the repository.
+#
+# Install with the interpreter verification uses (`command -v python3`):
+#   python3 -m pip install -r scripts/requirements-verify.txt
+# Offline (no index access), from a wheelhouse built on a machine of the same
+# platform and Python version:
+#   python3 -m pip install --no-index --find-links <wheel-dir> -r scripts/requirements-verify.txt
+#
+# verify-candidate never installs anything itself; a missing import fails the
+# check closed (toolchain.pyyaml_missing). scripts/README.md has the details.
+PyYAML==6.0.3

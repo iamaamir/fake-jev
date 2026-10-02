@@ -3,25 +3,47 @@
   "title": "Pin PyYAML as a verification dependency",
   "phase": "foundation",
   "objective": "Make PyYAML an explicit, pinned dependency of repository verification so role-pack validation stops being conditional, then remove the G-C PyYAML exemption.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "7eb1252",
   "candidateRevision": null,
-  "assignedRole": null,
-  "leaseOwner": null,
-  "attempts": 0,
-  "specReferences": ["docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md §4, §13"],
-  "relevantFiles": ["scripts/verify-candidate", ".agent/gate-policy.json"],
-  "allowedFiles": ["scripts/", "docs/", ".agent/gate-policy.json"],
+  "assignedRole": "specifier",
+  "leaseOwner": "pm-fj047-pickup",
+  "attempts": 1,
+  "specReferences": [
+    "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md \u00a74, \u00a713"
+  ],
+  "relevantFiles": [
+    "scripts/verify-candidate",
+    ".agent/gate-policy.json"
+  ],
+  "allowedFiles": [
+    ".agent/README.md",
+    ".agent/gate-policy.json",
+    ".github/workflows/ci.yml",
+    "docs/",
+    "scripts/"
+  ],
   "acceptance": [
     "PyYAML version is pinned and documented for offline installation",
     "Role-pack validation runs as a required check rather than a conditional skip",
     ".agent/gate-policy.json no longer lists the toolchain.pyyaml_missing exemption and ./scripts/verify-candidate still exits 0"
   ],
-  "nonGoals": ["No other new dependencies (jsonschema stays out, design §11)"],
+  "nonGoals": [
+    "No other new dependencies (jsonschema stays out, design \u00a711)"
+  ],
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "Pick up when CI needs role-pack validation to be unconditional.",
-  "notes": ["Tracking item for the toolchain.pyyaml_missing exemption on G-C (gate-policy.json)."],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, coder, cleaner, and QA stages (hardener not required)",
+  "notes": [
+    "scope amendment 2026-10-01 (PM): added .github/workflows/ci.yml. Once check_role_packs becomes a required check rather than a conditional skip, CI must install the pinned PyYAML or the pipeline fails; the pin is only meaningful if CI honours it.",
+    "Environment note: this machine currently has PyYAML 6.0.3 importable via the pyenv python3 (/Users/mak/.pyenv/versions/3.11.14). Earlier sandboxed runs resolved /opt/homebrew/bin/python3, where PyYAML was absent, which is what produced the observed toolchain.pyyaml_missing skip. The fix must fail closed rather than depend on which python3 is first on PATH.",
+    "scope amendment 2 2026-10-01 (PM): added .agent/README.md, which documents the verifier's toolchain behaviour and still asserts the G-C PyYAML exemption being removed here. Keeping the docs consistent in the same change."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier"
 }

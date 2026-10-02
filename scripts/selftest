@@ -678,22 +678,24 @@ def required_fail_failure():
 
 @scenario("required_skipped_failure")
 def required_skipped_failure():
-    # Task 3's committed gate-policy waives toolchain.pyyaml_missing, so §12's
-    # "required + skipped → failure" row needs a policy without exemptions.
-    # {"exemptions": []} still passes policy.exemptions.* (count 0).
+    # §12 row "required + skipped → blocked", asserted without depending on
+    # PyYAML: a due Cleaner tooling row under a policy that commits no
+    # exemptions at all. {"exemptions": []} still passes policy.exemptions.*
+    # (count 0).
     def empty_gate_policy(repo):
         (repo / ".agent" / "gate-policy.json").write_text(
             json.dumps({"exemptions": []}) + "\n", encoding="utf-8")
 
-    repo = fixture("req-skip", items={"FJ-900": base_item()},
+    repo = fixture("req-skip", items={"FJ-900": verifying_cleaner_item()},
                    mutate=empty_gate_policy)
-    shim = yaml_shim(repo.parent / "pyyaml-shim")
-    proc, report = run_verify(repo, task="FJ-900", env={"PYTHONPATH": shim})
+    fp, tfp = fingerprint_pair(repo, "FJ-900")
+    write_chain(repo, "FJ-900", ["specifier", "coder", "cleaner", "qa"], fp, tfp)
+    proc, report = run_verify(repo, task="FJ-900")
     assert_exit(proc, False)
     assert report["status"] == "failed"
-    expect(report, "check_role_packs", code="toolchain.pyyaml_missing",
-           result="skipped", required=True)
-    assert rows(report, "check_role_packs")["exempted"] is False
+    row = expect(report, "stage.cleaner.tooling", code="stage.tooling_absent",
+                 result="skipped", required=True, gate="G-L")
+    assert row["exempted"] is False, row
 
 
 @scenario("optional_skipped_success")
@@ -1256,16 +1258,29 @@ def exemption_gate_mismatch():
     assert row["exempted"] is False, row
 
 
-@scenario("pyyaml_exempt_with_task")
-def pyyaml_exempt_with_task():
-    repo = fixture("pyyaml-exempt", items={"FJ-900": base_item()})
+@scenario("pyyaml_missing_fails_closed")
+def pyyaml_missing_fails_closed():
+    # FJ-047: PyYAML is a pinned verification dependency
+    # (scripts/requirements-verify.txt) and the role-pack check is required with
+    # no conditional form. The shim makes `import yaml` fail for the resolved
+    # interpreter, so a metadata task run must be red — not the green run the
+    # removed gate-policy exemption used to produce.
+    repo = fixture("pyyaml-missing", items={"FJ-900": base_item()})
     shim = yaml_shim(repo.parent / "pyyaml-shim")
     proc, report = run_verify(repo, task="FJ-900", env={"PYTHONPATH": shim})
-    assert_exit(proc, True)
-    assert report["status"] == "passed"
-    row = expect(report, "check_role_packs", code="toolchain.pyyaml_exempt",
-                 result="skipped", required=True)
-    assert row["exempted"] is True, row
+    assert_exit(proc, False)
+    assert report["status"] == "failed", report["status"]
+    row = expect(report, "check_role_packs", code="toolchain.pyyaml_missing",
+                 result="fail", required=True, gate="G-C")
+    assert row["exempted"] is False, row
+    assert "FAIL (exit 1, code toolchain.pyyaml_missing)" in proc.stdout, \
+        proc.stdout
+    # Design §4: one interpreter resolution, reused — the diagnostic and the
+    # toolchain row name the same python3.
+    probed = sh("command -v python3", repo).stdout.strip()
+    reason = row["reason"] or ""
+    assert probed and probed in reason, (probed, reason)
+    assert "scripts/requirements-verify.txt" in reason, reason
 
 
 # --------------------------------------------------------------------------

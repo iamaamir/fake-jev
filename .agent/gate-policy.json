@@ -23,14 +23,6 @@
       "code": "stage.tooling_bootstrap_exempt",
       "reason": "public-surface/system test harness not implemented yet",
       "trackedBy": "FJ-046"
-    },
-    {
-      "gate": "G-C",
-      "blocks": ["toolchain.pyyaml_missing"],
-      "scope": ["product", "metadata"],
-      "code": "toolchain.pyyaml_exempt",
-      "reason": "PyYAML not pinned as a verification dependency yet",
-      "trackedBy": "FJ-047"
     }
   ]
 }

@@ -174,7 +174,9 @@ explicit design revision — never a silent loosening.
 `blocks: [failure codes]`, a `scope` of item classes, and a `trackedBy` item that verify §9.2
 requires to exist and be **non-complete**. Today's bootstrap entries: G-L/G-H/G-Q block
 only `stage.tooling_absent` — the row a gate reports while its planned tooling does not
-exist; the G-C entry blocks `toolchain.pyyaml_missing`.
+exist. The G-C entry that used to block `toolchain.pyyaml_missing` is gone (FJ-047):
+PyYAML became a pinned verification dependency (`scripts/requirements-verify.txt`) and the
+role-pack check now fails closed, so no exemption applies to it.
 
 Consequences (normative):
 
