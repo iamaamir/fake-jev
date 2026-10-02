@@ -3,9 +3,9 @@
   "title": "Fix selftest fixture: embedded work items must carry their bound verification reports",
   "phase": "foundation",
   "objective": "Make scripts/selftest fixtures faithful so the scenario suite is green on a clean main: when a work item's real state.json is embedded in a fixture, every report its lastVerification references must also be present, or the embedding must not create a completion-coverage failure that has nothing to do with the scenario under test.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "9aef065",
-  "candidateRevision": null,
+  "candidateRevision": "bb5d7a6",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -28,21 +28,33 @@
     "no new dependency"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-061/report-20261002T164013Z.json",
+    "revision": "bb5d7a6",
+    "candidateFingerprint": "050f8a89923dd23b42190e976b6db7fa5b1327118ac6fcca2eb1ab4247e0a4a2",
+    "taskFingerprint": "fba7216e76c708718baf8fca335a13ca9459e0a78927de751c9f07183d538a9b",
+    "result": "passed",
+    "summary": "36 passed, 0 failed, 2 skipped, 9 not_applicable",
+    "finishedAt": "2026-10-02T16:40:13Z"
+  },
   "blockers": [],
-  "leaseOwner": "pm-fj061-pickup",
-  "nextAction": "run fresh specifier, coder, cleaner, and QA stages",
+  "leaseOwner": null,
+  "nextAction": "merge FJ-061 into main and re-verify the combined state",
   "notes": [
     "Opened 2026-10-01 by PM. Diagnosis: build_pristine() copies COPY_FILES, COPY_DIRS, .agent/README.md, .agent/schema, .agent/gate-policy.json, and then the REAL .agent/work/{FJ-044,FJ-045,FJ-046,FJ-047}/state.json into every fixture, but never copies .agent/reports/**. That was latent while those four items were planned.",
     "Trigger: FJ-047 completed with lastVerification.report = .agent/reports/FJ-047/report-20261002T152756Z.json. Every fixture then fails verify-candidate's check_recorded_report_coverage with 'recorded report ... does not exist', which makes 26 of 75 scenarios fail on a clean main build of FJ-047.",
     "Evidence: ./scripts/selftest -> summary: 49 passed, 26 failed; FAIL packs_frontmatter_valid asserts proc.returncode == 0 and the fixture output shows the FJ-047 completion-coverage failure.",
     "Impact: the gauntlet tooling's own regression suite is red on main, so any future change to the policy engine cannot be validated by it. verify-candidate does not run selftest, so ./scripts/verify-candidate still exits 0 and does not reveal this.",
-    "FJ-047 itself cannot be reopened: complete has no outgoing status edge."
+    "FJ-047 itself cannot be reopened: complete has no outgoing status edge.",
+    "PM decision 2026-10-02: the coder asked whether to add a dedicated pristine_embeds_referenced_reports scenario (making the suite 76). Ruled Option A - ship at 75. The closure invariant is already detection-covered: QA removed the real FJ-047 report from a throwaway copy and the suite returned to 49 passed / 26 failed, which is exactly what the proposed scenario would assert. The scenario would add attribution clarity but not detection, and would cost a further full stage pass. Recorded for FJ-050 as an optional follow-up."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier"
+  "stage": "qa"
 }
