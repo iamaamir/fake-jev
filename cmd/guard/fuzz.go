@@ -64,8 +64,57 @@ func (o *fuzzOutput) Write(p []byte) (int, error) {
 
 func (o *fuzzOutput) String() string { return o.buf.String() }
 
-// seedFailureMarker is go's verbatim lowercase seed-corpus failure prefix.
-const seedFailureMarker = "failure while testing seed corpus entry"
+// seedFailurePattern matches go's seed-corpus failure line. The marker must
+// start a line (leading indentation tolerated): go1.26.3 emits
+// `failure while testing seed corpus entry: <Target>/<entry>` verbatim and
+// unindented. A bare substring search is not safe - a build failure's compiler
+// diagnostic echoes the offending source line
+// (`./f.go:6:2: "failure while testing ..." is not used`), which would
+// fabricate a guard.fuzz.crash finding for a package that never ran an input.
+// The diagnostic's `file:line:col:` prefix keeps that echo from matching, so
+// an uncompilable package stays an operational error (AC-10).
+var seedFailurePattern = regexp.MustCompile(
+	`(?m)^[ \t]*failure while testing seed corpus entry: `)
+
+// fuzzFailureKind is the disposition of a non-zero `go test -fuzz` exit.
+type fuzzFailureKind int
+
+const (
+	// fuzzFailureWrittenInput: go attributed the failure to a written input
+	// (`Failing input written to <path>`) - the input is the regression and
+	// is preserved under testdata/fuzz/<Name>/.
+	fuzzFailureWrittenInput fuzzFailureKind = iota
+	// fuzzFailureSeedCorpus: a committed seed entry failed during warmup
+	// (`failure while testing seed corpus entry: <Target>/<entry>`); no new
+	// input is written because the seed is already in the tree.
+	fuzzFailureSeedCorpus
+	// fuzzFailureOperational: go reported no corpus-attributable failure - a
+	// fuzzing worker that could not start, communicate, or terminate, a build
+	// failure, or any other unrecognized output.
+	fuzzFailureOperational
+)
+
+// classifyFuzzFailure maps a non-zero `go test -fuzz` exit's combined output
+// to a disposition. Only go's two corpus-attribution markers are target-level:
+// `Failing input written to <path>` (go attributed the failure to a concrete
+// input) and `failure while testing seed corpus entry` (a committed seed
+// failed). A bare `--- FAIL: <Name>` carries no attribution: go1.26.3 emits it
+// identically when a fuzzing worker fails to start, communicate, or terminate
+// (verified verbatim under fd pressure: `--- FAIL: FuzzSafe` followed by
+// `fork/exec ...: too many open files`, with neither marker present). Such
+// worker/infrastructure failures are operational errors, never
+// guard.fuzz.crash findings. The written-input marker is evaluated first, the
+// line-anchored seed marker second; any other output fails closed to an
+// operational error.
+func classifyFuzzFailure(text string) (fuzzFailureKind, string) {
+	if m := writtenInputPattern.FindStringSubmatch(text); m != nil {
+		return fuzzFailureWrittenInput, m[1]
+	}
+	if seedFailurePattern.MatchString(text) {
+		return fuzzFailureSeedCorpus, ""
+	}
+	return fuzzFailureOperational, ""
+}
 
 func isFuzzName(name string) bool {
 	return len(name) > len("Fuzz") && strings.HasPrefix(name, "Fuzz")
@@ -248,11 +297,13 @@ func preserveCrashInput(modPath string, tgt fuzzTarget, reported string) (string
 }
 
 // runOneFuzz executes one bounded invocation and classifies a non-zero exit
-// per interpretation note 9: a written crash input is the primary finding
+// via classifyFuzzFailure: a written crash input is the primary finding
 // (preserved under testdata/fuzz/<Name>/ - go has normally written it there
-// already, making the copy a no-op by construction); seed-corpus and `---
-// FAIL: <Name>` failures point at the declaring source; anything else
-// ([build failed], vet, toolchain trouble) is an error, never a silent pass.
+// already, making the copy a no-op by construction); a seed-corpus failure
+// points at the declaring source; anything else - a bare `--- FAIL: <Name>`,
+// a fuzzing-worker start/communication/termination failure, [build failed],
+// vet, toolchain trouble - is an operational error, never a silent pass and
+// never a fabricated crash finding (FJ-060).
 func runOneFuzz(g *Guards, modPath string, tgt fuzzTarget) ([]Finding, error) {
 	cmd := exec.Command("go", "test", "-count=1", "-run", "^$",
 		"-fuzz", "^"+regexp.QuoteMeta(tgt.Name)+"$",
@@ -277,8 +328,9 @@ func runOneFuzz(g *Guards, modPath string, tgt fuzzTarget) ([]Finding, error) {
 		return nil, fmt.Errorf("fuzz: %s: %w", tgt.ImportPath, err)
 	}
 	text := out.String()
-	if m := writtenInputPattern.FindStringSubmatch(text); m != nil {
-		rel, preserveErr := preserveCrashInput(modPath, tgt, m[1])
+	switch kind, input := classifyFuzzFailure(text); kind {
+	case fuzzFailureWrittenInput:
+		rel, preserveErr := preserveCrashInput(modPath, tgt, input)
 		if preserveErr != nil {
 			return nil, fmt.Errorf("fuzz: %s: %w", tgt.Name, preserveErr)
 		}
@@ -289,9 +341,7 @@ func runOneFuzz(g *Guards, modPath string, tgt fuzzTarget) ([]Finding, error) {
 			Message: fmt.Sprintf("fuzz target %s crashed; failing input preserved",
 				tgt.Name),
 		}}, nil
-	}
-	if strings.Contains(text, seedFailureMarker) ||
-		strings.Contains(text, "--- FAIL: "+tgt.Name) {
+	case fuzzFailureSeedCorpus:
 		return []Finding{{
 			Code:    "guard.fuzz.crash",
 			Path:    tgt.File,

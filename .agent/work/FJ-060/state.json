@@ -3,11 +3,11 @@
   "title": "Fix cmd/guard fuzz-runner flake: worker start/finish failures misclassified as crashes",
   "phase": "foundation",
   "objective": "Make the cmd/guard fuzz check deterministic under resource pressure: a Go fuzz worker that fails to start, communicate, or terminate must not be classified as a target crash, while genuine crashes and timeouts must still be reported.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "complete",
+  "baseRevision": "9c43594",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "\u00a723 quality gates",
     "\u00a723.2 verification commands",
@@ -33,13 +33,21 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": null,
-  "nextAction": "reproduce under ulimit -n 64, make the classifier distinguish worker infrastructure failure from a target crash, and pin both behaviours with tests",
+  "nextAction": "merge FJ-060 into main and re-verify the combined state",
   "notes": [
     "Opened 2026-10-01 by PM from the FJ-041 cleaner reproduction. The classifier treats any '--- FAIL: <Target>' line as a crash, which includes Go's own worker start/communication/termination failures under load, and fuzzOutput.truncated is never consulted.",
     "Reproduction: bash -c 'ulimit -n 64; go test ./cmd/guard -run TestRunFuzzPass -count=1 -v' -> 'guard.fuzz.crash p/fuzz_p_test.go 5 fuzz target FuzzSafe failed'. 32 load-only invocations did not trigger it, so it is environment-triggered rather than constant.",
-    "Impact: a spurious guard.fuzz.failed row makes ./scripts/verify-candidate exit non-zero for an unrelated candidate, which blocks any ticket coincidentally verified under the same pressure."
+    "Impact: a spurious guard.fuzz.failed row makes ./scripts/verify-candidate exit non-zero for an unrelated candidate, which blocks any ticket coincidentally verified under the same pressure.",
+    "PM reproduction and evidence 2026-10-02: bash -c 'ulimit -n 64; go test ./cmd/guard -run TestRunFuzzPass -count=1 -v' -> findings=[{guard.fuzz.crash p/fuzz_p_test.go 5 fuzz target FuzzSafe failed}]. The underlying Go output for a minimal fuzz package under the same limit is: '--- FAIL: FuzzSafe (0.01s)' then '    fork/exec /var/folders/.../fz.test: too many open files' then 'FAIL'/'exit status 1'. So runOneFuzz's '--- FAIL: <Name>' branch declares a crash for a worker that never started. Genuine crashes are already caught by the primary written-crash-input branch (Go writes testdata/fuzz/<Name>/<id> for panics and t.Fail inside f.Fuzz).",
+    "PM ruling 2026-10-02 (owner of the coder's A/B question): option (a) - keep TestRunFuzzPass strict and follow the specifier. The defect was the FABRICATED guard.fuzz.crash finding, not the exit code; under fd pressure the tool genuinely cannot host a fuzz campaign, so an operational error is correct and fail-closed is preserved because the guard still exits non-zero (2 -> guard.tool.failed -> verify-candidate fails). My task-prompt wording '(must pass now)' was wrong and is superseded: the corrected success criterion is that the ulimit reproduction produces no crash finding, produces an operational error, and the guard exits non-zero. Rejected weakening TestRunFuzzPass (it would silently tolerate an unconstrained-environment tool error, the very tolerance that let this flake reach main) and rejected an RLIMIT_NOFILE shim (new build-tagged files outside allowedFiles, and it would mask the environment limit). Also noted: the coder correctly kept inputFingerprint = cleaner output and outputFingerprint = post-stage digest per design 6.1/7 rather than following the PM's incorrect instruction to set both equal."
   ],
   "statusHistory": [
-    "planned"
-  ]
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ],
+  "stage": "qa"
 }
