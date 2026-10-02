@@ -3,9 +3,9 @@
   "title": "Phase 4: release matrix, container, and examples",
   "phase": "phase-4",
   "objective": "Produce the platform build matrix with checksums, a minimal container image, and usage examples for TypeScript, Python, Go, and raw HTTP.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "c2d671e",
-  "candidateRevision": null,
+  "candidateRevision": "5582b18",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -40,17 +40,29 @@
     "no WASM (phase 6)"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-042/report-20261002T201109Z.json",
+    "revision": "5582b18",
+    "candidateFingerprint": "b108a8dd28dfd3b53b39add62b2ccc81d1fa0942c1b1cc27400dd98e805ddf55",
+    "taskFingerprint": "0a0388c558ac2868f0d8ee6d2dee106a087a88fa819e8ce3ca1e002bb199851e",
+    "result": "passed",
+    "summary": "36 passed, 0 failed, 2 skipped, 9 not_applicable",
+    "finishedAt": "2026-10-02T20:11:09Z"
+  },
   "blockers": [],
-  "nextAction": "run fresh specifier, coder, cleaner, and QA stages (hardener not required)",
+  "nextAction": "merge FJ-042 into main and re-verify the combined state",
   "notes": [
-    "PM note 2026-10-02: constraint reminders for the coder - examples must add no dependency and must not require network or credentials (C-QUAL-005); a Go example must still compile under the root module or carry its own go.mod inside examples/; the release workflow must not make release.yml break the normal CI workflow; and README.md must state that fake-jev does not simulate model quality or intelligence (spec section 32)."
+    "PM note 2026-10-02: constraint reminders for the coder - examples must add no dependency and must not require network or credentials (C-QUAL-005); a Go example must still compile under the root module or carry its own go.mod inside examples/; the release workflow must not make release.yml break the normal CI workflow; and README.md must state that fake-jev does not simulate model quality or intelligence (spec section 32).",
+    "PM ruling 2026-10-02: QA flagged that README advertised '--log-format text|json' while internal/cli validates the flag but emits identical text for both values. FJ-042's non-goal forbids implementing JSON logging, so the fix was to make the documentation accurate (the flag is accepted and validated; JSON output is not implemented) and the missing JSON log output is now tracked as FJ-062. QA also flagged that the documented 'run ... -- npm test' example could not work in this repository (no npm script); the cleaner revision replaced the child command with a command that genuinely runs."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier",
-  "leaseOwner": "pm-fj042-pickup"
+  "stage": "qa",
+  "leaseOwner": null
 }
