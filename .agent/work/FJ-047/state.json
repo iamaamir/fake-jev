@@ -3,11 +3,11 @@
   "title": "Pin PyYAML as a verification dependency",
   "phase": "foundation",
   "objective": "Make PyYAML an explicit, pinned dependency of repository verification so role-pack validation stops being conditional, then remove the G-C PyYAML exemption.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "7eb1252",
-  "candidateRevision": null,
+  "candidateRevision": "0f5776f",
   "assignedRole": "specifier",
-  "leaseOwner": "pm-fj047-pickup",
+  "leaseOwner": null,
   "attempts": 1,
   "specReferences": [
     "docs/superpowers/specs/2026-09-25-gauntlet-roles-design.md \u00a74, \u00a713"
@@ -32,9 +32,17 @@
     "No other new dependencies (jsonschema stays out, design \u00a711)"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-047/report-20261002T152756Z.json",
+    "revision": "0f5776f",
+    "candidateFingerprint": "21a64a50bf2ef95509f639bef1bdb0c944680121c8a9ae720998bec119f504dc",
+    "taskFingerprint": "1f155d31629426f20bd4ea8a1d488c44f6657d6cd9a733b01bf4c73c9639fb7e",
+    "result": "passed",
+    "summary": "36 passed, 0 failed, 2 skipped, 9 not_applicable",
+    "finishedAt": "2026-10-02T15:27:56Z"
+  },
   "blockers": [],
-  "nextAction": "run fresh specifier, coder, cleaner, and QA stages (hardener not required)",
+  "nextAction": "merge FJ-047 into main and re-verify the combined state",
   "notes": [
     "scope amendment 2026-10-01 (PM): added .github/workflows/ci.yml. Once check_role_packs becomes a required check rather than a conditional skip, CI must install the pinned PyYAML or the pipeline fails; the pin is only meaningful if CI honours it.",
     "Environment note: this machine currently has PyYAML 6.0.3 importable via the pyenv python3 (/Users/mak/.pyenv/versions/3.11.14). Earlier sandboxed runs resolved /opt/homebrew/bin/python3, where PyYAML was absent, which is what produced the observed toolchain.pyyaml_missing skip. The fix must fail closed rather than depend on which python3 is first on PATH.",
@@ -43,7 +51,10 @@
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier"
+  "stage": "qa"
 }
