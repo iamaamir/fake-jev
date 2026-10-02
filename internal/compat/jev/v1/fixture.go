@@ -254,11 +254,174 @@ func generateScoreAnswer(question Question, fields map[string]json.RawMessage) (
 	}{Type: "score", Score: score, Confidence: *confidence, Probabilities: probabilities, Legend: legend})
 }
 
+// ValidateFixtureAnswers reports the first statically decidable violation in a
+// configured jev/v1 when.questions/then.answers pair. "Statically decidable"
+// means decidable from the configuration alone, so it covers the §13 rules
+// that do not read the incoming request: the answers key set must equal the
+// configured question name set, each answer helper must match its configured
+// question type, and every helper payload must be legal on its own. It is the
+// check §15.2 asks of `fake-jev validate` for one answers document, so it is
+// called once for a direct then.answers and once per then.sequence element.
+//
+// The request-relative rules stay in GenerateAnswers because they need the
+// incoming question criteria, and are deliberately not attempted here: §13.2's
+// "probabilities keys MUST exactly equal the request criteria key set" and
+// "the selected choice MUST be a maximum", and §13.3's "0"-to-"N-1" key set,
+// "[0,N-1]" score range, and probability-weighted expected value. The request
+// criteria are not part of the configuration, so criterion key-set equality is
+// not statically decidable.
+//
+// A nil questions map is the §38.6 wildcard stub: question names and types are
+// unknown, so the key set and the helper/type agreement are not checked, but
+// every payload the answer declares is still checked on its own. An absent
+// answers document means the stub uses another response form and is accepted.
+func ValidateFixtureAnswers(questions map[string]string, answers json.RawMessage) error {
+	if len(answers) == 0 {
+		return nil
+	}
+	answerFields, ok := objectFields(answers)
+	if !ok {
+		return fmt.Errorf("answers must be an object")
+	}
+	if questions == nil {
+		// A wildcard stub still has to cover the request question set, and every
+		// request carries at least one question (§39.2, §12), so an answers
+		// document with no members can never produce a valid response (§13.4,
+		// §13.5). Leaving it accepted would hide a fixture that always fails at
+		// generation time.
+		if len(answerFields) == 0 {
+			return fmt.Errorf("answers must not be empty")
+		}
+		for _, name := range sortedKeys(answerFields) {
+			if err := validateDeclaredAnswer(answerFields[name]); err != nil {
+				return fmt.Errorf("answer %q: %v", name, err)
+			}
+		}
+		return nil
+	}
+	if len(answerFields) != len(questions) {
+		return fmt.Errorf("answers must exactly cover the configured questions")
+	}
+	for _, name := range sortedKeys(questions) {
+		if _, exists := answerFields[name]; !exists {
+			return fmt.Errorf("missing answer for question %q", name)
+		}
+	}
+	for _, name := range sortedKeys(answerFields) {
+		if _, exists := questions[name]; !exists {
+			return fmt.Errorf("answer provided for absent question %q", name)
+		}
+	}
+	for _, name := range sortedKeys(questions) {
+		if err := validateConfiguredAnswer(questions[name], answerFields[name]); err != nil {
+			return fmt.Errorf("answer %q: %v", name, err)
+		}
+	}
+	return nil
+}
+
+// validateConfiguredAnswer validates one answer payload against the configured
+// question type: the same helper switch generateAnswer performs at response
+// time, with the same field rules.
+func validateConfiguredAnswer(questionType string, configured json.RawMessage) error {
+	fields, ok := objectFields(configured)
+	if !ok {
+		return fmt.Errorf("helper must be an object")
+	}
+	switch questionType {
+	case "noul":
+		_, err := generateNoulAnswer(fields)
+		return err
+	case "choice":
+		return validateChoiceAnswerFields(fields)
+	case "score":
+		return validateScoreAnswerFields(fields)
+	default:
+		return fmt.Errorf("unsupported configured question type %q", questionType)
+	}
+}
+
+// validateDeclaredAnswer validates one answer payload whose configured question
+// type is unknown (a wildcard stub). The helper the answer declares selects the
+// rules, because the helper/type agreement cannot be decided without the
+// request. A sibling field of another helper is already rejected as an unknown
+// field by the selected helper's rules.
+func validateDeclaredAnswer(configured json.RawMessage) error {
+	fields, ok := objectFields(configured)
+	if !ok {
+		return fmt.Errorf("helper must be an object")
+	}
+	for _, helper := range []string{"noul", "choice", "score"} {
+		if _, exists := fields[helper]; exists {
+			return validateConfiguredAnswer(helper, configured)
+		}
+	}
+	return fmt.Errorf("helper must declare noul, choice, or score")
+}
+
+// validateChoiceAnswerFields applies the §13.2 rules that do not read the
+// request: the allowed fields, a string choice, the probability values and
+// their sum, and the confidence range. The criteria key set, the selected
+// choice's membership, and the maximum rule are request-relative and stay in
+// generateChoiceAnswer.
+func validateChoiceAnswerFields(fields map[string]json.RawMessage) error {
+	if err := validateHelperFields(fields, "choice"); err != nil {
+		return err
+	}
+	if !isString(fields["choice"]) {
+		return fmt.Errorf("choice must be a string")
+	}
+	probabilities, explicit, err := probabilitiesField(fields)
+	if err != nil {
+		return err
+	}
+	if explicit {
+		// Validation against the map's own keys keeps exactly the §13 value
+		// and sum rules; the criteria key set is unknown here.
+		if err := validateProbabilityMap(probabilities, sortedKeys(probabilities)); err != nil {
+			return err
+		}
+	}
+	_, err = confidenceField(fields)
+	return err
+}
+
+// validateScoreAnswerFields applies the §13.3 rules that do not read the
+// request: the allowed fields, a finite score value, the probability values
+// and their sum, and the confidence range. The request criteria length fixes
+// the legal score range, the "0"-to-"N-1" key set, and the expected value, so
+// those stay in generateScoreAnswer.
+func validateScoreAnswerFields(fields map[string]json.RawMessage) error {
+	if err := validateHelperFields(fields, "score"); err != nil {
+		return err
+	}
+	var score float64
+	if !jsonNumber(fields["score"]) || json.Unmarshal(fields["score"], &score) != nil || !finiteNumber(score) {
+		return fmt.Errorf("score must be a finite number")
+	}
+	probabilities, explicit, err := probabilitiesField(fields)
+	if err != nil {
+		return err
+	}
+	if explicit {
+		// Validation against the map's own keys keeps exactly the §13 value
+		// and sum rules; the criteria key set is unknown here.
+		if err := validateProbabilityMap(probabilities, sortedKeys(probabilities)); err != nil {
+			return err
+		}
+	}
+	_, err = confidenceField(fields)
+	return err
+}
+
 func validateHelperFields(fields map[string]json.RawMessage, helper string) error {
 	if _, ok := fields[helper]; !ok {
 		return fmt.Errorf("%s helper is required", helper)
 	}
-	for key := range fields {
+	// Sorted so that the reported field does not depend on map iteration
+	// order: an answer carrying several unknown sibling fields would otherwise
+	// report whichever one map iteration returned first.
+	for _, key := range sortedKeys(fields) {
 		if key != helper && key != "confidence" && key != "probabilities" {
 			return fmt.Errorf("%s helper has unknown field %q", helper, key)
 		}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -245,6 +246,208 @@ func TestGenerateAnswersRejectsMalformedAnswerDocument(t *testing.T) {
 		if _, err := GenerateAnswers(request, json.RawMessage(fixture)); err == nil {
 			t.Fatalf("GenerateAnswers(%s) succeeded", fixture)
 		}
+	}
+}
+
+// TestValidateFixtureAnswers covers the statically decidable §13 rules. Each
+// failing case names one rule, and the "sequence element" cases call the
+// validator the way the CLI does for one then.sequence element.
+func TestValidateFixtureAnswers(t *testing.T) {
+	noul := map[string]string{"n": "noul"}
+	choice := map[string]string{"route": "choice"}
+	score := map[string]string{"severity": "score"}
+	all := map[string]string{"n": "noul", "route": "choice", "severity": "score"}
+	tests := []struct {
+		name      string
+		questions map[string]string
+		answers   string
+		wantError string
+	}{
+		// Valid fixtures, one per helper and per payload shape.
+		{name: "noul number", questions: noul, answers: `{"n":{"noul":0.94}}`},
+		{name: "noul true", questions: noul, answers: `{"n":{"noul":true}}`},
+		{name: "noul false", questions: noul, answers: `{"n":{"noul":false}}`},
+		{name: "noul boundaries", questions: noul, answers: `{"n":{"noul":0}}`},
+		{name: "noul upper boundary", questions: noul, answers: `{"n":{"noul":1}}`},
+		{name: "choice minimal", questions: choice, answers: `{"route":{"choice":"backend"}}`},
+		{name: "choice confidence", questions: choice, answers: `{"route":{"choice":"backend","confidence":0.91}}`},
+		{name: "choice explicit probabilities", questions: choice, answers: `{"route":{"choice":"backend","confidence":0.91,"probabilities":{"frontend":0.06,"backend":0.91,"infra":0.03}}}`},
+		{name: "choice sum tolerance", questions: choice, answers: `{"route":{"choice":"a","probabilities":{"a":0.5,"b":0.5000005}}}`},
+		{name: "score minimal", questions: score, answers: `{"severity":{"score":2}}`},
+		{name: "score fractional", questions: score, answers: `{"severity":{"score":1.5}}`},
+		{name: "score explicit probabilities", questions: score, answers: `{"severity":{"score":1.5,"confidence":0.8,"probabilities":{"0":0,"1":0.5,"2":0.5}}}`},
+		{name: "every helper", questions: all, answers: `{"n":{"noul":0.94},"route":{"choice":"a","probabilities":{"a":0.5,"b":0.5}},"severity":{"score":1,"probabilities":{"0":0,"1":1}}}`},
+		{name: "sequence element", questions: noul, answers: `{"n":{"noul":true}}`},
+		{name: "wildcard noul", answers: `{"a":{"noul":true}}`},
+		{name: "wildcard choice", answers: `{"route":{"choice":"a","probabilities":{"a":0.5,"b":0.5}}}`},
+		{name: "wildcard score", answers: `{"severity":{"score":1.5}}`},
+		{name: "no answers form", answers: ``},
+
+		// Name-set rules.
+		{name: "answers key set too small", questions: noul, answers: `{}`, wantError: "must exactly cover the configured questions"},
+		{name: "wildcard answers key set empty", answers: `{}`, wantError: "answers must not be empty"},
+		{name: "answers key set too large", questions: noul, answers: `{"n":{"noul":true},"other":{"noul":false}}`, wantError: "must exactly cover the configured questions"},
+		{name: "missing answer", questions: noul, answers: `{"other":{"noul":true}}`, wantError: `missing answer for question "n"`},
+		{name: "absent question answered", questions: noul, answers: `{"route":{"noul":true}}`, wantError: `missing answer for question "n"`},
+		{name: "sequence element key mismatch", questions: score, answers: `{"route":{"choice":"b"}}`, wantError: `missing answer for question "severity"`},
+
+		// Helper/type agreement.
+		{name: "choice helper on noul question", questions: noul, answers: `{"n":{"choice":"a"}}`, wantError: "noul helper is required"},
+		{name: "score helper on choice question", questions: choice, answers: `{"route":{"score":1}}`, wantError: "choice helper is required"},
+		{name: "noul helper on score question", questions: score, answers: `{"severity":{"noul":true}}`, wantError: "score helper is required"},
+
+		// noul payload rules.
+		{name: "noul above range", questions: noul, answers: `{"n":{"noul":1.5}}`, wantError: "noul must be a finite number in [0,1] or a boolean"},
+		{name: "noul below range", questions: noul, answers: `{"n":{"noul":-0.1}}`, wantError: "noul must be a finite number in [0,1] or a boolean"},
+		{name: "noul string coercion prohibited", questions: noul, answers: `{"n":{"noul":"0.5"}}`, wantError: "noul must be a finite number in [0,1] or a boolean"},
+		{name: "noul beyond float64 range", questions: noul, answers: `{"n":{"noul":1e999}}`, wantError: "noul must be a finite number in [0,1] or a boolean"},
+		{name: "noul extra field", questions: noul, answers: `{"n":{"noul":0.5,"confidence":0.5}}`, wantError: "noul helper has unknown fields"},
+		{name: "wildcard noul above range", answers: `{"a":{"noul":2}}`, wantError: "noul must be a finite number in [0,1] or a boolean"},
+		{name: "wildcard mixed helpers", answers: `{"a":{"noul":1,"choice":"x"}}`, wantError: "noul helper has unknown fields"},
+
+		// choice payload rules.
+		{name: "choice value not a string", questions: choice, answers: `{"route":{"choice":3}}`, wantError: "choice must be a string"},
+		{name: "choice missing", questions: choice, answers: `{"route":{"confidence":0.5}}`, wantError: "choice helper is required"},
+		{name: "choice unknown field", questions: choice, answers: `{"route":{"choice":"a","legend":{"a":"x"}}}`, wantError: `choice helper has unknown field "legend"`},
+		{name: "choice confidence above range", questions: choice, answers: `{"route":{"choice":"a","confidence":1.5}}`, wantError: "confidence must be a finite number in [0,1]"},
+		{name: "choice probability above range", questions: choice, answers: `{"route":{"choice":"a","probabilities":{"a":1.1,"b":-0.1}}}`, wantError: `probability "a" must be a finite number in [0,1]`},
+		{name: "choice probabilities not an object", questions: choice, answers: `{"route":{"choice":"a","probabilities":1}}`, wantError: "probabilities must be an object"},
+		{name: "choice probabilities empty map", questions: choice, answers: `{"route":{"choice":"a","probabilities":{}}}`, wantError: "probabilities must sum to 1"},
+		{name: "choice probability is not a number", questions: choice, answers: `{"route":{"choice":"a","probabilities":{"a":{"b":1}}}}`, wantError: `probability "a" must be a finite number in [0,1]`},
+		{name: "choice probability beyond float64 range", questions: choice, answers: `{"route":{"choice":"a","probabilities":{"a":1e999}}}`, wantError: `probability "a" must be a finite number in [0,1]`},
+		{name: "choice probabilities do not sum", questions: choice, answers: `{"route":{"choice":"a","probabilities":{"a":0.2,"b":0.2,"c":0.2}}}`, wantError: "probabilities must sum to 1"},
+
+		// score payload rules.
+		{name: "score not a number", questions: score, answers: `{"severity":{"score":"1"}}`, wantError: "score must be a finite number"},
+		{name: "score missing", questions: score, answers: `{"severity":{"confidence":0.5}}`, wantError: "score helper is required"},
+		{name: "score legend prohibited", questions: score, answers: `{"severity":{"score":1,"legend":{"0":"x"}}}`, wantError: `score helper has unknown field "legend"`},
+		{name: "score confidence above range", questions: score, answers: `{"severity":{"score":1,"confidence":1.1}}`, wantError: "confidence must be a finite number in [0,1]"},
+		{name: "score probability above range", questions: score, answers: `{"severity":{"score":1,"probabilities":{"0":-0.1,"1":1.1}}}`, wantError: `probability "0" must be a finite number in [0,1]`},
+		{name: "score probabilities do not sum", questions: score, answers: `{"severity":{"score":1,"probabilities":{"0":0.5,"1":0.7}}}`, wantError: "probabilities must sum to 1"},
+		{name: "score probabilities empty map", questions: score, answers: `{"severity":{"score":1,"probabilities":{}}}`, wantError: "probabilities must sum to 1"},
+		{name: "score beyond float64 range", questions: score, answers: `{"severity":{"score":1e999}}`, wantError: "score must be a finite number"},
+
+		// Document and member shapes.
+		{name: "answers is an array", questions: noul, answers: `[]`, wantError: "answers must be an object"},
+		{name: "answers is null", questions: noul, answers: `null`, wantError: "answers must be an object"},
+		{name: "answers member is not an object", questions: noul, answers: `{"n":null}`, wantError: "helper must be an object"},
+		{name: "answers member is a number", questions: noul, answers: `{"n":3}`, wantError: "helper must be an object"},
+		{name: "wildcard member is not an object", answers: `{"a":3}`, wantError: "helper must be an object"},
+		{name: "wildcard declares no helper", answers: `{"a":{"confidence":0.5}}`, wantError: "helper must declare noul, choice, or score"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateFixtureAnswers(test.questions, json.RawMessage(test.answers))
+			if test.wantError == "" {
+				if err != nil {
+					t.Fatalf("ValidateFixtureAnswers() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateFixtureAnswers() succeeded, want an error containing %q", test.wantError)
+			}
+			if !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("error = %q, want it to contain %q", err, test.wantError)
+			}
+		})
+	}
+}
+
+// TestValidateFixtureAnswersReportsUnknownFieldDeterministically pins the
+// diagnostic for a payload carrying several unknown fields at once: the
+// reported field is the lexicographically first, so the same configuration
+// always produces the same stderr line (§42.5) instead of whichever key map
+// iteration happened to return.
+func TestValidateFixtureAnswersReportsUnknownFieldDeterministically(t *testing.T) {
+	answers := json.RawMessage(`{"route":{"choice":"a","z1":1,"z2":2,"z3":3,"z4":4,"z5":5,"z6":6,"z7":7}}`)
+	const want = `choice helper has unknown field "z1"`
+	for attempt := 0; attempt < 32; attempt++ {
+		err := ValidateFixtureAnswers(map[string]string{"route": "choice"}, answers)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("attempt %d: error = %v, want it to contain %q", attempt, err, want)
+		}
+	}
+}
+
+// FuzzValidateFixtureAnswers asserts the validator's boundary properties over
+// arbitrary bytes: it never panics, identical input always yields the same
+// accept/reject decision and the same diagnostic, and a rejection always
+// carries a message, so a violation can never be silently swallowed. The
+// question maps cover the configured, wildcard, and unknown-type branches.
+func FuzzValidateFixtureAnswers(f *testing.F) {
+	seeds := []struct {
+		answers string
+		name    string
+		kind    string
+	}{
+		{answers: `{"n":{"noul":0.94}}`, name: "n", kind: "noul"},
+		{answers: `{"route":{"choice":"a","probabilities":{"a":0.5,"b":0.5}}}`, name: "route", kind: "choice"},
+		{answers: `{"severity":{"score":1.5,"probabilities":{"0":0,"1":0.5,"2":0.5}}}`, name: "severity", kind: "score"},
+		{answers: `{}`, name: "n", kind: "noul"},
+		{answers: `null`, name: "n", kind: "noul"},
+		{answers: `{"n":{"noul":1e999}}`, name: "n", kind: "noul"},
+		{answers: `{"n":{"noul":true,"choice":"a","z9":1}}`, name: "n", kind: "noul"},
+	}
+	for _, seed := range seeds {
+		f.Add([]byte(seed.answers), seed.name, seed.kind)
+	}
+	f.Fuzz(func(t *testing.T, answers []byte, name, kind string) {
+		questions := []map[string]string{
+			nil,
+			{name: "noul", name + "-choice": "choice"},
+			{name: kind},
+		}
+		for _, configured := range questions {
+			first := ValidateFixtureAnswers(configured, json.RawMessage(answers))
+			second := ValidateFixtureAnswers(configured, json.RawMessage(answers))
+			if (first == nil) != (second == nil) {
+				t.Fatalf("questions %v answers %q: accept/reject differs between identical calls (%v then %v)", configured, answers, first, second)
+			}
+			if first == nil {
+				continue
+			}
+			if first.Error() == "" {
+				t.Fatalf("questions %v answers %q: empty diagnostic", configured, answers)
+			}
+			if first.Error() != second.Error() {
+				t.Fatalf("questions %v answers %q: diagnostics differ between identical calls (%q then %q)", configured, answers, first, second)
+			}
+		}
+	})
+}
+
+// TestValidateFixtureAnswersNeverAcceptsWhatGenerationRejects pins the shared
+// subset of the static and request-time paths: every fixture response
+// generation accepts for a question set must also be statically valid, so
+// validate can never reject a working configuration. The fixtures include ones
+// generation rejects only for request-relative reasons (unknown choice, missing
+// maximum, score range, expected value), which the static path must accept.
+func TestValidateFixtureAnswersNeverAcceptsWhatGenerationRejects(t *testing.T) {
+	request := fixtureRequest(t, `{"n":{"type":"noul"},"route":{"type":"choice","criteria":{"a":null,"b":null,"c":null}},"severity":{"type":"score","criteria":["low","medium","high"]}}`)
+	configured := map[string]string{"n": "noul", "route": "choice", "severity": "score"}
+	fixtures := []string{
+		`{"n":{"noul":0.94},"route":{"choice":"b"},"severity":{"score":1.5}}`,
+		`{"n":{"noul":true},"route":{"choice":"b","confidence":0.91,"probabilities":{"a":0.06,"b":0.91,"c":0.03}},"severity":{"score":1.5,"confidence":0.8,"probabilities":{"0":0,"1":0.5,"2":0.5}}}`,
+		`{"n":{"noul":0.2},"route":{"choice":"c","probabilities":{"a":0.2,"b":0.3,"c":0.5}},"severity":{"score":2}}`,
+		`{"n":{"noul":0.94},"route":{"choice":"d"},"severity":{"score":1.5}}`,
+		`{"n":{"noul":0.94},"route":{"choice":"b","probabilities":{"a":0.8,"b":0.1,"c":0.1}},"severity":{"score":1.5}}`,
+		`{"n":{"noul":0.94},"route":{"choice":"b"},"severity":{"score":9}}`,
+		`{"n":{"noul":0.94},"route":{"choice":"b"},"severity":{"score":1.5,"probabilities":{"0":0,"1":0,"2":1}}}`,
+		`{"n":{"noul":1.5},"route":{"choice":"b"},"severity":{"score":1.5}}`,
+	}
+	accepted := 0
+	for _, fixture := range fixtures {
+		if _, err := GenerateAnswers(request, json.RawMessage(fixture)); err != nil {
+			continue
+		}
+		accepted++
+		if err := ValidateFixtureAnswers(configured, json.RawMessage(fixture)); err != nil {
+			t.Errorf("GenerateAnswers accepts %s but ValidateFixtureAnswers rejects it: %v", fixture, err)
+		}
+	}
+	if accepted < 3 {
+		t.Fatalf("only %d fixtures reached the generation-accepting subset, want at least 3", accepted)
 	}
 }
 

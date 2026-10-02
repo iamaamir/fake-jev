@@ -3,11 +3,11 @@
   "title": "Phase 3: static jev/v1 fixture validation for `fake-jev validate`",
   "phase": "phase-3",
   "objective": "Implement the statically provable jev/v1 fixture-data consistency checks required by specification \u00a715.2, so that `fake-jev validate` validates all enabled profile-specific fixture data and performs all statically possible consistency checks, without starting a server or making any network request.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "26c104f",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "\u00a715.2 validate",
     "\u00a738.6 jev/v1 when object",
@@ -37,16 +37,20 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "leaseOwner": null,
-  "nextAction": "implement the static answers/helper validation and the when.questions to then.answers cross-check, call it from validate, and cover it with tests",
+  "leaseOwner": "pm-fj059-pickup",
+  "nextAction": "run fresh specifier, coder, cleaner, hardener, and QA stages",
   "notes": [
     "Opened 2026-09-29 by PM as the explicit owner of the clause in C-CLI-005 and \u00a715.2 that FJ-030 could not satisfy inside its allowedFiles.",
     "G1: inner jev/v1 then.answers payloads are not validated at load time today; probability ranges, finite values, and maps summing to 1.0 within 1e-6 are only enforced later in internal/compat/jev/v1/fixture.go at response-generation time.",
     "G2: the stub's when.questions key set is not cross-checked against then.answers keys, although both are statically known from the configuration file.",
     "Design constraint: internal/config is provider-neutral and must not import internal/compat/jev/v1 (enforced by cmd/guard arch); the static validator belongs in the compat layer and must be invoked from the CLI composition root.",
-    "Not statically decidable: choice/score criterion key-set equality, because criteria come from the incoming client request, not from the configuration."
+    "Not statically decidable: choice/score criterion key-set equality, because criteria come from the incoming client request, not from the configuration.",
+    "PM note 2026-10-02: the static validator must live in the compat layer (internal/config is provider-neutral and cmd/guard arch forbids it importing internal/compat/jev/v1) and be invoked from the CLI composition root. Do not change config.Load strictness for serve; validate may legitimately be stricter than the load path. Choice/score criterion key-set equality is not statically decidable because criteria come from the request, so only the statically provable subset is in scope."
   ],
   "statusHistory": [
-    "planned"
-  ]
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier"
 }

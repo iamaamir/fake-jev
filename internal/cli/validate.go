@@ -4,20 +4,26 @@ import (
 	"fmt"
 	"io"
 
+	"fake-jev/internal/compat/jev/v1"
 	"fake-jev/internal/config"
 )
 
 // runValidate implements specification §15.2: load the named configuration
 // file in YAML or JSON, run every static check the shared configuration loader
-// performs, and report the outcome. It starts no server, opens no listener,
-// and makes no network request; the loader is the only validation surface, so
-// no rule is restated here (§15.2, §42.1).
+// performs, then run the profile-specific fixture checks the provider-neutral
+// loader must not own. It starts no server, opens no listener, and makes no
+// network request (§15.2, §42.1).
 func runValidate(args []string, stdout, stderr io.Writer) int {
 	path, err := validatePath(args)
 	if err != nil {
 		return usageError(stderr, "%s", err)
 	}
-	if _, err := config.LoadFile(path); err != nil {
+	cfg, err := config.LoadFile(path)
+	if err != nil {
+		writef(stderr, "fake-jev: %s: %v\n", path, err)
+		return exitFailure
+	}
+	if err := validateFixtureData(cfg); err != nil {
 		writef(stderr, "fake-jev: %s: %v\n", path, err)
 		return exitFailure
 	}
@@ -25,6 +31,27 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 		return exitFailure
 	}
 	return exitOK
+}
+
+// validateFixtureData runs the jev/v1 checks that §15.2 requires of every
+// enabled profile's fixture data and that the provider-neutral loader cannot
+// own. The compat layer owns the v1 answer rules; this composition root only
+// drives the per-stub loop and names the offending stub in the diagnostic.
+// validate is legitimately stricter than the serve load path, so a violation
+// found here does not change what serve accepts.
+func validateFixtureData(cfg *config.Config) error {
+	for i := range cfg.Stubs {
+		stub := &cfg.Stubs[i]
+		if err := v1.ValidateFixtureAnswers(stub.When.Questions, stub.Then.Answers); err != nil {
+			return fmt.Errorf("stub %q: %w", stub.ID, err)
+		}
+		for index, response := range stub.Then.Sequence {
+			if err := v1.ValidateFixtureAnswers(stub.When.Questions, response.Answers); err != nil {
+				return fmt.Errorf("stub %q sequence[%d]: %w", stub.ID, index, err)
+			}
+		}
+	}
+	return nil
 }
 
 // validatePath extracts the single configuration path from the command line.
