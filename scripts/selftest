@@ -89,6 +89,35 @@ def git_init(root):
     git_commit(root)
 
 
+def copy_referenced_report(root, state_source):
+    """Embed the recorded report a copied work item's lastVerification names.
+
+    A fixture that keeps a work item's state.json but drops the report that
+    file binds is not a repository state that can exist: verify-candidate's
+    §7 coverage check would then fail every scenario embedding the item, for
+    a reason unrelated to what the scenario tests (FJ-061). Only reports
+    tracked in the real repository are copied, so the fixture is built from
+    committed content rather than from whatever happens to sit in this
+    machine's worktree.
+    """
+    state = json.loads(state_source.read_text(encoding="utf-8"))
+    if not isinstance(state, dict):
+        return
+    last = state.get("lastVerification")
+    report = last.get("report") if isinstance(last, dict) else None
+    if not isinstance(report, str) or not report.strip():
+        return
+    report = report.strip()
+    if not (REAL / report).is_file():
+        return
+    tracked = sh("git ls-files --error-unmatch -- %s" % report, REAL, check=False)
+    if tracked.returncode != 0:
+        return
+    dest = root / report
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REAL / report, dest)
+
+
 def build_pristine(directory):
     """One-time copy of the real repository's tooling + docs into a temp git repo."""
     root = pathlib.Path(directory) / "pristine"
@@ -114,6 +143,7 @@ def build_pristine(directory):
             target = work / task_id
             target.mkdir(exist_ok=True)
             shutil.copy2(source, target / "state.json")
+            copy_referenced_report(root, source)
     git_init(root)
     return root
 
