@@ -5,7 +5,7 @@
   "objective": "Make the cmd/guard fuzz check deterministic under resource pressure: a Go fuzz worker that fails to start, communicate, or terminate must not be classified as a target crash, while genuine crashes and timeouts must still be reported.",
   "status": "complete",
   "baseRevision": "9c43594",
-  "candidateRevision": null,
+  "candidateRevision": "9daf45c",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -30,7 +30,15 @@
     "no new dependency"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-060/report-20261002T192019Z.json",
+    "revision": "9daf45c",
+    "candidateFingerprint": "325768fd9665e78ee4264d86eb09e1dc651a4918c6ad1e140276a5b89208de31",
+    "taskFingerprint": "41ba2cd97f56c930d6ac57fdd4e662aebc1be3c12067c6cc2bd7dac7194f93a1",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-02T19:20:19Z"
+  },
   "blockers": [],
   "leaseOwner": null,
   "nextAction": "merge FJ-060 into main and re-verify the combined state",
