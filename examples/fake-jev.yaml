@@ -1,0 +1,34 @@
+# Shared fixture for every example in this directory.
+#
+# One jev/v1 stub answers both questions the examples ask, so all four
+# examples can run against the same server. The stub carries no `expect`
+# block (spec §12.7), because each example may invoke it once and an
+# invocation-count assertion would then fail the second example that runs.
+schemaVersion: 1
+mode: strict
+compatibility:
+  - jev/v1
+
+server:
+  host: 127.0.0.1
+  port: 8787
+
+stubs:
+  - id: route-and-urgency
+    profile: jev/v1
+    when:
+      operation: systemone
+      questions:
+        route: choice
+        urgent: noul
+    then:
+      answers:
+        route:
+          choice: backend
+          confidence: 0.91
+          probabilities:
+            frontend: 0.06
+            backend: 0.91
+            infra: 0.03
+        urgent:
+          noul: 0.94

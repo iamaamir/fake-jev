@@ -1,0 +1,185 @@
+name: Release
+
+# Specification §23.1 (build matrix), §23.2 (release integrity), §24.1
+# (platform binaries), §24.2 (container image), §31 Phase 4.
+#
+# This workflow runs on version tags only, so it shares no trigger, job, or
+# step with the normal CI workflow (.github/workflows/ci.yml): pull requests
+# and pushes to main keep running exactly what they ran before. The tag
+# pattern is `v*`, and the manual entry point requires an existing tag.
+#
+# Nothing here needs a model, a provider API key, or a paid service: the only
+# network use is job setup (Go toolchain and module graph) and the publish
+# calls to GitHub and GHCR.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing git tag to build and publish (for example v1.0.0)
+        required: true
+        type: string
+
+# Publishing a GitHub Release needs write access to repository contents.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # A tag push sets github.ref_name to the tag; a manual run supplies it.
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  # §23.1 initial release targets: the five platform binaries. windows/arm64
+  # is not built (the specification makes it optional and no demand is
+  # recorded). Unlike ci.yml's compile-proof job, this one does not pin
+  # GOPROXY=off: a release must also work with a cold module cache.
+  binaries:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64, ext: "" }
+          - { goos: linux, goarch: arm64, ext: "" }
+          - { goos: darwin, goarch: amd64, ext: "" }
+          - { goos: darwin, goarch: arm64, ext: "" }
+          - { goos: windows, goarch: amd64, ext: ".exe" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go build ./cmd/fake-jev
+        run: go build -trimpath -o "dist/fake-jev-${GOOS}-${GOARCH}${EXT}" ./cmd/fake-jev
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fake-jev-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/fake-jev-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          if-no-files-found: error
+
+  # §23.2 checksums: exactly one line per released binary, in the
+  # `<sha256><two spaces><filename>` form `sha256sum --check` consumes, so a
+  # user who downloads the assets can verify them without extra tooling.
+  checksums:
+    name: checksums
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: write and check SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd dist
+          artifacts=(
+            fake-jev-linux-amd64
+            fake-jev-linux-arm64
+            fake-jev-darwin-amd64
+            fake-jev-darwin-arm64
+            fake-jev-windows-amd64.exe
+          )
+          : > SHA256SUMS
+          for artifact in "${artifacts[@]}"; do
+            test -f "$artifact"
+            sha256sum "$artifact" >> SHA256SUMS
+          done
+          test "$(wc -l < SHA256SUMS)" -eq "${#artifacts[@]}"
+          cat SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fake-jev-release
+          path: dist/
+          if-no-files-found: error
+
+  # §24.2 container image, built from the same root Dockerfile a local build
+  # uses (there is no second container definition). The image digest is
+  # recorded in the release body by the release job below.
+  image:
+    name: container image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build and push the image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ env.RELEASE_TAG }}
+
+  # §24.1/§23.2: attach the binaries, the checksum file, and the image
+  # reference plus digest to the GitHub Release for the tag.
+  release:
+    name: publish release
+    needs: [checksums, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fake-jev-release
+          path: dist
+      - name: write release notes
+        env:
+          IMAGE_DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## fake-jev ${RELEASE_TAG}"
+            echo
+            echo "### Verify a download"
+            echo
+            echo '```bash'
+            echo "gh release download ${RELEASE_TAG}"
+            echo "sha256sum --check SHA256SUMS"
+            echo "# macOS: shasum -a 256 --check SHA256SUMS"
+            echo '```'
+            echo
+            echo "### Container image"
+            echo
+            echo '```text'
+            echo "ghcr.io/${{ github.repository }}:${RELEASE_TAG}"
+            echo "${IMAGE_DIGEST}"
+            echo '```'
+          } > release-notes.md
+          cat release-notes.md
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" --clobber dist/fake-jev-* dist/SHA256SUMS
+          else
+            gh release create "${RELEASE_TAG}" --verify-tag \
+              --title "${RELEASE_TAG}" --notes-file release-notes.md \
+              dist/fake-jev-* dist/SHA256SUMS
+          fi

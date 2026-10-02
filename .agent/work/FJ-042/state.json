@@ -3,17 +3,17 @@
   "title": "Phase 4: release matrix, container, and examples",
   "phase": "phase-4",
   "objective": "Produce the platform build matrix with checksums, a minimal container image, and usage examples for TypeScript, Python, Go, and raw HTTP.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "implementing",
+  "baseRevision": "c2d671e",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
-    "§23.1 build matrix",
-    "§23.2 release integrity",
-    "§24 distribution",
-    "§31 phase 4 acceptance",
-    "§32 definition of done for v1"
+    "\u00a723.1 build matrix",
+    "\u00a723.2 release integrity",
+    "\u00a724 distribution",
+    "\u00a731 phase 4 acceptance",
+    "\u00a732 definition of done for v1"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md",
@@ -42,7 +42,15 @@
   "verificationCommands": [],
   "lastVerification": null,
   "blockers": [],
-  "nextAction": "add the release workflow, image, and examples",
-  "notes": [],
-  "statusHistory": ["planned"]
+  "nextAction": "run fresh specifier, coder, cleaner, and QA stages (hardener not required)",
+  "notes": [
+    "PM note 2026-10-02: constraint reminders for the coder - examples must add no dependency and must not require network or credentials (C-QUAL-005); a Go example must still compile under the root module or carry its own go.mod inside examples/; the release workflow must not make release.yml break the normal CI workflow; and README.md must state that fake-jev does not simulate model quality or intelligence (spec section 32)."
+  ],
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing"
+  ],
+  "stage": "specifier",
+  "leaseOwner": "pm-fj042-pickup"
 }
