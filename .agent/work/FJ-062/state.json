@@ -1,0 +1,46 @@
+{
+  "id": "FJ-062",
+  "title": "Implement the --log-format json structured log output",
+  "phase": "phase-4",
+  "objective": "Make `--log-format json` actually emit structured JSON operational logs to stderr, or remove the flag, so the CLI stops accepting a documented option that has no effect.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a720 observability and diagnostics",
+    "\u00a742.5 logging destinations"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "README.md"
+  ],
+  "allowedFiles": [
+    "internal/cli/logging.go",
+    "internal/cli/logging_test.go",
+    "internal/cli/serve.go",
+    "internal/cli/serve_test.go"
+  ],
+  "acceptance": [
+    "C-CLI-010"
+  ],
+  "nonGoals": [
+    "no metrics backend",
+    "no new dependency",
+    "no change to Authorization redaction or log truncation behaviour"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "implement JSON structured output for the existing operational logger behind --log-format json, keeping text as the default and preserving redaction and truncation",
+  "notes": [
+    "Opened 2026-10-02 by PM from the FJ-042 QA finding. internal/cli/serve.go:106-107 validates --log-format against text and json and rejects anything else, but the operational logger emits identical text output for both values, so the flag is accepted and documented without having any effect.",
+    "Spec section 20 lists 'Optional structured logging: --log-format json'. Deliberately out of scope for FJ-042, whose non-goal is 'no log-format json beyond the flag contract'; FJ-042 instead corrected README to state accurately that JSON output is not implemented.",
+    "Whichever way this is resolved, the README sentence added by FJ-042 and the CLI behaviour must agree afterwards."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
