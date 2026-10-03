@@ -3,11 +3,11 @@
   "title": "config.Load fail-open on case-variant duplicate keys, and non-deterministic YAML diagnostics",
   "phase": "phase-4",
   "objective": "Make config.Load fail closed on JSON object keys that the decoder resolves ambiguously (a key differing only in case from a known key silently overwrites the decoded field), and make its diagnostics deterministic for YAML input with non-string keys, so Load can never return a configuration that its own Validate rejects and identical input always yields an identical error message.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "complete",
+  "baseRevision": "e60433b",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "\u00a712.3 configuration schema and unknown-key rejection",
     "spec line 143 (tests must be deterministic and reproducible)",
@@ -40,7 +40,7 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": null,
-  "nextAction": "reject decoder-ambiguous duplicate keys so Load fails closed, make the non-string-key diagnostic deterministic, and add a regression test for each",
+  "nextAction": "none; FJ-040 resumes its hardener and qa stages against this candidate, then closes.",
   "notes": [
     "Opened 2026-10-03 by PM from defects found by FJ-040's own config fuzz target (internal/config/fuzz_test.go, internal/config/load.go). Discovered by the FJ-040 coder and cleaner stages; both reproductions were then confirmed independently by the PM. Neither is fixed inside FJ-040 because internal/config is outside FJ-040 allowedFiles, which cover only the four new test files.",
     "F1 reproduction, 37 bytes: config.Load([]byte('{\"schemaVersion\":1,\"sChemAVErsion\":0}')) returns cfg with a nil error and cfg.SchemaVersion == 0, and config.Validate(cfg) then reports 'schemaVersion must equal 1'. The same holds for SCHEMAVERSION. PM-confirmed independently. Mechanism: encoding/json matches object keys to struct fields case-insensitively, so the second key overwrites the decoded Config.SchemaVersion, while validateDocument inspects the raw document by exact key (root[\"schemaVersion\"] == 1) and validateValues never re-checks cfg.SchemaVersion. rejectDuplicateJSON in load.go catches exact duplicate keys only, so a case-variant pair passes it. Effect reachable from untrusted input: a document violating the schemaVersion contract loads with a nil error, and readers such as the control API /meta configSchemaVersion observe 0. This is a fail-open violation of the project rule that strict behaviour must fail closed, and it is the same class as unknown keys, which spec 12.3 says MUST fail validation.",
@@ -50,6 +50,12 @@
     "Deliberately out of scope and NOT to be folded in: the unbounded configuration-file read recorded after FJ-030, and yaml.v3 anchor/alias parse-cost amplification measured by the FJ-040 cleaner (a 62,837-byte alias-using document allocating about 51.7 MB in 97 ms). If bounding those turns out to be necessary for the FJ-040 fuzz target to be reliable, that is a separate decision and a separate ticket."
   ],
   "statusHistory": [
-    "planned"
-  ]
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ],
+  "stage": "qa"
 }

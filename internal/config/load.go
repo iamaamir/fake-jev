@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -174,12 +175,46 @@ func scanJSONValue(decoder *json.Decoder) error {
 	return nil
 }
 
+// sortedKeys returns the keys of values in ascending byte order. Map walks that
+// report the first failing entry are driven by it so that a diagnostic depends
+// only on the document and not on Go's randomized map iteration order.
+func sortedKeys[T any](values map[string]T) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// orderedKey is a decoded YAML mapping key together with its position in an
+// order over the keys of one mapping.
+type orderedKey struct {
+	value any
+	order string
+}
+
+// orderYAMLKeys returns the keys of one decoded YAML mapping in a fixed order,
+// so that a walk driven by them reports the same first failure for identical
+// input whatever Go's map iteration order does.
+func orderYAMLKeys(values map[any]any) []orderedKey {
+	keys := make([]orderedKey, 0, len(values))
+	for key := range values {
+		// The key type is part of the order because YAML keys are not
+		// necessarily strings and keys of different types can format
+		// identically.
+		keys = append(keys, orderedKey{value: key, order: fmt.Sprintf("%T\x00%v", key, key)})
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].order < keys[j].order })
+	return keys
+}
+
 func normalizeYAMLValue(value any) (any, error) {
 	switch value := value.(type) {
 	case map[string]any:
 		result := make(map[string]any, len(value))
-		for key, item := range value {
-			converted, err := normalizeYAMLValue(item)
+		for _, key := range sortedKeys(value) {
+			converted, err := normalizeYAMLValue(value[key])
 			if err != nil {
 				return nil, err
 			}
@@ -188,12 +223,12 @@ func normalizeYAMLValue(value any) (any, error) {
 		return result, nil
 	case map[any]any:
 		result := make(map[string]any, len(value))
-		for key, item := range value {
-			name, ok := key.(string)
+		for _, key := range orderYAMLKeys(value) {
+			name, ok := key.value.(string)
 			if !ok {
-				return nil, fmt.Errorf("object key %v is not a string", key)
+				return nil, fmt.Errorf("object key %v is not a string", key.value)
 			}
-			converted, err := normalizeYAMLValue(item)
+			converted, err := normalizeYAMLValue(value[key.value])
 			if err != nil {
 				return nil, err
 			}

@@ -106,6 +106,9 @@ func validateDocument(document []byte, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectUnexpectedFields(root, "configuration", "schemaVersion", "server", "mode", "compatibility", "limits", "models", "stubs"); err != nil {
+		return err
+	}
 	version, ok := root["schemaVersion"]
 	if !ok {
 		return fmt.Errorf("schemaVersion is required")
@@ -115,11 +118,23 @@ func validateDocument(document []byte, cfg *Config) error {
 		return fmt.Errorf("schemaVersion must equal integer 1")
 	}
 
-	for _, name := range []string{"server", "limits"} {
-		if value, exists := root[name]; exists {
-			if _, err := object(value, name); err != nil {
-				return err
-			}
+	for _, section := range []struct {
+		name   string
+		fields []string
+	}{
+		{name: "server", fields: []string{"host", "port"}},
+		{name: "limits", fields: []string{"dataPlaneBodyBytes", "controlPlaneBodyBytes", "maxInteractions", "logBodyBytes", "gracefulShutdownSeconds"}},
+	} {
+		value, exists := root[section.name]
+		if !exists {
+			continue
+		}
+		sectionObject, err := object(value, section.name)
+		if err != nil {
+			return err
+		}
+		if err := rejectUnexpectedFields(sectionObject, section.name, section.fields...); err != nil {
+			return err
 		}
 	}
 	if value, exists := root["compatibility"]; exists {
@@ -136,16 +151,21 @@ func validateDocument(document []byte, cfg *Config) error {
 			return fmt.Errorf("models must be an array")
 		}
 		for i, rawModel := range models {
-			model, err := object(rawModel, fmt.Sprintf("models[%d]", i))
+			modelName := fmt.Sprintf("models[%d]", i)
+			model, err := object(rawModel, modelName)
 			if err != nil {
 				return err
 			}
-			if err := rejectNullFields(model, fmt.Sprintf("models[%d]", i), "name", "description", "release_date"); err != nil {
+			modelFields := []string{"name", "description", "release_date"}
+			if err := rejectUnexpectedFields(model, modelName, modelFields...); err != nil {
 				return err
 			}
-			for _, field := range []string{"name", "description", "release_date"} {
+			if err := rejectNullFields(model, modelName, modelFields...); err != nil {
+				return err
+			}
+			for _, field := range modelFields {
 				if _, exists := model[field]; !exists {
-					return fmt.Errorf("models[%d].%s is required", i, field)
+					return fmt.Errorf("%s.%s is required", modelName, field)
 				}
 			}
 		}
@@ -159,12 +179,16 @@ func validateDocument(document []byte, cfg *Config) error {
 			return fmt.Errorf("stubs must be an array")
 		}
 		for i, rawStub := range stubs {
-			stub, err := object(rawStub, fmt.Sprintf("stubs[%d]", i))
+			stubName := fmt.Sprintf("stubs[%d]", i)
+			stub, err := object(rawStub, stubName)
 			if err != nil {
 				return err
 			}
-			stubName := fmt.Sprintf("stubs[%d]", i)
-			if err := rejectNullFields(stub, stubName, "id", "profile", "priority", "when", "then", "expect"); err != nil {
+			stubFields := []string{"id", "profile", "priority", "when", "then", "expect"}
+			if err := rejectUnexpectedFields(stub, stubName, stubFields...); err != nil {
+				return err
+			}
+			if err := rejectNullFields(stub, stubName, stubFields...); err != nil {
 				return err
 			}
 			when, exists := stub["when"]
@@ -190,11 +214,16 @@ func validateDocument(document []byte, cfg *Config) error {
 				return err
 			}
 			if expect, exists := stub["expect"]; exists {
-				expectObject, err := object(expect, fmt.Sprintf("stubs[%d].expect", i))
+				expectName := fmt.Sprintf("stubs[%d].expect", i)
+				expectObject, err := object(expect, expectName)
 				if err != nil {
 					return err
 				}
-				if err := rejectNullFields(expectObject, fmt.Sprintf("stubs[%d].expect", i), "exactly", "atLeast", "atMost"); err != nil {
+				expectFields := []string{"exactly", "atLeast", "atMost"}
+				if err := rejectUnexpectedFields(expectObject, expectName, expectFields...); err != nil {
+					return err
+				}
+				if err := rejectNullFields(expectObject, expectName, expectFields...); err != nil {
 					return err
 				}
 			}
@@ -323,7 +352,11 @@ func validateModels(models []ModelConfig) error {
 
 func validateWhenDocument(when map[string]json.RawMessage, index int) error {
 	name := fmt.Sprintf("stubs[%d].when", index)
-	if err := rejectNullFields(when, name, "operation", "model", "state", "questions"); err != nil {
+	whenFields := []string{"operation", "model", "state", "questions"}
+	if err := rejectUnexpectedFields(when, name, whenFields...); err != nil {
+		return err
+	}
+	if err := rejectNullFields(when, name, whenFields...); err != nil {
 		return err
 	}
 	if questions, exists := when["questions"]; exists {
@@ -331,8 +364,8 @@ func validateWhenDocument(when map[string]json.RawMessage, index int) error {
 		if err != nil {
 			return err
 		}
-		for question, kind := range questionObject {
-			if err := rejectNullFields(map[string]json.RawMessage{"value": kind}, name+".questions."+question, "value"); err != nil {
+		for _, question := range sortedKeys(questionObject) {
+			if err := rejectNullFields(map[string]json.RawMessage{"value": questionObject[question]}, name+".questions."+question, "value"); err != nil {
 				return err
 			}
 		}
@@ -342,12 +375,19 @@ func validateWhenDocument(when map[string]json.RawMessage, index int) error {
 
 func validateThenDocument(then map[string]json.RawMessage, index int) error {
 	name := fmt.Sprintf("stubs[%d].then", index)
-	if err := rejectNullFields(then, name, "answers", "sequence", "raw", "model", "usage"); err != nil {
+	thenFields := []string{"answers", "sequence", "raw", "model", "usage"}
+	if err := rejectUnexpectedFields(then, name, thenFields...); err != nil {
+		return err
+	}
+	if err := rejectNullFields(then, name, thenFields...); err != nil {
 		return err
 	}
 	if raw, exists := then["raw"]; exists {
 		rawObject, err := object(raw, name+".raw")
 		if err != nil {
+			return err
+		}
+		if err := rejectUnexpectedFields(rawObject, name+".raw", "status", "headers", "body"); err != nil {
 			return err
 		}
 		if err := rejectNullFields(rawObject, name+".raw", "status", "headers"); err != nil {
@@ -378,12 +418,19 @@ func validateResponseDocument(raw json.RawMessage, name string) error {
 	if err != nil {
 		return err
 	}
-	if err := rejectNullFields(response, name, "answers", "raw", "model", "usage"); err != nil {
+	responseFields := []string{"answers", "raw", "model", "usage"}
+	if err := rejectUnexpectedFields(response, name, responseFields...); err != nil {
+		return err
+	}
+	if err := rejectNullFields(response, name, responseFields...); err != nil {
 		return err
 	}
 	if rawResponse, exists := response["raw"]; exists {
 		rawObject, err := object(rawResponse, name+".raw")
 		if err != nil {
+			return err
+		}
+		if err := rejectUnexpectedFields(rawObject, name+".raw", "status", "headers", "body"); err != nil {
 			return err
 		}
 		if err := rejectNullFields(rawObject, name+".raw", "status", "headers"); err != nil {
@@ -403,12 +450,16 @@ func validateUsageDocument(raw json.RawMessage, name string) error {
 	if err != nil {
 		return err
 	}
-	for _, field := range []string{"input_tokens", "output_tokens"} {
+	usageFields := []string{"input_tokens", "output_tokens"}
+	if err := rejectUnexpectedFields(usage, name, usageFields...); err != nil {
+		return err
+	}
+	for _, field := range usageFields {
 		if _, exists := usage[field]; !exists {
 			return fmt.Errorf("%s.%s is required", name, field)
 		}
 	}
-	if err := rejectNullFields(usage, name, "input_tokens", "output_tokens"); err != nil {
+	if err := rejectNullFields(usage, name, usageFields...); err != nil {
 		return err
 	}
 	return nil
@@ -431,7 +482,8 @@ func validateWhen(when WhenConfig) error {
 		if len(when.Questions) == 0 {
 			return fmt.Errorf("questions must not be empty")
 		}
-		for name, kind := range when.Questions {
+		for _, name := range sortedKeys(when.Questions) {
+			kind := when.Questions[name]
 			if name == "" {
 				return fmt.Errorf("question names must be non-empty")
 			}
@@ -556,6 +608,28 @@ func validateExpect(expect *ExpectConfig) error {
 	}
 	if expect.AtLeast != nil && expect.AtMost != nil && *expect.AtLeast > *expect.AtMost {
 		return fmt.Errorf("atLeast must be less than or equal to atMost")
+	}
+	return nil
+}
+
+// rejectUnexpectedFields enforces the exact-key half of specification §12.3 on
+// one project-owned schema object: a key that is not spelled exactly like a
+// known field is an unknown key and fails validation. encoding/json matches
+// object keys to struct fields case-insensitively, so DisallowUnknownFields
+// alone accepts a key that differs from a field name only in case, writes the
+// field with it, and leaves the decoded configuration disagreeing with the raw
+// document that validateDocument reads. The walk stops at the intentionally open
+// containers of §38.8 (raw bodies, state, answers, question names, header names),
+// so their content is never compared against project-owned field names.
+func rejectUnexpectedFields(value map[string]json.RawMessage, name string, fields ...string) error {
+	known := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		known[field] = struct{}{}
+	}
+	for _, key := range sortedKeys(value) {
+		if _, isKnown := known[key]; !isKnown {
+			return fmt.Errorf("%s.%s is not a known field", name, key)
+		}
 	}
 	return nil
 }
