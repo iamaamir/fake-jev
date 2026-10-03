@@ -2,10 +2,10 @@
   "id": "FJ-051",
   "title": "Phase 4: LICENSE repository artifact",
   "phase": "phase-4",
-  "objective": "Complete the §17 v1 repository layout entry for LICENSE so the repository carries an explicit license before a public release. The §17 layout tree is SHOULD-level and the specification names no SPDX identifier, so the license identity is an owner decision that must be recorded before the file lands.",
-  "status": "planned",
+  "objective": "Complete the \u00a717 v1 repository layout entry for LICENSE so the repository carries an explicit license before a public release. The \u00a717 layout tree is SHOULD-level and the specification names no SPDX identifier, so the license identity is an owner decision that must be recorded before the file lands.",
+  "status": "complete",
   "specReferences": [
-    "§17 Go implementation architecture (v1 repository layout)"
+    "\u00a717 Go implementation architecture (v1 repository layout)"
   ],
   "relevantFiles": [
     "spec/fake-jev-technical-spec-v2.md"
@@ -14,7 +14,7 @@
     "LICENSE"
   ],
   "acceptance": [
-    "LICENSE exists at the repository root matching the §17 layout entry",
+    "LICENSE exists at the repository root matching the \u00a717 layout entry",
     "the chosen license identity is an owner decision recorded in this item's notes before the file lands",
     "candidate-fingerprint classifies LICENSE as metadata (entry added when this item was opened)",
     "a selftest scenario asserting LICENSE classifies as metadata lands once the in-flight selftest reformat is merged",
@@ -26,16 +26,30 @@
   ],
   "verificationCommands": [],
   "lastVerification": null,
-  "blockers": [
-    {
-      "type": "needs-human",
-      "description": "license choice (SPDX id) is not specified anywhere in spec/fake-jev-technical-spec-v2.md; the owner must decide before implementation"
-    }
-  ],
-  "nextAction": "owner chooses the SPDX identifier, then implement in phase 4",
+  "blockers": [],
+  "nextAction": "none; LICENSE is in place. The deferred selftest scenario is owned by FJ-063.",
   "notes": [
     "Opened with a one-line candidate-fingerprint extension (METADATA_FILES gains \"LICENSE\") because classification fails closed on unknown paths by design.",
-    "Normative strength recorded honestly: §17 says the v1 layout SHOULD start as given; the LICENSE gap is layout completion plus release hygiene, not a MUST."
+    "Normative strength recorded honestly: \u00a717 says the v1 layout SHOULD start as given; the LICENSE gap is layout completion plus release hygiene, not a MUST.",
+    "OWNER DECISION 2026-10-03: the license is MIT. The owner's stated requirement was verbatim 'anyone can use and fork but they should not be able to distribute without giving me credit'. MIT satisfies this through its notice-retention condition: the copyright and permission notice must be included in all copies or substantial portions of the Software, so a distributor cannot ship the Software without carrying the credit. The owner was told explicitly, and accepted, that MIT does NOT compel user-visible credit (no license plate, UI notice or marketing attribution); no mainstream OSI-approved permissive license does, and only strong copyleft (GPL/AGPL) or file-level copyleft (MPL-2.0) imposes more, which the owner did not ask for.",
+    "Second opinion recorded: system_one was consulted on the bounded choice (MIT vs BSD-3-Clause vs Apache-2.0) given the owner's stated requirement, the section 24 distribution channels (native binaries, Docker image, planned npm package, Homebrew, thin GitHub Action), the existing package.json license MIT declaration and the goal of broad adoption. It chose MIT at confidence 0.98 (BSD-3-Clause 0.01, Apache-2.0 0.01).",
+    "Consistency note: package.json already declares license MIT (added with the FJ-042 npm package stub), so the choice needs no npm-side correction. package.json is deliberately NOT in this item's allowedFiles and is not edited.",
+    "FINGERPRINT NOTE: unlike .agent/** evidence, adding LICENSE DOES change the candidate fingerprint (measured: 80852a3b20015001679e3171fe0271619845cf02203b70f2cb59470b976af21c before, bbf0d837d6c1bcad37b2de139630fb57e489e597386f8d6f43e54aeb52ad2c5a after writing a placeholder). The candidate fingerprint hashes workspace content generally; the product/metadata classification governs task fingerprints and stage policy, not candidate hashing. The stage chain must therefore bind the post-LICENSE fingerprint, and every stage artifact records it explicitly.",
+    "ACCEPTANCE SPLIT 2026-10-03: acceptance criterion 4 (a selftest scenario asserting LICENSE classifies as metadata) cannot be met inside allowedFiles [LICENSE] because the scenario lives in scripts/selftest. Per the owner's standing preference the unmet work is split into a dedicated follow-up ticket (FJ-063) with this audit trail rather than widening allowedFiles. Criteria 1, 2, 3 and 5 are met here.",
+    "Copyright holder string: the LICENSE names the holder as 'iamaamir' (the repository owner, matching the git author and the github.com/iamaamir/fake-jev remote). If the owner prefers a legal name or entity in the copyright line, that is a one-line change to LICENSE and a re-run of the stage chain."
   ],
-  "statusHistory": ["planned"]
+  "statusHistory": [
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ],
+  "stage": "qa",
+  "baseRevision": "53463e2",
+  "attempts": 1,
+  "assignedRole": "specifier",
+  "leaseOwner": null,
+  "candidateRevision": null
 }
