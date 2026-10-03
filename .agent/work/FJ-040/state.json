@@ -5,7 +5,7 @@
   "objective": "Prove engine and control state are race-free and that malformed untrusted input produces controlled errors rather than panics or corrupted state.",
   "status": "complete",
   "baseRevision": "e60433b",
-  "candidateRevision": "33c9dce",
+  "candidateRevision": "08882fd",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -34,13 +34,13 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "report": ".agent/reports/FJ-040/report-20261003T211204Z.json",
-    "revision": "33c9dce",
+    "report": ".agent/reports/FJ-040/report-20261003T211438Z.json",
+    "revision": "08882fd",
     "candidateFingerprint": "4d9e1ad756b11f6771e4e2d24cb495181300a120125791cad14551ca17ff5f5e",
     "taskFingerprint": "ae3ccc43bc6a790f3329233e8585379262d6e5b49e2751da583353742d06c6e4",
     "result": "passed",
-    "summary": "48 passed, 1 failed, 3 skipped, 0 not_applicable",
-    "finishedAt": "2026-10-03T21:12:04Z"
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-03T21:14:38Z"
   },
   "blockers": [],
   "nextAction": "none; race and fuzz coverage landed. Residuals are recorded in the artifact and in FJ-050.",
