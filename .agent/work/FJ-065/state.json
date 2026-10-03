@@ -3,11 +3,11 @@
   "title": "Bound the duplicate-key diagnostic so a small request cannot produce a huge error response",
   "phase": "phase-4",
   "objective": "Bound the yaml.v3 duplicate-key diagnostic that configuration error messages echo, so a small request cannot cause quadratic work or an outsized response. Today a control-plane createStub body repeating one JSON key is answered with an error message containing one diagnostic line per repeated-key pair, so response size grows quadratically with a tiny input.",
-  "status": "planned",
-  "baseRevision": null,
+  "status": "complete",
+  "baseRevision": "c70d55b",
   "candidateRevision": null,
-  "assignedRole": null,
-  "attempts": 0,
+  "assignedRole": "specifier",
+  "attempts": 1,
   "specReferences": [
     "\u00a719 security model and resource bounds",
     "\u00a719.4 enforced default limits",
@@ -45,15 +45,22 @@
   "lastVerification": null,
   "blockers": [],
   "leaseOwner": null,
-  "nextAction": "bound the duplicate-key diagnostic list in internal/config and confirm the control-plane response is bounded and no longer quadratic",
+  "nextAction": "none; FJ-040 resumes its hardener and qa stages against this candidate, then closes.",
   "notes": [
     "Opened 2026-10-03 by PM. Found by the FJ-040 QA stage, then independently reproduced by the PM against a real server built from the merged candidate 2635bbb63e124799a34bda79d1607949b8f20590d90d5d038268da5091dd5fc4. Request body is a JSON object repeating one key N times, POSTed to /__fake/v1/stubs; measured request bytes -> response bytes: 40 -> 274; 640 -> 111,424 (174x); 4,000 -> 4,525,960 (1,131x); 16,000 -> 72,823,360 (4,551x). HTTP status is 400 in every case, so this is not a status bug: it is error-message amplification. A 16 KiB request produces a 72.8 MB response.",
     "Root cause is the same class already measured from the other side by FJ-040's hardener: toJSON routes a JSON document its own scan rejects to the YAML decoder, and yaml.v3 emits one duplicate-key diagnostic per repeated-key pair inside a mapping, so both cost and message size are O(N^2). The hardener bounded this TEST-side in internal/config/fuzz_test.go (configFuzzMaxMappingKeys = 256) after measuring 38 KiB -> 3.14 s and 8.57 GB of allocation, which treated the symptom in the fuzzer rather than the cause in the product. This item fixes the product; when it lands, FJ-040's test-side bound should be reconsidered rather than left as the only protection.",
     "Evidence that this is reachable and not merely a fuzzer curiosity: FJ-040's control fuzz target asserts a 64 KiB response bound and FAILS on this input, which makes the guard fuzz row corpus-dependent - it passes only because a 30s window does not construct the input. That is the FJ-060 class of flakiness (a fuzz target that can fail on realistic input) layered on a real defect, and it is why FJ-040 was parked rather than closed.",
     "Authority note recorded honestly: the specification sets no control-plane RESPONSE size limit, and the 64 KiB bound the fuzz target asserts is FJ-040's own robustness criterion rather than a spec clause. This item therefore must not be justified as enforcing a spec limit; it is justified as removing a quadratic resource amplification reachable from untrusted input, which section 19's resource-bound posture and the 'controlled error' notion in C-QUAL-004 both support. The bounded message must stay a useful diagnostic rather than becoming a generic failure.",
-    "FJ-040 is parked at status blocked with blocker type dependency trackedBy FJ-065."
+    "FJ-040 is parked at status blocked with blocker type dependency trackedBy FJ-065.",
+    "PM RULING ON THE RESIDUAL 2026-10-03: FJ-065 accepts and closes with the yaml.v3 quadratic decode cost for YAML INPUT recorded rather than fixed. The PM ruling issued before implementation was that FJ-065 removes the amplification we own (bounded reported diagnostic, allocation not growing with N, and no delegation to yaml.v3 on the JSON path) and is NOT required to make yaml.v3's internal duplicate-key comparison linear; third-party surgery and an out-of-scope document size cap were both excluded. QA quantified the residual honestly: the YAML FILE path's time is unbounded in shape (0.0038 s to 16.94 s with doubling steps rising 1.5x to 5.9x, peak RSS 169 MB to 7.36 GB for 11.7 KB to 104 KB inputs), while the reported message stays bounded (137-154 bytes) and the JSON path is flat. Severity is limited because the YAML file path is reached from operator-supplied configuration (validate, serve --config), not from the untrusted control route, which is JSON. Recorded for the backlog; a YAML document-size cap would need its own decision because the spec sets no configuration size limit and the FJ-030 unbounded-read gap is the nearest tracked item. Also recorded: the worst-case control response is about 1.75x a legal 2 MiB control body (2,000,011 B request to 3,500,105 B response, reproduced independently by QA using a non-printable two-byte rune), which is not amplification but has no absolute cap."
   ],
   "statusHistory": [
-    "planned"
-  ]
+    "planned",
+    "ready",
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
+  ],
+  "stage": "qa"
 }

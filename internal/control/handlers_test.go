@@ -1179,3 +1179,33 @@ func TestEngineExchangeMetadataSurvivesTransition(t *testing.T) {
 		t.Fatalf("caller mutation leaked into stored record: %#v", metadata)
 	}
 }
+
+// TestControlRepeatedJSONKeyResponseStaysBounded pins that a control request of
+// at most 16 KiB that repeats one JSON key is answered with one bounded §41.1
+// error naming the repeated key. The pre-FJ-065 behaviour was one diagnostic per
+// repeated-key pair, so this response grew quadratically with the repetition
+// count.
+func TestControlRepeatedJSONKeyResponseStaysBounded(t *testing.T) {
+	const wantBody = `{"error":"fake_jev_bad_control_request","message":"decode JSON configuration: duplicate object key \"id\""}`
+	for _, count := range []int{2, 16, 1600} {
+		keys := make([]string, count)
+		for i := range keys {
+			keys[i] = fmt.Sprintf(`"id":%d`, i)
+		}
+		body := "{" + strings.Join(keys, ",") + "}"
+		if len(body) > 16*1024 {
+			t.Fatalf("test request for %d repeated keys is %d bytes, above the 16 KiB acceptance bound", count, len(body))
+		}
+		api := testAPI(t)
+		got := request(t, api, http.MethodPost, "/__fake/v1/stubs", body)
+		if got.Code != http.StatusBadRequest || got.Body.String() != wantBody {
+			t.Fatalf("repeated keys=%d: response = %d %s, want 400 %s", count, got.Code, got.Body, wantBody)
+		}
+		if got.Header().Get("Content-Type") != "application/json" {
+			t.Fatalf("repeated keys=%d: content type = %q", count, got.Header().Get("Content-Type"))
+		}
+		if len(api.engine.Registry.Stubs()) != 0 || len(api.engine.Interactions()) != 0 {
+			t.Fatal("rejected control request mutated engine")
+		}
+	}
+}

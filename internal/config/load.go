@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -70,8 +71,18 @@ func toJSON(data []byte) ([]byte, error) {
 		return nil, errors.New("configuration is empty")
 	}
 	if trimmed[0] == '{' || trimmed[0] == '[' {
-		if err := rejectDuplicateJSON(trimmed); err == nil {
+		err := rejectDuplicateJSON(trimmed)
+		if err == nil {
 			return trimmed, nil
+		}
+		var duplicate *duplicateKeyError
+		if errors.As(err, &duplicate) {
+			// The scan parsed this document as JSON and found the repeated key,
+			// so the diagnostic is already complete, linear, and in document
+			// order. Handing the same document to yaml.v3 instead would answer
+			// with one diagnostic for every repeated-key pair, which costs
+			// quadratic time and memory in the repetition count.
+			return nil, err
 		}
 		// YAML flow mappings and sequences may begin with the same delimiters as
 		// JSON. Fall through so valid YAML is not rejected merely because it uses
@@ -79,7 +90,7 @@ func toJSON(data []byte) ([]byte, error) {
 	}
 	value, err := decodeYAML(trimmed)
 	if err != nil {
-		return nil, fmt.Errorf("decode YAML configuration: %w", err)
+		return nil, fmt.Errorf("decode YAML configuration: %w", boundDuplicateKeyDiagnostics(err))
 	}
 	value, err = normalizeYAMLValue(value)
 	if err != nil {
@@ -120,6 +131,54 @@ func rejectDuplicateJSON(data []byte) error {
 	return nil
 }
 
+// duplicateKeyError reports the first object key that the JSON scan found
+// repeated while walking a document in token order.
+type duplicateKeyError struct{ key string }
+
+func (e *duplicateKeyError) Error() string { return fmt.Sprintf("duplicate object key %q", e.key) }
+
+// yamlDuplicateKeyDiagnostic reports whether one yaml.v3 diagnostic is the
+// "mapping key already defined" line. The two markers are the wording of the
+// pinned dependency (gopkg.in/yaml.v3 v3.0.1, decode.go:776 in decoder.mapping),
+// and no other yaml.v3 diagnostic contains the second one. yaml.v3 exposes its
+// diagnostics only as formatted strings (yaml.TypeError.Errors is []string), so
+// this filter has to match wording: TestYAMLDuplicateKeyDiagnosticMarkerPinsDecoderWording
+// pins that wording and TestLoadFileBoundsRepeatedYAMLKeyDiagnostic fails if the
+// bound stops applying to a reworded diagnostic.
+func yamlDuplicateKeyDiagnostic(diagnostic string) bool {
+	return strings.HasPrefix(diagnostic, "line ") && strings.Contains(diagnostic, " already defined at line ")
+}
+
+// boundDuplicateKeyDiagnostics keeps the first yaml.v3 duplicate-mapping-key
+// diagnostic and drops the remaining ones. yaml.v3 emits one diagnostic per
+// repeated-key pair, so a document that repeats one key N times is reported
+// with N*(N-1)/2 lines that all name the same key; keeping one of them bounds
+// the message independently of N without hiding any other diagnostic. The kept
+// line is the first one yaml.v3 produced, which its document-order pair scan
+// makes a function of the document alone.
+func boundDuplicateKeyDiagnostics(err error) error {
+	var typeError *yaml.TypeError
+	if !errors.As(err, &typeError) {
+		return err
+	}
+	kept := typeError.Errors[:0]
+	found := false
+	for _, diagnostic := range typeError.Errors {
+		if yamlDuplicateKeyDiagnostic(diagnostic) {
+			if found {
+				continue
+			}
+			found = true
+		}
+		kept = append(kept, diagnostic)
+	}
+	if !found {
+		return err
+	}
+	typeError.Errors = kept
+	return typeError
+}
+
 func scanJSONValue(decoder *json.Decoder) error {
 	token, err := decoder.Token()
 	if err != nil {
@@ -142,7 +201,7 @@ func scanJSONValue(decoder *json.Decoder) error {
 				return fmt.Errorf("object key is not a string")
 			}
 			if _, exists := seen[name]; exists {
-				return fmt.Errorf("duplicate object key %q", name)
+				return &duplicateKeyError{key: name}
 			}
 			seen[name] = struct{}{}
 			if err := scanJSONValue(decoder); err != nil {
