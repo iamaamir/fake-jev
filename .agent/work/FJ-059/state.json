@@ -3,9 +3,9 @@
   "title": "Phase 3: static jev/v1 fixture validation for `fake-jev validate`",
   "phase": "phase-3",
   "objective": "Implement the statically provable jev/v1 fixture-data consistency checks required by specification \u00a715.2, so that `fake-jev validate` validates all enabled profile-specific fixture data and performs all statically possible consistency checks, without starting a server or making any network request.",
-  "status": "implementing",
+  "status": "complete",
   "baseRevision": "26c104f",
-  "candidateRevision": null,
+  "candidateRevision": "13f195f",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -35,22 +35,34 @@
     "no new wire-visible behavior"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-059/report-20261003T065931Z.json",
+    "revision": "13f195f",
+    "candidateFingerprint": "80852a3b20015001679e3171fe0271619845cf02203b70f2cb59470b976af21c",
+    "taskFingerprint": "879b10dee885044f7a81eed718e8b111e040775d016d6fa1c2bb8575fdbcd179",
+    "result": "passed",
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-03T06:59:31Z"
+  },
   "blockers": [],
-  "leaseOwner": "pm-fj059-pickup",
-  "nextAction": "run fresh specifier, coder, cleaner, hardener, and QA stages",
+  "leaseOwner": null,
+  "nextAction": "merge FJ-059 into main and re-verify the combined state",
   "notes": [
     "Opened 2026-09-29 by PM as the explicit owner of the clause in C-CLI-005 and \u00a715.2 that FJ-030 could not satisfy inside its allowedFiles.",
     "G1: inner jev/v1 then.answers payloads are not validated at load time today; probability ranges, finite values, and maps summing to 1.0 within 1e-6 are only enforced later in internal/compat/jev/v1/fixture.go at response-generation time.",
     "G2: the stub's when.questions key set is not cross-checked against then.answers keys, although both are statically known from the configuration file.",
     "Design constraint: internal/config is provider-neutral and must not import internal/compat/jev/v1 (enforced by cmd/guard arch); the static validator belongs in the compat layer and must be invoked from the CLI composition root.",
     "Not statically decidable: choice/score criterion key-set equality, because criteria come from the incoming client request, not from the configuration.",
-    "PM note 2026-10-02: the static validator must live in the compat layer (internal/config is provider-neutral and cmd/guard arch forbids it importing internal/compat/jev/v1) and be invoked from the CLI composition root. Do not change config.Load strictness for serve; validate may legitimately be stricter than the load path. Choice/score criterion key-set equality is not statically decidable because criteria come from the request, so only the statically provable subset is in scope."
+    "PM note 2026-10-02: the static validator must live in the compat layer (internal/config is provider-neutral and cmd/guard arch forbids it importing internal/compat/jev/v1) and be invoked from the CLI composition root. Do not change config.Load strictness for serve; validate may legitimately be stricter than the load path. Choice/score criterion key-set equality is not statically decidable because criteria come from the request, so only the statically provable subset is in scope.",
+    "PM close-out 2026-10-03: the first verify-candidate attempts after the stage chain timed out at 30-40 minutes. Investigated and found two separate environmental causes, neither a product defect. (1) Four orphaned 'fake-jev serve' processes leaked from earlier /tmp QA probes (oldest 4h48m) and were killed. (2) Go build-cache entries were corrupted, matching the failure mode FJ-060's specifier recorded after running the low-ulimit fuzz probes; 'go clean -cache' plus one full rebuild took ~22 minutes, after which every package ran at normal speed (internal/cli 20.7s, test/integration 1.5s). With a warm cache verify-candidate completes in about 5 minutes. Recorded so a future agent does not misdiagnose this as a test hang: check for orphaned serve processes and cache corruption before suspecting the test suite."
   ],
   "statusHistory": [
     "planned",
     "ready",
-    "implementing"
+    "implementing",
+    "verifying",
+    "review",
+    "complete"
   ],
-  "stage": "specifier"
+  "stage": "qa"
 }
