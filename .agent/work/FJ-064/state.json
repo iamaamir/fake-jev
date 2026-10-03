@@ -5,7 +5,7 @@
   "objective": "Make config.Load fail closed on JSON object keys that the decoder resolves ambiguously (a key differing only in case from a known key silently overwrites the decoded field), and make its diagnostics deterministic for YAML input with non-string keys, so Load can never return a configuration that its own Validate rejects and identical input always yields an identical error message.",
   "status": "complete",
   "baseRevision": "e60433b",
-  "candidateRevision": null,
+  "candidateRevision": "6407e83",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -37,7 +37,15 @@
     "no change to behaviour outside internal/config"
   ],
   "verificationCommands": [],
-  "lastVerification": null,
+  "lastVerification": {
+    "report": ".agent/reports/FJ-064/report-20261003T143629Z.json",
+    "revision": "6407e83",
+    "candidateFingerprint": "f6dfb54c6debeda144bf07f521f013c381ef84fa812e6bc63756863113ec56d1",
+    "taskFingerprint": "71aa852bd544dfae210d4e52273e9036c9347ba7f7d92dacc4586a9c9da6e42a",
+    "result": "passed",
+    "summary": "48 passed, 1 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-03T14:36:29Z"
+  },
   "blockers": [],
   "leaseOwner": null,
   "nextAction": "none; FJ-040 resumes its hardener and qa stages against this candidate, then closes.",
