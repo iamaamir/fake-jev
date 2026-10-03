@@ -1,0 +1,55 @@
+{
+  "id": "FJ-064",
+  "title": "config.Load fail-open on case-variant duplicate keys, and non-deterministic YAML diagnostics",
+  "phase": "phase-4",
+  "objective": "Make config.Load fail closed on JSON object keys that the decoder resolves ambiguously (a key differing only in case from a known key silently overwrites the decoded field), and make its diagnostics deterministic for YAML input with non-string keys, so Load can never return a configuration that its own Validate rejects and identical input always yields an identical error message.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a712.3 configuration schema and unknown-key rejection",
+    "spec line 143 (tests must be deterministic and reproducible)",
+    "\u00a738 normative configuration contract"
+  ],
+  "relevantFiles": [
+    "spec/fake-jev-technical-spec-v2.md",
+    "internal/config/load.go",
+    "internal/config/validate.go",
+    ".agent/work/FJ-040/cleaner.md"
+  ],
+  "allowedFiles": [
+    "internal/config/"
+  ],
+  "acceptance": [
+    "config.Load NEVER returns a non-nil *Config together with a nil error when that Config would fail config.Validate",
+    "a JSON configuration containing both schemaVersion and a case-variant of it (for example sChemAVErsion) is rejected with a non-nil error instead of loading with a silently overwritten value",
+    "the same guarantee holds for case-variant collisions on other known top-level keys, not only schemaVersion",
+    "identical input always produces an identical diagnostic message, including YAML documents with non-string object keys",
+    "every configuration that loads successfully today on unambiguous input still loads with identical results",
+    "./scripts/verify-candidate exits 0, and the config fuzz target added by FJ-040 (internal/config/fuzz_test.go) passes once FJ-040 resumes"
+  ],
+  "nonGoals": [
+    "no new dependency",
+    "no change to the public configuration schema or to any accepted input that is currently unambiguous",
+    "no configuration-file size or parse-complexity limit: the unbounded configuration-file read recorded after FJ-030 is a separate gap and is explicitly NOT fixed here",
+    "no change to behaviour outside internal/config"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "reject decoder-ambiguous duplicate keys so Load fails closed, make the non-string-key diagnostic deterministic, and add a regression test for each",
+  "notes": [
+    "Opened 2026-10-03 by PM from defects found by FJ-040's own config fuzz target (internal/config/fuzz_test.go, internal/config/load.go). Discovered by the FJ-040 coder and cleaner stages; both reproductions were then confirmed independently by the PM. Neither is fixed inside FJ-040 because internal/config is outside FJ-040 allowedFiles, which cover only the four new test files.",
+    "F1 reproduction, 37 bytes: config.Load([]byte('{\"schemaVersion\":1,\"sChemAVErsion\":0}')) returns cfg with a nil error and cfg.SchemaVersion == 0, and config.Validate(cfg) then reports 'schemaVersion must equal 1'. The same holds for SCHEMAVERSION. PM-confirmed independently. Mechanism: encoding/json matches object keys to struct fields case-insensitively, so the second key overwrites the decoded Config.SchemaVersion, while validateDocument inspects the raw document by exact key (root[\"schemaVersion\"] == 1) and validateValues never re-checks cfg.SchemaVersion. rejectDuplicateJSON in load.go catches exact duplicate keys only, so a case-variant pair passes it. Effect reachable from untrusted input: a document violating the schemaVersion contract loads with a nil error, and readers such as the control API /meta configSchemaVersion observe 0. This is a fail-open violation of the project rule that strict behaviour must fail closed, and it is the same class as unknown keys, which spec 12.3 says MUST fail validation.",
+    "F2 reproduction, 6 bytes: 300 calls of config.Load([]byte('{07,2}')) produced 175 and 50 of two different diagnostics across runs (PM measurement: 250x 'convert YAML configuration: object key 7 is not a string' and 50x '... object key 2 is not a string'). Mechanism: normalizeYAMLValue ranges over a map[any]any and reports the first non-string key it encounters, and Go map iteration order is randomised. Spec line 143 makes determinism a project principle, so a diagnostic that varies between identical calls is a defect; the FJ-040 fuzz target detected it via an assertion that identical calls yield identical diagnostics.",
+    "FJ-040 is parked at status blocked with blocker type dependency trackedBy FJ-064. FJ-040's coder produced candidate 525ee08845fbb909 (four new test files, chain specifier in=out=8c80ab29, coder in=8c80ab29 out=525ee08845fb, cleaner in=out=525ee08845fb) and its cleaner made no change. FJ-040 cannot land green until this item is fixed, because its config fuzz target asserts exactly these two properties, so guard fuzz would exit non-zero and ./scripts/verify-candidate would fail.",
+    "Choosing a fix: the PM deliberately does not prescribe the mechanism. Two candidate approaches are a case-insensitive collision check in the duplicate scan (since encoding/json resolves keys case-insensitively, any case-insensitive collision is a genuine ambiguity) or a post-decode consistency check that the decoded value matches the raw document. The specifier and coder should choose, justify, and cover OTHER known top-level keys rather than special-casing schemaVersion, because the same silent-overwrite mechanism applies to mode, server, limits and the rest.",
+    "Deliberately out of scope and NOT to be folded in: the unbounded configuration-file read recorded after FJ-030, and yaml.v3 anchor/alias parse-cost amplification measured by the FJ-040 cleaner (a 62,837-byte alias-using document allocating about 51.7 MB in 97 ms). If bounding those turns out to be necessary for the FJ-040 fuzz target to be reliable, that is a separate decision and a separate ticket."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
