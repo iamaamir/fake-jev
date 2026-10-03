@@ -5,7 +5,7 @@
   "objective": "Make config.Load fail closed on JSON object keys that the decoder resolves ambiguously (a key differing only in case from a known key silently overwrites the decoded field), and make its diagnostics deterministic for YAML input with non-string keys, so Load can never return a configuration that its own Validate rejects and identical input always yields an identical error message.",
   "status": "complete",
   "baseRevision": "e60433b",
-  "candidateRevision": "6407e83",
+  "candidateRevision": "3c4fcbd",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -38,13 +38,13 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "report": ".agent/reports/FJ-064/report-20261003T143629Z.json",
-    "revision": "6407e83",
+    "report": ".agent/reports/FJ-064/report-20261003T143728Z.json",
+    "revision": "3c4fcbd",
     "candidateFingerprint": "f6dfb54c6debeda144bf07f521f013c381ef84fa812e6bc63756863113ec56d1",
     "taskFingerprint": "71aa852bd544dfae210d4e52273e9036c9347ba7f7d92dacc4586a9c9da6e42a",
     "result": "passed",
-    "summary": "48 passed, 1 failed, 3 skipped, 0 not_applicable",
-    "finishedAt": "2026-10-03T14:36:29Z"
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-03T14:37:28Z"
   },
   "blockers": [],
   "leaseOwner": null,
