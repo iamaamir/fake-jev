@@ -1,0 +1,51 @@
+{
+  "id": "FJ-063",
+  "title": "Selftest scenario asserting LICENSE classifies as metadata",
+  "phase": "foundation",
+  "objective": "Add a scripts/selftest scenario pinning that the root LICENSE path classifies as metadata, so a future edit that drops LICENSE from candidate-fingerprint's METADATA_FILES fails the tooling suite instead of silently reclassifying the license as product content.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a717 Go implementation architecture (v1 repository layout)",
+    "the frozen design's candidate-fingerprint classification rules (product/metadata/unknown, fail-closed)"
+  ],
+  "relevantFiles": [
+    "scripts/candidate-fingerprint",
+    "scripts/selftest",
+    ".agent/work/FJ-051/state.json"
+  ],
+  "allowedFiles": [
+    "scripts/selftest"
+  ],
+  "acceptance": [
+    "a scripts/selftest scenario asserts that the root path LICENSE classifies as metadata",
+    "the scenario fails if LICENSE is removed from candidate-fingerprint's METADATA_FILES, and fails if LICENSE is reclassified as product content",
+    "./scripts/selftest reports one additional scenario and still exits 0 with 0 failed",
+    "./scripts/verify-candidate exits 0"
+  ],
+  "nonGoals": [
+    "no change to scripts/candidate-fingerprint (LICENSE was already added to METADATA_FILES when FJ-051 was opened)",
+    "no change to LICENSE or to any other product file",
+    "no weakening of any existing selftest assertion",
+    "no new dependency"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "add the metadata-classification scenario to scripts/selftest and prove it fails when LICENSE is dropped from METADATA_FILES",
+  "notes": [
+    "Opened 2026-10-03 by PM as the audited split of FJ-051 acceptance criterion 4: 'a selftest scenario asserting LICENSE classifies as metadata lands once the in-flight selftest reformat is merged'. That reformat (FJ-061) has since merged, so the criterion became actionable, but the scenario lives in scripts/selftest while FJ-051's allowedFiles is exactly [LICENSE]. Per the owner's standing preference (2026-09-30) the unmet criterion was split into this dedicated ticket with an audit trail rather than widening FJ-051's allowedFiles.",
+    "FJ-051 met criteria 1, 2, 3 and 5; criterion 4 is owned here.",
+    "Coverage context: scripts/selftest already exercises candidate-fingerprint determinism, evidence-dir exclusion, canonical-form recomputation, tracked-dirty content and task-fingerprint classification for .agent/work and docs paths, but no scenario pins the classification of a root-level METADATA_FILES entry such as LICENSE, README.md or Dockerfile. Without this scenario, deleting LICENSE from METADATA_FILES would make the license classify as product content, which would change candidate fingerprints for every future candidate and stale stage artifacts, with nothing in the suite objecting.",
+    "Candidate-fingerprint already classifies LICENSE as metadata: METADATA_FILES gained LICENSE when FJ-051 was opened, and 'candidate-fingerprint task .agent/work/FJ-051/state.json' reports class metadata with requiredStages specifier,coder,cleaner,qa derived from that class.",
+    "Measured behaviour to preserve: unlike .agent/** evidence, adding or changing LICENSE DOES change the candidate fingerprint (80852a3b20015001679e3171fe0271619845cf02203b70f2cb59470b976af21c before FJ-051's LICENSE, 8c80ab298a252de531dbf9f61a0f67e866fdf5e091cbf8fb80d272d988305c29 after). The metadata class governs task fingerprints and stage policy, not candidate hashing, so a scenario must not assert that LICENSE is excluded from the candidate fingerprint.",
+    "Test 75 of 75 scenarios currently pass; this ticket is expected to make it 76."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
