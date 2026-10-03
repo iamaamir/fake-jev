@@ -5,7 +5,7 @@
   "objective": "Bound the yaml.v3 duplicate-key diagnostic that configuration error messages echo, so a small request cannot cause quadratic work or an outsized response. Today a control-plane createStub body repeating one JSON key is answered with an error message containing one diagnostic line per repeated-key pair, so response size grows quadratically with a tiny input.",
   "status": "complete",
   "baseRevision": "c70d55b",
-  "candidateRevision": "9315ba3",
+  "candidateRevision": "6360d4d",
   "assignedRole": "specifier",
   "attempts": 1,
   "specReferences": [
@@ -43,13 +43,13 @@
   ],
   "verificationCommands": [],
   "lastVerification": {
-    "report": ".agent/reports/FJ-065/report-20261003T185305Z.json",
-    "revision": "9315ba3",
+    "report": ".agent/reports/FJ-065/report-20261003T185404Z.json",
+    "revision": "6360d4d",
     "candidateFingerprint": "645887fd92010e90db08b55ca75104a56a43c67d918038b463184a968a75d5f4",
     "taskFingerprint": "ee28135d80573ff713fda4993a1571871f25f3ac6424a2b7e361c32336ad06ea",
     "result": "passed",
-    "summary": "48 passed, 1 failed, 3 skipped, 0 not_applicable",
-    "finishedAt": "2026-10-03T18:53:05Z"
+    "summary": "49 passed, 0 failed, 3 skipped, 0 not_applicable",
+    "finishedAt": "2026-10-03T18:54:04Z"
   },
   "blockers": [],
   "leaseOwner": null,
