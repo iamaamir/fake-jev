@@ -1,0 +1,59 @@
+{
+  "id": "FJ-065",
+  "title": "Bound the duplicate-key diagnostic so a small request cannot produce a huge error response",
+  "phase": "phase-4",
+  "objective": "Bound the yaml.v3 duplicate-key diagnostic that configuration error messages echo, so a small request cannot cause quadratic work or an outsized response. Today a control-plane createStub body repeating one JSON key is answered with an error message containing one diagnostic line per repeated-key pair, so response size grows quadratically with a tiny input.",
+  "status": "planned",
+  "baseRevision": null,
+  "candidateRevision": null,
+  "assignedRole": null,
+  "attempts": 0,
+  "specReferences": [
+    "\u00a719 security model and resource bounds",
+    "\u00a719.4 enforced default limits",
+    "\u00a741 control API failure shape",
+    "spec line 143 (determinism)",
+    "\u00a712.3 configuration schema and unknown-key rejection"
+  ],
+  "relevantFiles": [
+    "internal/config/load.go",
+    "internal/config/validate.go",
+    "internal/control/handlers.go",
+    ".agent/work/FJ-040/qa.md",
+    ".agent/work/FJ-040/hardener.md"
+  ],
+  "allowedFiles": [
+    "internal/config/",
+    "internal/control/"
+  ],
+  "acceptance": [
+    "a control-plane request of at most 16 KiB that repeats a single JSON key any number of times is answered with a response that stays within a small fixed bound rather than growing with the repetition count",
+    "the same holds for a configuration file loaded through the validate command and through the host load path, so the quadratic work and the quadratic diagnostic are bounded wherever the document is parsed",
+    "the failure remains a well-formed documented error envelope with the same fields, error code semantics and deterministic message for identical input",
+    "the bounded message still identifies the failure and names the first offending key, so the diagnostic stays useful",
+    "response size and parse cost grow at most linearly, not quadratically, in the number of repeated keys",
+    "./scripts/verify-candidate exits 0 and FJ-040's control fuzz target passes once FJ-040 resumes"
+  ],
+  "nonGoals": [
+    "no new dependency",
+    "no change to the documented control failure shape: the error and message fields and the existing error codes stay as they are",
+    "no new public configuration key or user-visible limit setting",
+    "no change to FJ-064's fail-closed exact-key behaviour or to its determinism guarantee",
+    "no configuration file size limit: the unbounded read recorded after FJ-030 stays open and separate"
+  ],
+  "verificationCommands": [],
+  "lastVerification": null,
+  "blockers": [],
+  "leaseOwner": null,
+  "nextAction": "bound the duplicate-key diagnostic list in internal/config and confirm the control-plane response is bounded and no longer quadratic",
+  "notes": [
+    "Opened 2026-10-03 by PM. Found by the FJ-040 QA stage, then independently reproduced by the PM against a real server built from the merged candidate 2635bbb63e124799a34bda79d1607949b8f20590d90d5d038268da5091dd5fc4. Request body is a JSON object repeating one key N times, POSTed to /__fake/v1/stubs; measured request bytes -> response bytes: 40 -> 274; 640 -> 111,424 (174x); 4,000 -> 4,525,960 (1,131x); 16,000 -> 72,823,360 (4,551x). HTTP status is 400 in every case, so this is not a status bug: it is error-message amplification. A 16 KiB request produces a 72.8 MB response.",
+    "Root cause is the same class already measured from the other side by FJ-040's hardener: toJSON routes a JSON document its own scan rejects to the YAML decoder, and yaml.v3 emits one duplicate-key diagnostic per repeated-key pair inside a mapping, so both cost and message size are O(N^2). The hardener bounded this TEST-side in internal/config/fuzz_test.go (configFuzzMaxMappingKeys = 256) after measuring 38 KiB -> 3.14 s and 8.57 GB of allocation, which treated the symptom in the fuzzer rather than the cause in the product. This item fixes the product; when it lands, FJ-040's test-side bound should be reconsidered rather than left as the only protection.",
+    "Evidence that this is reachable and not merely a fuzzer curiosity: FJ-040's control fuzz target asserts a 64 KiB response bound and FAILS on this input, which makes the guard fuzz row corpus-dependent - it passes only because a 30s window does not construct the input. That is the FJ-060 class of flakiness (a fuzz target that can fail on realistic input) layered on a real defect, and it is why FJ-040 was parked rather than closed.",
+    "Authority note recorded honestly: the specification sets no control-plane RESPONSE size limit, and the 64 KiB bound the fuzz target asserts is FJ-040's own robustness criterion rather than a spec clause. This item therefore must not be justified as enforcing a spec limit; it is justified as removing a quadratic resource amplification reachable from untrusted input, which section 19's resource-bound posture and the 'controlled error' notion in C-QUAL-004 both support. The bounded message must stay a useful diagnostic rather than becoming a generic failure.",
+    "FJ-040 is parked at status blocked with blocker type dependency trackedBy FJ-065."
+  ],
+  "statusHistory": [
+    "planned"
+  ]
+}
